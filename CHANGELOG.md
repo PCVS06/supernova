@@ -10,6 +10,8 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
+- Changed the desktop, favicon, and new-session branding to a custom white π mark on a black background.
+
 ### Fixed
 
 ### Removed
