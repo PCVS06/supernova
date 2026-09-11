@@ -1,5 +1,6 @@
 import {Schema} from "effect";
 import {ModelReference} from "@supernova/contracts/sessions/schemas";
+import {HarnessWorkflow} from "@supernova/contracts/harnesses/schemas/workflow";
 
 export const HarnessExecution = Schema.Struct({model: Schema.optional(ModelReference), effort: Schema.optional(Schema.String)});
 
@@ -33,7 +34,10 @@ export const HarnessConfig = Schema.Struct({
     reserveTokens: Schema.Number,
     keepRecentTokens: Schema.Number,
   }),
+  /** Legacy handoff list. Mirrors the first workflow's agent order; the runtime executes `workflows`. */
   graph: Schema.Struct({steps: Schema.Array(Schema.String)}),
+  /** Named sequential workflows with typed handoffs. Absent in libraries saved before workflows existed. */
+  workflows: Schema.optional(Schema.Array(HarnessWorkflow)),
   loop: Schema.Struct({maxTurns: Schema.Number, timeoutSeconds: Schema.Number}),
   source: Schema.optional(Schema.Struct({packagePath: Schema.String, rootPath: Schema.String})),
 });

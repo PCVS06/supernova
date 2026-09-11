@@ -1,5 +1,14 @@
 import {Schema} from "effect";
-import {ChatHarnessContext, HarnessConfig, HarnessLibrary, HarnessProject, HarnessRun, HarnessRunSummary} from "@supernova/contracts/harnesses/schemas";
+import {
+  ChatHarnessContext,
+  HarnessConfig,
+  HarnessLibrary,
+  HarnessProject,
+  HarnessRun,
+  HarnessRunSummary,
+  WorkflowRun,
+  WorkflowRunSummary,
+} from "@supernova/contracts/harnesses/schemas";
 import {Session} from "@supernova/contracts/sessions/schemas";
 
 export const GetHarnessLibraryPayload = Schema.Struct({});
@@ -17,4 +26,7 @@ export const GetChatHarnessResult = ChatHarnessContext;
 export const ListHarnessRunsResult = Schema.Array(HarnessRunSummary);
 export const GetHarnessRunPayload = Schema.Struct({sessionId: Schema.String, runId: Schema.String});
 export const GetHarnessRunResult = HarnessRun;
+export const ListWorkflowRunsResult = Schema.Array(WorkflowRunSummary);
+export const GetWorkflowRunPayload = Schema.Struct({sessionId: Schema.String, runId: Schema.String});
+export const GetWorkflowRunResult = WorkflowRun;
 export class HarnessConfigurationError extends Schema.TaggedErrorClass<HarnessConfigurationError>()("HarnessConfigurationError", {message: Schema.String}) {}
