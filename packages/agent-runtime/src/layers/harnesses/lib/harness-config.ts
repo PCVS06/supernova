@@ -1,3 +1,4 @@
+import {isAbsolute} from "node:path";
 import type {HarnessConfig, HarnessLibrary, HarnessProject, HarnessSnapshot, HarnessWorkflow} from "@supernova/contracts/harnesses/schemas";
 
 /** Adds the existing Science workspace's explicit head/lab relationship without changing imported prompts. */
@@ -6,6 +7,8 @@ const fieldName = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
 /** Upper bound on shared, context and one role prompt together, before context files. Roughly 100k tokens. */
 export const maxInstructionChars = 400000;
 export const maxWorkflowSteps = 12;
+const maxPlanningDocuments = 12;
+const planningDocument = /\.(md|markdown)$/i;
 
 /** Turns a pre-workflow handoff list into one sequential workflow with a single string handoff per step. */
 export function migrateLegacyGraph(harness: HarnessConfig): HarnessWorkflow[] {
@@ -161,6 +164,12 @@ export function validateWorkflows(workflows: readonly HarnessWorkflow[], agentNa
 export function resolveHarnessProject(harness: HarnessConfig, project: HarnessProject, revision: number): HarnessSnapshot {
   if (project.color && !/^#[0-9a-fA-F]{6}$/.test(project.color)) throw new Error("Choose a valid project color.");
   if (project.order !== undefined && (!Number.isInteger(project.order) || project.order < 0)) throw new Error("Project order must be a non-negative integer.");
+  const planningDocuments = project.planningDocuments ?? [];
+  if (planningDocuments.length > maxPlanningDocuments) throw new Error(`Choose at most ${maxPlanningDocuments} planning documents.`);
+  for (const file of planningDocuments) {
+    if (isAbsolute(file) || file.split(/[/\\]/).includes("..") || !planningDocument.test(file))
+      throw new Error(`Planning documents must be project-relative Markdown files without "..": ${file}`);
+  }
   const agents = new Map(harness.agents.map((agent) => [agent.name, agent]));
   for (const agent of project.agents) agents.set(agent.name, agent);
   const resolved = {

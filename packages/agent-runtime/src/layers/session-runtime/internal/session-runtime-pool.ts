@@ -4,6 +4,7 @@ import type {
   RedoCheckpointPayload,
   RevertToMessagePayload,
   SendMessagePayload,
+  SteerSessionPayload,
   UndoCheckpointPayload,
 } from "@supernova/contracts/session-runtime/procedures";
 import {abortSession} from "@supernova/agent-runtime/layers/session-runtime/operations/abort-session";
@@ -12,6 +13,7 @@ import {revertToMessage} from "@supernova/agent-runtime/layers/session-runtime/o
 import {undoCheckpoint} from "@supernova/agent-runtime/layers/session-runtime/operations/checkpoint/undo-checkpoint";
 import {compactSession} from "@supernova/agent-runtime/layers/session-runtime/operations/compact-session";
 import {sendMessage} from "@supernova/agent-runtime/layers/session-runtime/operations/send-message";
+import {steerSession} from "@supernova/agent-runtime/layers/session-runtime/operations/steer-session";
 import {PiSessionRuntime} from "@supernova/agent-runtime/layers/session-runtime/internal/pi-session-runtime";
 import type {PiSessionRuntimeDependencies} from "@supernova/agent-runtime/layers/session-runtime/internal/pi-session-runtime";
 import type {PiSessionTitleGeneratorShape} from "@supernova/agent-runtime/layers/session-runtime/internal/pi-session-title-generator";
@@ -30,6 +32,11 @@ export class SessionRuntimePool {
   /** Starts accepted message work on the target session runtime. */
   public async sendMessage(input: SendMessagePayload): Promise<void> {
     await sendMessage(this.getOrCreateRuntime(input.sessionId), this.titleGenerator, input);
+  }
+
+  /** Steers the turn a retained runtime is streaming, without starting one of its own. */
+  public async steerSession(input: SteerSessionPayload): Promise<void> {
+    await steerSession(this.runtimes.get(input.sessionId), input);
   }
 
   /** Starts manual compaction on the target session runtime. */

@@ -39,6 +39,17 @@ describe("harness runtime resources", () => {
     expect(resourceLoader.getExtensions().errors).toEqual([]);
   });
 
+  it("appends project planning documents and skips one that is missing", async () => {
+    await writeFile(join(root, "roadmap.md"), "Ship the planning editor");
+    snapshot = {...snapshot, project: {...snapshot.project, planningDocuments: ["roadmap.md", "plans/gone.md"]}};
+
+    const {resourceLoader} = await createHarnessResources(snapshot);
+
+    const prompt = resourceLoader.getAppendSystemPrompt().join("\n");
+    expect(prompt).toContain("Project planning document: roadmap.md\n\nShip the planning editor");
+    expect(prompt).not.toContain("gone.md");
+  });
+
   it("rejects context symlinks that escape the project", async () => {
     await symlink(tmpdir(), join(root, "outside"));
     snapshot = {...snapshot, harness: {...snapshot.harness, context: {...snapshot.harness.context, files: ["outside"]}}};

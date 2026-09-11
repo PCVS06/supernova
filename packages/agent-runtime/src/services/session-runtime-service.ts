@@ -7,6 +7,7 @@ import type {
   RevertToMessagePayload,
   SendMessagePayload,
   SessionStreamEvent,
+  SteerSessionPayload,
   UndoCheckpointPayload,
 } from "@supernova/contracts/session-runtime/procedures";
 import type {Session} from "@supernova/contracts/sessions/schemas";
@@ -20,6 +21,7 @@ export interface SessionRuntimeServiceShape {
   readonly releaseSession: (sessionId: string) => Effect.Effect<void>;
   readonly revertToMessage: (input: RevertToMessagePayload) => Effect.Effect<void, CheckpointNavigationError>;
   readonly sendMessage: (input: SendMessagePayload) => Effect.Effect<void>;
+  readonly steerSession: (input: SteerSessionPayload) => Effect.Effect<void>;
   readonly undoCheckpoint: (input: UndoCheckpointPayload) => Effect.Effect<void, CheckpointNavigationError>;
   readonly watchEvents: () => Stream.Stream<SessionStreamEvent>;
 }

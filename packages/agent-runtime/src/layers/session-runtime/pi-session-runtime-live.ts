@@ -33,6 +33,7 @@ export const PiSessionRuntimeFromInternal = Layer.effect(
       releaseSession: (sessionId) => Effect.promise(() => pool.releaseSession(sessionId)),
       revertToMessage: (input) => Effect.tryPromise({try: () => pool.revertToMessage(input), catch: asCheckpointNavigationError}),
       sendMessage: (input) => Effect.promise(() => pool.sendMessage(input)),
+      steerSession: (input) => Effect.promise(() => pool.steerSession(input)),
       undoCheckpoint: (input) => Effect.tryPromise({try: () => pool.undoCheckpoint(input), catch: asCheckpointNavigationError}),
       watchEvents: () => Stream.concat(Stream.make({type: "connected"} satisfies SessionStreamEvent), eventBus.stream()),
     };

@@ -54,6 +54,19 @@ function executionLimits(snapshot: HarnessSnapshot, windDown?: () => void): Exte
   };
 }
 
+/** Upper bound on one appended instruction file, so a single document cannot crowd out the conversation. */
+const maxInstructionFileBytes = 128000;
+
+/** Reads one project-relative instruction file, refusing absolute paths, symlink escapes and oversized documents. */
+async function readInstructionFile(projectRoot: string, file: string, label: string): Promise<string> {
+  if (isAbsolute(file)) throw new Error(`${label} must be project-relative.`);
+  const target = await realpath(resolve(projectRoot, file));
+  const rel = relative(projectRoot, target);
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error(`${label} escapes the project directory.`);
+  if ((await stat(target)).size > maxInstructionFileBytes) throw new Error(`${label} is too large: ${file}`);
+  return readFile(target, "utf8");
+}
+
 /**
  * Loads only explicitly configured extensions and context; no ambient package auto-discovery.
  * `windDown` is called shortly before the loop limits so the caller can steer its own session; leaving it out keeps the bare abort.
@@ -69,12 +82,13 @@ export async function createHarnessResources(
   const contextFiles: string[] = [];
   const projectRoot = await realpath(project.path);
   for (const file of harness.context.files) {
-    if (isAbsolute(file)) throw new Error("Additional context files must be project-relative.");
-    const target = await realpath(resolve(projectRoot, file));
-    const rel = relative(projectRoot, target);
-    if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error("Context file escapes the project directory.");
-    if ((await stat(target)).size > 128000) throw new Error(`Context file is too large: ${file}`);
-    contextFiles.push(`Project context file: ${file}\n\n${await readFile(target, "utf8")}`);
+    contextFiles.push(`Project context file: ${file}\n\n${await readInstructionFile(projectRoot, file, "Context file")}`);
+  }
+  for (const file of project.planningDocuments ?? []) {
+    // Plans, goals and roadmaps every agent in this project works from. One that has been moved or deleted
+    // must not block the chat; the resources view reports it as a warning instead.
+    if (!(await stat(resolve(projectRoot, file)).catch(() => undefined))) continue;
+    contextFiles.push(`Project planning document: ${file}\n\n${await readInstructionFile(projectRoot, file, "Planning document")}`);
   }
   const settingsManager = SettingsManager.inMemory({
     compaction: {enabled: harness.context.autoCompaction, reserveTokens: harness.context.reserveTokens, keepRecentTokens: harness.context.keepRecentTokens},

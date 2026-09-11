@@ -122,6 +122,18 @@ export class PiSessionRuntime {
     await this.agentSession?.abort().catch(() => undefined);
   }
 
+  /**
+   * Delivers a steering message into the turn this runtime is already streaming.
+   *
+   * Steering is not a new turn: it neither takes the command lock nor touches the
+   * committed/live view split. An idle session has nothing to interrupt, so the message is
+   * dropped; the client only offers steering while a turn is running.
+   */
+  public async steer(text: string): Promise<void> {
+    if (!this.agentSession?.isStreaming) return;
+    await this.agentSession.steer(text);
+  }
+
   /** Returns the session manager owned by this runtime's Pi agent session. */
   public async getSessionManager(): Promise<PiSessionManager> {
     return (await this.getAgentSession()).sessionManager;
