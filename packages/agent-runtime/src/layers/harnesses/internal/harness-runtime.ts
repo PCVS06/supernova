@@ -5,9 +5,11 @@ import {DefaultResourceLoader, getAgentDir, SessionManager, SettingsManager} fro
 import type {ExtensionContext, ExtensionFactory, ResourceLoader, ToolDefinition} from "@earendil-works/pi-coding-agent";
 import {Type} from "typebox";
 import {getSupportedThinkingLevels} from "@earendil-works/pi-ai";
-import type {HarnessAgent, HarnessSnapshot, HarnessRun} from "@supernova/contracts/harnesses/schemas";
+import type {HarnessAgent, HarnessSnapshot, HarnessRun, WorkflowStepUsage} from "@supernova/contracts/harnesses/schemas";
 import {harnessPromptLayers} from "@supernova/agent-runtime/layers/harnesses/lib/harness-prompts";
 import {HarnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
+import {describeWorkflowRun, runWorkflow} from "@supernova/agent-runtime/layers/harnesses/internal/workflow-runner";
+import {HarnessConfigurationFailure} from "@supernova/agent-runtime/layers/harnesses/lib/harness-failures";
 import {captureHarnessContext} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-context";
 import {createHarnessViewTool} from "@supernova/agent-runtime/layers/harnesses/internal/harness-view-tool";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
@@ -17,31 +19,50 @@ import {toPiThinkingLevel} from "@supernova/agent-runtime/layers/session-runtime
 import type {PiSdkServiceShape} from "@supernova/agent-runtime/layers/pi-sdk";
 import {createPiCustomTools} from "@supernova/agent-runtime/layers/session-runtime/internal/tools/create-pi-custom-tools";
 
-function executionLimits(snapshot: HarnessSnapshot): ExtensionFactory {
+/** Sent one turn, or thirty seconds, before a worker would otherwise be cut off in the middle of exploring. */
+const windDownMessage =
+  "Your turn and time budget for this task is nearly exhausted. Stop exploring, make no further tool calls, and write your findings, partial results and next steps as your final answer now.";
+
+/** Bounds a worker's loop: it is steered to write up shortly before the turn and time limits, and still aborted at them. */
+function executionLimits(snapshot: HarnessSnapshot, windDown?: () => void): ExtensionFactory {
   return (pi) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let warning: ReturnType<typeof setTimeout> | undefined;
     const clear = () => {
       if (timer) clearTimeout(timer);
+      if (warning) clearTimeout(warning);
       timer = undefined;
+      warning = undefined;
     };
+    const {maxTurns, timeoutSeconds} = snapshot.harness.loop;
     pi.on("agent_start", (_event, ctx) => {
       clear();
-      timer = setTimeout(() => ctx.abort(), snapshot.harness.loop.timeoutSeconds * 1000);
+      timer = setTimeout(() => ctx.abort(), timeoutSeconds * 1000);
       timer.unref();
+      // Under ninety seconds there is no room for a write-up between the note and the abort, so the note is skipped.
+      if (windDown && timeoutSeconds >= 90) {
+        warning = setTimeout(windDown, (timeoutSeconds - 30) * 1000);
+        warning.unref();
+      }
     });
     pi.on("turn_start", (event, ctx) => {
-      if (event.turnIndex >= snapshot.harness.loop.maxTurns) ctx.abort();
+      if (windDown && event.turnIndex === maxTurns - 1) windDown();
+      if (event.turnIndex >= maxTurns) ctx.abort();
     });
     pi.on("agent_end", clear);
     pi.on("session_shutdown", clear);
   };
 }
 
-/** Loads only explicitly configured extensions and context; no ambient package auto-discovery. */
+/**
+ * Loads only explicitly configured extensions and context; no ambient package auto-discovery.
+ * `windDown` is called shortly before the loop limits so the caller can steer its own session; leaving it out keeps the bare abort.
+ */
 export async function createHarnessResources(
   snapshot: HarnessSnapshot,
   specialistPrompt?: string,
-  skillNames?: readonly string[]
+  skillNames?: readonly string[],
+  windDown?: () => void
 ): Promise<{resourceLoader: ResourceLoader; settingsManager: SettingsManager}> {
   const {harness, project} = snapshot;
   await toolCredentials.loadIntoRuntime();
@@ -74,7 +95,7 @@ export async function createHarnessResources(
       ...base,
       skills: base.skills.filter((skill) => (!harness.enabledSkills || harness.enabledSkills.includes(skill.name)) && (!skillNames || skillNames.includes(skill.name))),
     }),
-    extensionFactories: [executionLimits(snapshot)],
+    extensionFactories: [executionLimits(snapshot, windDown)],
     systemPrompt: "",
     systemPromptOverride: () => undefined,
     appendSystemPrompt: [],
@@ -96,7 +117,10 @@ export async function createHarnessResources(
           ? `Labs reporting to this head orchestrator (use lab_agent with the exact projectId):\n${snapshot.delegation.projects.map((lab) => `${lab.id}: ${lab.name}`).join("\n")}`
           : "",
         specialistPrompt === undefined && harness.agents.length > 0
-          ? `Harness specialists available through subagent:\n${harness.agents.map((agent) => `${agent.name}: ${agent.description}`).join("\n")}\nThe configured handoff workflow can be invoked with harness_workflow. Delegation is explicit; no specialist is running until invoked.`
+          ? `Harness specialists available through subagent:\n${harness.agents.map((agent) => `${agent.name}: ${agent.description}`).join("\n")}\nDelegation is explicit; no specialist is running until invoked.`
+          : "",
+        specialistPrompt === undefined && harness.workflows?.length
+          ? `Named workflows available through harness_workflow (pass the exact workflowId):\n${harness.workflows.map((item) => `${item.id}: ${item.name}. ${item.description}`).join("\n")}`
           : "",
       ].filter(Boolean),
   });
@@ -113,12 +137,24 @@ const delegateParameters = Type.Object({
   chain: Type.Optional(Type.Array(delegationTask, {minItems: 1, maxItems: 12})),
   tasks: Type.Optional(Type.Array(delegationTask, {minItems: 1, maxItems: 3})),
 });
-const workflowParameters = Type.Object({task: Type.String({minLength: 1, maxLength: 100000})});
+const workflowParameters = Type.Object({
+  workflowId: Type.Optional(Type.String()),
+  task: Type.String({minLength: 1, maxLength: 100000}),
+  resumeRunId: Type.Optional(Type.String()),
+  allowExternalRetry: Type.Optional(Type.Boolean()),
+});
 const labParameters = Type.Object({projectId: Type.String(), task: Type.String({minLength: 1, maxLength: 100000})});
 
 /** Runs configured specialists in isolated in-memory sessions with explicit tool allowlists. */
 export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServiceShape, trace?: {chatId: string; store: HarnessRunStore; parentRunId?: string}): ToolDefinition[] {
-  const runSession = async (child: HarnessSnapshot, name: string, task: string, ctx: ExtensionContext, signal?: AbortSignal, agent?: HarnessAgent): Promise<string> => {
+  const runSession = async (
+    child: HarnessSnapshot,
+    name: string,
+    task: string,
+    ctx: ExtensionContext,
+    signal?: AbortSignal,
+    agent?: HarnessAgent
+  ): Promise<{runId?: string; text: string; usage: WorkflowStepUsage}> => {
     const now = new Date().toISOString();
     let receipt: HarnessRun | undefined = trace
       ? {
@@ -160,12 +196,22 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
       const execution = {...child.harness.execution, ...agent?.execution};
       const reference = execution?.model;
       const model = reference ? piSdk.modelRuntime.getAvailableSnapshot().find((item) => item.id === reference.id && item.provider === reference.providerId) : ctx.model;
-      if (reference && !model) throw new Error(`Model unavailable for ${name}: ${reference.providerId}/${reference.id}. Update its model in Agents.`);
+      if (reference && !model) throw new HarnessConfigurationFailure(`Model unavailable for ${name}: ${reference.providerId}/${reference.id}. Update its model in Agents.`);
       const inheritedEffort = ctx.sessionManager?.getBranch().findLast((entry) => entry.type === "thinking_level_change")?.thinkingLevel;
       const thinkingLevel = toPiThinkingLevel(execution?.effort ?? reference?.thinkingLevel ?? inheritedEffort);
       if (model && execution?.effort && !getSupportedThinkingLevels(model).includes(thinkingLevel))
-        throw new Error(`The selected model does not support ${execution.effort} effort for ${name}.`);
-      const resources = await createHarnessResources(child, agent?.systemPrompt, agent?.skillNames);
+        throw new HarnessConfigurationFailure(`The selected model does not support ${execution.effort} effort for ${name}.`);
+      // The loop limits live in an extension loaded with the resources, while the session it steers exists only afterwards.
+      let windDown: (() => void) | undefined = undefined;
+      const resources = await createHarnessResources(child, agent?.systemPrompt, agent?.skillNames, () => windDown?.());
+      if (model) {
+        const estimate = Math.ceil(resources.resourceLoader.getAppendSystemPrompt().join("\n\n").length / 4);
+        const budget = model.contextWindow - child.harness.context.reserveTokens;
+        if (estimate > budget)
+          throw new HarnessConfigurationFailure(
+            `Instructions for ${name} need about ${estimate.toLocaleString()} tokens, which does not fit ${model.id}: its window is ${model.contextWindow.toLocaleString()} tokens and ${child.harness.context.reserveTokens.toLocaleString()} are reserved, leaving ${budget.toLocaleString()}. Shorten the instructions or the context files.`
+          );
+      }
       const {session} = await piSdk.createAgentSession({
         ...resources,
         cwd: child.project.path,
@@ -177,6 +223,12 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
         customTools: [...createPiCustomTools(), ...(!agent ? createHarnessTools(child, piSdk, trace ? {...trace, parentRunId: receipt?.id} : undefined) : [])],
         excludeTools: agent ? ["subagent", "harness_workflow", "lab_agent", "manage_lab_view"] : ["lab_agent"],
       });
+      let steered = false;
+      windDown = () => {
+        if (steered) return;
+        steered = true;
+        void session.steer(windDownMessage);
+      };
       const unsubscribe = trace
         ? session.subscribe((event) => {
             if (event.type === "agent_start") {
@@ -199,7 +251,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
         await session.prompt(task);
         await session.agent.waitForIdle();
         if (signal?.aborted) throw new Error("Delegation cancelled.");
-        const answer = session.state.messages.filter((message) => message.role === "assistant").at(-1);
+        const answers = session.state.messages.filter((message) => message.role === "assistant");
+        const answer = answers.at(-1);
         const text =
           answer?.content
             .filter((part) => part.type === "text")
@@ -210,7 +263,15 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
         update({status: "completed", output: text, activity: "Completed", finishedAt: new Date().toISOString()});
         await writes;
         if (writeError) throw new Error(`Worker finished but its activity could not be saved: ${String(writeError)}`);
-        return `${name}\n${text}`;
+        const usage = answers.reduce(
+          (total, message) => ({
+            inputTokens: total.inputTokens + message.usage.input,
+            outputTokens: total.outputTokens + message.usage.output,
+            costUsd: total.costUsd + message.usage.cost.total,
+          }),
+          {inputTokens: 0, outputTokens: 0, costUsd: 0}
+        );
+        return {runId: receipt?.id, text, usage};
       } finally {
         unsubscribe?.();
         signal?.removeEventListener("abort", abort);
@@ -226,7 +287,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
   const run = async (name: string, task: string, ctx: ExtensionContext, signal?: AbortSignal) => {
     const agent = snapshot.harness.agents.find((item) => item.name === name);
     if (!agent) throw new Error(`Unknown harness specialist: ${name}`);
-    return runSession(snapshot, name, task, ctx, signal, agent);
+    const {text} = await runSession(snapshot, name, task, ctx, signal, agent);
+    return `${name}\n${text}`;
   };
   const chain = async (steps: readonly {agent: string; task: string}[], ctx: ExtensionContext, signal?: AbortSignal) => {
     let previous = "";
@@ -262,7 +324,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
   const delegate: ToolDefinition<typeof delegateParameters> = {
     name: "subagent",
     label: "Harness specialists",
-    description: "Delegate to this harness's specialists. Use agent/task, chain for sequential handoffs, or up to three parallel tasks. Specialists cannot recursively delegate.",
+    description:
+      "Delegate ad hoc work to this harness's specialists: agent/task for one, chain for sequential handoffs, or up to three parallel tasks. Free text in, free text out, nothing saved. Use harness_workflow instead to run one of this harness's named workflows. Specialists cannot recursively delegate.",
     parameters: delegateParameters,
     executionMode: "sequential",
     async execute(_id, params, signal, _update, ctx) {
@@ -279,17 +342,36 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
   const workflow: ToolDefinition<typeof workflowParameters> = {
     name: "harness_workflow",
     label: "Harness workflow",
-    description: "Explicitly run the configured specialist handoff graph for a task. Does not start experiments or an autonomous outer loop.",
+    description:
+      "Run one of this harness's named workflows. Each step runs its configured agent, receives only the validated JSON output of the steps it reads, and the whole run is saved step by step. Defaults to the first workflow. A failed run stops at its step and is continued with resumeRunId; completed steps are never repeated. Use subagent for ad hoc delegation instead.",
     parameters: workflowParameters,
     executionMode: "sequential",
     async execute(_id, params, signal, _update, ctx) {
-      if (!snapshot.harness.graph.steps.length) throw new Error("No workflow steps configured for this harness.");
-      const text = await chain(
-        snapshot.harness.graph.steps.map((agent) => ({agent, task: params.task})),
-        ctx,
-        signal
-      );
-      return {content: [{type: "text", text}], details: {steps: snapshot.harness.graph.steps}};
+      if (!trace) throw new Error("Workflow runs need a chat to save their state.");
+      const resume = params.resumeRunId ? await trace.store.getWorkflowRun(trace.chatId, params.resumeRunId) : undefined;
+      const workflows = snapshot.harness.workflows ?? [];
+      const selected = resume?.workflow ?? (params.workflowId ? workflows.find((item) => item.id === params.workflowId) : workflows[0]);
+      if (!selected)
+        throw new Error(
+          params.workflowId
+            ? `Unknown workflow: ${params.workflowId}. This harness offers ${workflows.map((item) => item.id).join(", ") || "none"}.`
+            : "No workflow is configured for this harness."
+        );
+      const completed = await runWorkflow({
+        snapshot,
+        workflow: selected,
+        chatId: trace.chatId,
+        task: resume?.task ?? params.task,
+        store: trace.store,
+        resume,
+        allowExternalRetry: params.allowExternalRetry,
+        signal,
+        execute: ({snapshot: child, agent, task, signal: childSignal}) => runSession(child, agent.name, task, ctx, childSignal, agent),
+      });
+      return {
+        content: [{type: "text", text: describeWorkflowRun(completed)}],
+        details: {workflowRunId: completed.id, status: completed.status, cursor: completed.cursor},
+      };
     },
   };
   const lab: ToolDefinition<typeof labParameters> = {
@@ -303,8 +385,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
       const project = snapshot.delegation?.projects.find((item) => item.id === params.projectId);
       if (!project || !snapshot.delegation) throw new Error("This lab does not report to this head orchestrator.");
       const child = resolveHarnessProject(snapshot.delegation.harness, project, snapshot.revision);
-      const text = await runSession(child, project.name, params.task, ctx, signal);
-      return {content: [{type: "text", text}], details: {projectId: project.id, agentName: project.name}};
+      const {text} = await runSession(child, project.name, params.task, ctx, signal);
+      return {content: [{type: "text", text: `${project.name}\n${text}`}], details: {projectId: project.id, agentName: project.name}};
     },
   };
   const view = createHarnessViewTool(snapshot, harnessStore);

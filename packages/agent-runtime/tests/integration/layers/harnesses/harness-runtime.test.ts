@@ -7,7 +7,7 @@ import type {ExtensionContext} from "@earendil-works/pi-coding-agent";
 import type {PiSdkServiceShape} from "@supernova/agent-runtime/layers/pi-sdk";
 import {createDefaultHarness, resolveHarnessProject} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 import {createHarnessResources, createHarnessTools} from "@supernova/agent-runtime/layers/harnesses/internal/harness-runtime";
-import {selectedPiModel} from "@tests/support/layers/pi-session-test-utils";
+import {fauxAssistantMessage, selectedPiModel} from "@tests/support/layers/pi-session-test-utils";
 
 describe("harness runtime resources", () => {
   let root: string;
@@ -51,7 +51,7 @@ describe("harness runtime resources", () => {
       bindExtensions: vi.fn(async () => {}),
       prompt: vi.fn(async () => {}),
       agent: {waitForIdle: vi.fn(async () => {})},
-      state: {messages: [{role: "assistant", content: [{type: "text", text: "Verified result"}], stopReason: "stop"}]},
+      state: {messages: [fauxAssistantMessage("Verified result")]},
       dispose,
     };
     const createAgentSession = vi.fn(async (options: Parameters<PiSdkServiceShape["createAgentSession"]>[0]) => {
@@ -102,7 +102,7 @@ describe("harness runtime resources", () => {
         bindExtensions: vi.fn(),
         prompt: vi.fn(),
         agent: {waitForIdle: vi.fn()},
-        state: {messages: [{role: "assistant", content: [{type: "text", text: "Done"}], stopReason: "stop"}]},
+        state: {messages: [fauxAssistantMessage("Done")]},
         dispose: vi.fn(),
       },
     }));
@@ -125,7 +125,7 @@ describe("harness runtime resources", () => {
         bindExtensions: vi.fn(),
         prompt: vi.fn(),
         agent: {waitForIdle: vi.fn()},
-        state: {messages: [{role: "assistant", content: [{type: "text", text: options?.cwd}], stopReason: "stop"}]},
+        state: {messages: [fauxAssistantMessage(options?.cwd ?? "")]},
         dispose: vi.fn(),
       },
     }));

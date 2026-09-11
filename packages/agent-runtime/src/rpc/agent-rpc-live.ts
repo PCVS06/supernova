@@ -54,9 +54,16 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
           await Effect.runPromise(sessions.get(sessionId));
           return harnessRunStore.get(sessionId, runId);
         }),
-      // Placeholder until the workflow run store lands; listing an empty history keeps clients functional.
-      listWorkflowRuns: () => configurationEffect(async () => []),
-      getWorkflowRun: ({runId}) => configurationEffect(async () => Promise.reject(new Error(`Workflow run ${runId} is not available yet.`))),
+      listWorkflowRuns: ({sessionId}) =>
+        configurationEffect(async () => {
+          await Effect.runPromise(sessions.get(sessionId));
+          return harnessRunStore.listWorkflowRuns(sessionId);
+        }),
+      getWorkflowRun: ({sessionId, runId}) =>
+        configurationEffect(async () => {
+          await Effect.runPromise(sessions.get(sessionId));
+          return harnessRunStore.getWorkflowRun(sessionId, runId);
+        }),
       getHarnessSkills: ({harnessId}) => configurationEffect(async () => (await harnessStore.listSkills(harnessId)).map(({name, description}) => ({name, description}))),
       saveHarness: ({harness, expectedRevision}) => configurationEffect(() => harnessStore.save(harness, expectedRevision)),
       saveHarnessProject: ({project, expectedRevision}) => configurationEffect(() => harnessStore.saveProject(project, expectedRevision)),

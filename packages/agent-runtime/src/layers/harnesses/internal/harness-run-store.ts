@@ -2,7 +2,7 @@ import {randomUUID} from "node:crypto";
 import {mkdir, readFile, readdir, rename, writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {Schema} from "effect";
-import {HarnessRun, HarnessRunSummary, HarnessRuntimeContext} from "@supernova/contracts/harnesses/schemas";
+import {HarnessRun, HarnessRunSummary, HarnessRuntimeContext, WorkflowRun, WorkflowRunSummary} from "@supernova/contracts/harnesses/schemas";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 
 function safeId(id: string): string {
@@ -73,6 +73,47 @@ export class HarnessRunStore {
     const run = Schema.decodeUnknownSync(HarnessRun)(record.run);
     if (run.chatId !== chatId || run.id !== runId) throw new Error("Run does not belong to this chat.");
     return this.recovered({pid: record.pid, run});
+  }
+
+  /** Saves a workflow run and its index under names the specialist receipt listing cannot pick up. */
+  public async saveWorkflowRun(run: WorkflowRun): Promise<void> {
+    const record = Schema.decodeUnknownSync(WorkflowRun)(run);
+    await this.write(run.chatId, `${safeId(run.id)}.workflow.json`, {run: record, pid: process.pid});
+    const summary = Schema.decodeUnknownSync(WorkflowRunSummary)(record);
+    await this.write(run.chatId, `${safeId(run.id)}.workflow-summary.json`, {run: {...summary, task: summary.task.slice(0, 300)}, pid: process.pid});
+  }
+
+  /** Applies the same liveness rule as specialist receipts: a run whose writer is gone was interrupted. */
+  private recoveredWorkflow<T extends WorkflowRunSummary>(record: {run: T; pid: number}): T {
+    return record.run.status === "running" && !this.isAlive(record.pid) ? {...record.run, status: "interrupted", error: "App stopped before this run finished."} : record.run;
+  }
+
+  /** Lists this chat's workflow runs, ignoring the specialist receipts stored beside them. */
+  public async listWorkflowRuns(chatId: string): Promise<WorkflowRunSummary[]> {
+    const directory = join(this.root, safeId(chatId));
+    let names: string[];
+    try {
+      names = await readdir(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const results: WorkflowRunSummary[] = [];
+    for (const name of names.filter((name) => name.endsWith(".workflow-summary.json"))) {
+      const record = JSON.parse(await readFile(join(directory, name), "utf8"));
+      const run = this.recoveredWorkflow({...record, run: Schema.decodeUnknownSync(WorkflowRunSummary)(record.run)});
+      if (run.chatId !== chatId) throw new Error("Run does not belong to this chat.");
+      results.push(run);
+    }
+    return results.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  }
+
+  /** Retrieves one exact workflow run, including its frozen workflow and step records. */
+  public async getWorkflowRun(chatId: string, runId: string): Promise<WorkflowRun> {
+    const record = JSON.parse(await readFile(join(this.root, safeId(chatId), `${safeId(runId)}.workflow.json`), "utf8"));
+    const run = Schema.decodeUnknownSync(WorkflowRun)(record.run);
+    if (run.chatId !== chatId || run.id !== runId) throw new Error("Run does not belong to this chat.");
+    return this.recoveredWorkflow({pid: record.pid, run});
   }
 
   /** Captures the effective runtime prompt, separately from editable future-chat settings. */

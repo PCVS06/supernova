@@ -8,7 +8,7 @@ import PiOrb from "@/components/brand/pi-orb";
 import {ConfigField, PromptEditor} from "@/features/harnesses/components/config-fields";
 import AgentsEditor from "@/features/harnesses/components/agents-editor";
 import LeadsEditor from "@/features/harnesses/components/leads-editor";
-import GraphEditor from "@/features/harnesses/components/graph-editor";
+import WorkflowsEditor from "@/features/harnesses/components/workflows-editor";
 import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import ResourcesEditor from "@/features/harnesses/components/resources-editor";
 import MemoryEditor from "@/features/harnesses/components/memory-editor";
@@ -167,7 +167,7 @@ function WorkspaceEditor(props: {harness: HarnessConfig; library: HarnessLibrary
             onChange={(value) => changeScope(project?.id, value)}
             items={[
               {label: "Overview", value: "Graph"},
-              {label: "Existing handoffs", value: "Workflow"},
+              {label: "Workflows", value: "Workflow"},
               {label: "Run limits", value: "Run limits"},
             ]}
           />
@@ -198,7 +198,11 @@ function WorkspaceEditor(props: {harness: HarnessConfig; library: HarnessLibrary
               else {
                 const renamed = new Map(draft.agents.map((agent, index) => [agent.name, agents.length === draft.agents.length ? agents[index]!.name : agent.name]));
                 const steps = draft.graph.steps.map((name) => renamed.get(name) ?? name).filter((name) => agents.some((agent) => agent.name === name));
-                setDraft({...draft, agents, graph: {steps}});
+                const workflows = draft.workflows?.map((workflow) => ({
+                  ...workflow,
+                  steps: workflow.steps.map((step) => ({...step, agent: renamed.get(step.agent) ?? step.agent})),
+                }));
+                setDraft({...draft, agents, graph: {steps}, workflows});
               }
             }}
           />
@@ -367,7 +371,7 @@ function WorkspaceEditor(props: {harness: HarnessConfig; library: HarnessLibrary
                   </p>
                 )}
                 <fieldset disabled={!!project}>
-                  <GraphEditor harness={effectiveHarness} onChange={(steps) => setDraft({...draft, graph: {steps}})} />
+                  <WorkflowsEditor harness={effectiveHarness} onChange={(change) => setDraft({...draft, ...change})} />
                 </fieldset>
               </>
             )}

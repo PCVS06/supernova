@@ -1,6 +1,17 @@
 import {createRootRouteWithContext, createRoute, createRouter, redirect} from "@tanstack/react-router";
 import type {AppEnvironment} from "@/lib/app-environment";
-import {HarnessRunRoute, HarnessConfigRoute, HarnessesRoute, HomeLayoutRoute, HomeRoute, NewSessionRoute, RootRoute, SessionRoute, SettingsSectionRoute} from "@/app/routes";
+import {
+  HarnessRunRoute,
+  HarnessConfigRoute,
+  HarnessesRoute,
+  HomeLayoutRoute,
+  HomeRoute,
+  NewSessionRoute,
+  RootRoute,
+  SessionRoute,
+  SettingsSectionRoute,
+  WorkflowRunRoute,
+} from "@/app/routes";
 import {defaultSettingsSectionId, settingsSections} from "@/features/settings/data/settings-sections";
 
 interface RouterContext {
@@ -37,6 +48,7 @@ const sessionRoute = createRoute({
   component: SessionRoute,
 });
 const harnessRunRoute = createRoute({getParentRoute: () => homeLayoutRoute, path: "session/$sessionId/run/$runId", component: HarnessRunRoute});
+const workflowRunRoute = createRoute({getParentRoute: () => homeLayoutRoute, path: "session/$sessionId/workflow/$runId", component: WorkflowRunRoute});
 
 const newSessionRoute = createRoute({
   getParentRoute: () => homeLayoutRoute,
@@ -67,7 +79,7 @@ const harnessConfigRoute = createRoute({
   }),
 });
 const routeTree = rootRoute.addChildren([
-  homeLayoutRoute.addChildren([indexRoute, newSessionRoute, sessionRoute, harnessRunRoute, harnessesRoute, harnessConfigRoute]),
+  homeLayoutRoute.addChildren([indexRoute, newSessionRoute, sessionRoute, harnessRunRoute, workflowRunRoute, harnessesRoute, harnessConfigRoute]),
   settingsRoute,
   settingsSectionRoute,
 ]);

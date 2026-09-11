@@ -9,7 +9,7 @@ import {HarnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/h
 import {createHarnessTools} from "@supernova/agent-runtime/layers/harnesses/internal/harness-runtime";
 import {createDefaultHarness, resolveHarnessProject} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 import {harnessPromptLayers} from "@supernova/agent-runtime/layers/harnesses/lib/harness-prompts";
-import {selectedPiModel} from "@tests/support/layers/pi-session-test-utils";
+import {fauxAssistantMessage, selectedPiModel} from "@tests/support/layers/pi-session-test-utils";
 
 describe("chat-owned worker receipts and view boundaries", () => {
   let root: string;
@@ -43,13 +43,14 @@ describe("chat-owned worker receipts and view boundaries", () => {
         },
         bindExtensions: vi.fn(),
         abort: vi.fn(),
+        steer: vi.fn(),
         dispose,
         getActiveToolNames: () => ["read"],
         model: selectedPiModel,
         thinkingLevel: options.thinkingLevel,
         systemPrompt: options.resourceLoader?.getAppendSystemPrompt().join("\n"),
         agent: {waitForIdle: vi.fn()},
-        state: {messages: [{role: "assistant", content: [{type: "text", text: "Verified evidence"}], stopReason: "stop"}]},
+        state: {messages: [fauxAssistantMessage("Verified evidence")]},
         prompt: async () => {
           await listener?.({type: "agent_start"});
           if (fail) throw new Error("Provider unavailable");

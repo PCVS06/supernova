@@ -1,20 +1,24 @@
 import type {ReactNode} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {beforeEach, describe, expect, it, vi} from "vitest";
-import type {HarnessRunSummary} from "@supernova/contracts/harnesses/schemas";
+import type {HarnessRunSummary, WorkflowRunSummary} from "@supernova/contracts/harnesses/schemas";
 import ChatRunList from "@/features/harnesses/components/chat-run-list";
 import InstructionReceipt from "@/features/harnesses/components/instruction-receipt";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 
-const state = vi.hoisted(() => ({runs: [] as HarnessRunSummary[]}));
+const state = vi.hoisted(() => ({runs: [] as HarnessRunSummary[], workflows: [] as WorkflowRunSummary[]}));
 vi.mock("@/features/harnesses/hooks/api/use-harness-runs", () => ({useHarnessRuns: () => ({data: state.runs})}));
+vi.mock("@/features/harnesses/hooks/api/use-workflow-runs", () => ({useWorkflowRuns: () => ({data: state.workflows})}));
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({children, params}: {children: ReactNode; params: {sessionId: string; runId: string}}) => <a href={`/session/${params.sessionId}/run/${params.runId}`}>{children}</a>,
+  Link: ({children, to, params}: {children: ReactNode; to: string; params: Record<string, string>}) => (
+    <a href={Object.entries(params).reduce((path, [key, value]) => path.replace(`$${key}`, value), to)}>{children}</a>
+  ),
 }));
 
 describe("chat organization", () => {
   beforeEach(() => {
     state.runs = [];
+    state.workflows = [];
   });
   it("does not fabricate workers for a chat with no delegations", () => {
     expect(renderToStaticMarkup(<ChatRunList sessionId="chat" />)).toBe("");
@@ -39,6 +43,69 @@ describe("chat organization", () => {
     expect(html).toContain("/session/chat/run/worker");
     expect(html).toMatch(/Lab lead.*<ul.*Source verifier.*Worker/s);
     expect(html).toContain('data-state="working"');
+  });
+  it("lists a workflow run and its progress above the workers it started", () => {
+    state.workflows = [
+      {
+        id: "wf-1",
+        chatId: "chat",
+        harnessId: "science",
+        projectId: "lab",
+        workflowId: "review",
+        workflowName: "Evidence review",
+        workflowRevision: 7,
+        task: "Check the claims in the draft",
+        status: "running",
+        cursor: 1,
+        stepCount: 2,
+        spentUsd: 0.2,
+        startedAt: "2026-09-11T10:00:00Z",
+        updatedAt: "2026-09-11T10:01:00Z",
+      },
+    ];
+    state.runs = [
+      {
+        id: "worker",
+        chatId: "chat",
+        harnessId: "science",
+        projectId: "lab",
+        projectName: "Lab",
+        agentName: "source-verifier",
+        role: "specialist",
+        status: "running",
+        task: "Verify",
+        startedAt: "2026-09-11T10:00:00Z",
+        updatedAt: "2026-09-11T10:01:00Z",
+      },
+    ];
+    const html = renderToStaticMarkup(<ChatRunList sessionId="chat" />);
+    expect(html).toContain('href="/session/chat/workflow/wf-1"');
+    expect(html).toContain("Evidence review");
+    expect(html).toContain("running · 1/2");
+    expect(html.indexOf("Evidence review")).toBeLessThan(html.indexOf("Source verifier"));
+  });
+  it("still renders the workflow timeline when no worker has started yet", () => {
+    state.workflows = [
+      {
+        id: "wf-2",
+        chatId: "chat",
+        harnessId: "science",
+        projectId: "lab",
+        workflowId: "review",
+        workflowName: "Evidence review",
+        workflowRevision: 7,
+        task: "Check the claims",
+        status: "completed",
+        cursor: 2,
+        stepCount: 2,
+        spentUsd: 0.4,
+        startedAt: "2026-09-11T10:00:00Z",
+        updatedAt: "2026-09-11T10:01:00Z",
+      },
+    ];
+    const html = renderToStaticMarkup(<ChatRunList sessionId="chat" />);
+    expect(html).toContain('href="/session/chat/workflow/wf-2"');
+    expect(html).not.toContain('aria-label="Workers in this chat"');
   });
   it("distinguishes a worker by shape, not only color", () => {
     const worker = renderToStaticMarkup(<AgentMark name="reviewer" color="#7dd3fc" />);

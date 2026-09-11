@@ -7,10 +7,16 @@ import SessionPage from "@/features/sessions/pages/session-page";
 import HarnessesPage from "@/features/harnesses/pages/harnesses-page";
 import HarnessConfigPage from "@/features/harnesses/pages/harness-config-page";
 import HarnessRunPage from "@/features/harnesses/pages/harness-run-page";
+import WorkflowRunPage from "@/features/harnesses/pages/workflow-run-page";
 
 export function HarnessRunRoute() {
   const {sessionId, runId} = useParams({from: "/home-layout/session/$sessionId/run/$runId"});
   return <HarnessRunPage sessionId={sessionId} runId={runId} />;
+}
+
+export function WorkflowRunRoute() {
+  const {sessionId, runId} = useParams({from: "/home-layout/session/$sessionId/workflow/$runId"});
+  return <WorkflowRunPage sessionId={sessionId} runId={runId} />;
 }
 
 export function HarnessesRoute() {

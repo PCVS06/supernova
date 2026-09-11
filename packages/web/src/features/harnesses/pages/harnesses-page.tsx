@@ -70,6 +70,7 @@ export default function HarnessesPage() {
                       skills: [],
                       context: {instructions: "", files: [], includeProjectInstructions: true, autoCompaction: true, reserveTokens: 16384, keepRecentTokens: 20000},
                       graph: {steps: []},
+                      workflows: [],
                       loop: {maxTurns: 40, timeoutSeconds: 900},
                     },
                   },
