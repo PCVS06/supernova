@@ -2,6 +2,8 @@
 
 Research snapshot: 2026-09-11. Companion to [graphs-orchestration.md](./graphs-orchestration.md). That file catalogues what other frameworks expose. This file answers the three questions it leaves open: how a graph workflow works mechanically, what Supernova's harness graph is today, and what it has to become before it can carry real coding work.
 
+Revised after review on 2026-09-11. The revisions are marked `revised`; the first-release implementation that followed is summarised in section 17.
+
 Every claim carries a label.
 
 | Label | Meaning |
@@ -23,7 +25,7 @@ Nodes and edges are the visible part and the least important. Five mechanisms de
 | A step boundary | A durable write of the cursor and channels between nodes | A crash costs the whole run rather than one node |
 | A join rule | An explicit reducer plus a tolerated-failure threshold for fan-in | One slow or failed branch decides the fate of the entire fan-out |
 
-The test to apply to any implementation: **a crash between two nodes should cost exactly the node that was running.** LangGraph is explicit that checkpoints are taken between nodes only, so work inside a single long node is lost when that node dies (`documented`, [durable execution](https://docs.langchain.com/oss/python/langgraph/durable-execution)). That makes node size a durability decision before it is a modelling decision: **make a node as large as the work you are willing to redo, and no larger.**
+The test to apply to any implementation: **a crash between two nodes should cost exactly the node that was running.** LangGraph checkpoints between supersteps, and within a parallel superstep it persists each task's successful output as a pending write so a failed sibling does not force the successful ones to rerun; work inside one still-running node is what a crash loses (`documented`, [durable execution](https://docs.langchain.com/oss/python/langgraph/durable-execution), [checkpointers](https://docs.langchain.com/oss/python/langgraph/checkpointers), `revised`). That makes node size a durability decision before it is a modelling decision: **make a node as large as the work you are willing to redo, and no larger.**
 
 The reliability arithmetic is the reason any of this matters. Steps that are independently 95% reliable compound to roughly 36% success across twenty unsupervised steps. The lever is fewer steps with firmer boundaries, not a better framework.
 
@@ -52,7 +54,7 @@ All `repo`.
 | `harness_workflow` runs the steps sequentially, passing one shared task string to all of them | [harness-runtime.ts:279](../../packages/agent-runtime/src/layers/harnesses/internal/harness-runtime.ts#L279) |
 | Fan-out is capped at three tasks, fails fast, and aborts siblings on the first rejection | [harness-runtime.ts:245](../../packages/agent-runtime/src/layers/harnesses/internal/harness-runtime.ts#L245) |
 | Both join rules concatenate strings with a `---` separator | same |
-| Specialists cannot delegate further, so depth is fixed at one | `subagent` tool description |
+| Specialists cannot delegate further. Depth is not one, though: the head orchestrator delegates to a lab lead through `lab_agent`, and the lead delegates to specialists, so the hierarchy is head, lead, specialist | `subagent` and `lab_agent` tool descriptions, `revised` |
 | Runs persist as receipts with atomic rename, and orphans become `interrupted` by a pid liveness check | [harness-run-store.ts](../../packages/agent-runtime/src/layers/harnesses/internal/harness-run-store.ts) |
 | No cursor is persisted, so an `interrupted` run can be reported but not resumed | same |
 
@@ -72,7 +74,7 @@ The fix is not a larger window. It is a named channel per artifact, with a schem
 
 ## 5. The convergent pipeline for coding work
 
-Production systems converge on five stages in this order. The stage names vary; the order and the gate placement do not.
+Production systems converge on five stages in this order. The stage names vary; the order and the gate placement do not. This is a design judgment drawn from reading the systems in the companion research, not a measured finding, and Science workflows may need different stages (`revised`).
 
 | Stage | Receives | Emits | Who decides |
 |---|---|---|---|
@@ -141,6 +143,8 @@ export const HarnessGraph = Schema.Struct({
 });
 ```
 
+Two corrections from review (`revised`). A channel that declares only a name and a merge rule is not typed; it needs a value schema, and `outputSchema` needs either an embedded schema or a registry it resolves against. Command nodes need a command definition and gate nodes need a decision contract, or they are labels. And a node must reference an existing lead or specialist and inherit that agent's prompt, tools and settings, with explicit overrides, so the workflow never becomes a second, conflicting place to configure agents. The implementation in section 17 embeds a closed field-type schema per step for this reason.
+
 Four fields carry most of the weight. `outputSchema` turns a handoff into a contract. `effects` states whether a node touches the workspace or the outside world, which is what decides retry safety. `checkpointBefore` binds the node to the existing shadow-git machinery. `toleratedFailurePercent` makes fan-in failure a policy instead of a hard-coded rule; Step Functions exposes exactly this control with a default of zero, which is Supernova's current behaviour (`documented`).
 
 ## 7. Validation is where the value is
@@ -149,8 +153,8 @@ A schema that is not validated is a suggestion. These rules extend `validateHarn
 
 1. `entry` exists, and every node is reachable from it.
 2. Every edge endpoint names a declared node.
-3. Every channel a node reads is declared, and is written by some node that can precede it.
-4. Every `fanOut.overChannel` has merge `append` or `concat`; `replace` is a silent data-loss bug under concurrency.
+3. Every channel a node reads is declared and is written on *every* path that reaches the reader, not merely by some possible predecessor (`revised`). In a sequential workflow that reduces to "the producer precedes the reader".
+4. The channel that a fan-out's branches *write into* has merge `append` or `concat`; `replace` is a silent data-loss bug under concurrency. The rule concerns the merged output, not the channel the fan-out iterates over (`revised`).
 5. Any node with `effects` other than `none` must set `checkpointBefore`.
 6. Any node with `effects: "external"` must be preceded by a `gate` node, or carry an idempotency key.
 7. `limits.maxSteps` is at least the node count, and bounds every cycle. LangGraph's equivalent defaults to 25 and raises on breach (`documented`).
@@ -171,17 +175,19 @@ export const GraphCursor = Schema.Struct({
 });
 ```
 
-Add it to `HarnessRun` and write it at every step boundary through the existing atomic path. Three consequences follow.
+That sketch is too small (`revised`). A completed list, a channel map and one pending item cannot represent parallel branches, repeated loop iterations, several approvals, or an action interrupted mid-flight. Resume needs the frozen workflow version it is executing, one execution record per step attempt, what is scheduled and what is running, join progress, and the limits remaining. The receipt store is useful groundwork; adding a cursor alone does not make it a durable scheduler. The implemented model in section 17 freezes the workflow and records one execution per step, and stops there because the first release is sequential.
+
+Write the state at every step boundary through the existing atomic path. Three consequences follow.
 
 - **`interrupted` becomes actionable.** Resume replays completed nodes from the cursor and re-runs only the node that was in flight. The Workflow tool in Claude Code resumes this way, with one caveat: a failed node re-runs itself *and everything after it* (`documented`, [workflows](https://code.claude.com/docs/en/workflows)).
-- **That caveat is survivable here, and only here.** Re-running a node that edited files is safe only if the tree is first returned to the state the node started from. `workspaceCheckpointId` plus the existing restore path gives exactly that. This is Supernova's structural advantage over the frameworks in the companion catalogue, none of which own the working tree.
+- **That caveat is not yet survivable here, and the first draft of this note overstated it** (`revised`). Re-running a node that edited files is safe only if the tree is first returned to the state the node started from. The checkpoint system can do that in principle, but its own documentation lists a process crash leaving a partially restored workspace, no startup recovery journal, no cross-process lock, and agent tool writes not serialised against checkpoint operations ([checkpoint-system.md, accepted limitations](../checkpoint-system.md)). Restoration also needs both a current and a target checkpoint, not the single id sketched above. And specialists today run in separate conversations but the same project folder (the worker session in [harness-runtime.ts](../../packages/agent-runtime/src/layers/harnesses/internal/harness-runtime.ts) is created with the project path as its working directory), so parallel coding steps need isolated worktrees or a serialised writer *before* any automatic retry is safe. The advantage over the frameworks is real but it is potential, not present.
 - **Replay has rules.** Durable execution forbids nondeterminism in the orchestrating code: clocks, random values, ambient reads, and unjournaled I/O. Every such effect belongs behind a node boundary, which is the same discipline Temporal enforces by separating workflows from activities (`documented`).
 
 ## 9. Gates and irreversible effects
 
 A `gate` node suspends the run and persists `pending`, then resumes on a decision. Because the wait is state and not a held process, it can last days at no cost.
 
-For anything irreversible, persist the intent before acting, and derive an idempotency key from `(runId, nodeId, attempt, toolName, hash(args))` so a retried call deduplicates at the far end. One refinement worth adopting: verify the *intent* and not only the argument hash on resume, because arguments can hash identically while the surrounding plan has changed. This is the semantic-rollback failure the ACRFence work describes for checkpoint-restore systems.
+For anything irreversible, persist the intent before acting, and give the logical action a persistent identifier that is reused across retries of the same step in the same run, with a new identifier only for a new loop iteration or a new run. The first draft of this note put `attempt` into the key, which changes the key on every retry and lets the same external action happen twice; that was wrong and is corrected here (`revised`). Three things must stay separate: an approval decides whether the action may happen, the action identifier decides whether a retry is the same action, and output validation decides whether the result is well formed. None substitutes for another, a workspace snapshot cannot undo a remote action, and all three need runtime enforcement around the actual tools rather than a promise in a prompt. For Science workflows in particular, schema-valid output can still contain fabricated findings or citations, so evidence verification is its own step after output validation. One refinement worth adopting: verify the *intent* and not only the argument hash on resume, because arguments can hash identically while the surrounding plan has changed. This is the semantic-rollback failure the ACRFence work describes for checkpoint-restore systems.
 
 Classify failures before reacting to them, and never use one policy for both kinds:
 
@@ -210,13 +216,13 @@ Four controls, in descending order of effect.
 Evidence here is weaker than vendor marketing suggests, and the honest reading is narrow.
 
 - **Structural graphs help localisation.** LocAgent, a graph-guided agent over file, function and class nodes with imports, calls and inherits edges, reports 94.16% file-level Acc@5 and 77.37% function-level Acc@10 on SWE-Bench-Lite localisation (`measured`, [LocAgent](https://arxiv.org/abs/2503.09089)). That is a localisation benchmark, not end-to-end patch success.
-- **Generic GraphRAG over code is not a free win.** One study finds graph retrieval raises recall while lowering relevance, producing noisier context that can hurt the generation that follows (`measured`, [arXiv 2604.09666](https://arxiv.org/pdf/2604.09666)).
+- **Generic GraphRAG is not a free win, and the evidence is not about code.** One study finds graph retrieval raises recall while lowering relevance, producing noisier context that can hurt the generation that follows (`measured`, [arXiv 2604.09666](https://arxiv.org/pdf/2604.09666)). It evaluates question-answering retrieval; it does not establish that code graphs harm coding performance, and the first draft of this note implied more than that (`revised`).
 - **Token-saving claims deserve hostility.** A compression tool marketed at 60 to 90% savings produced a 7.6% cost *increase* across 425 trials once multi-turn accumulation and tool-call overhead were counted. One graph tool reporting roughly ten times fewer tokens also reported lower answer quality, 83% against a 92% file-exploring baseline (`measured`). No controlled ablation isolating "code graph versus agentic grep" on end-to-end resolution was found.
 - **Deterministic graphs are the exception.** Build-graph queries such as `bazel query 'tests(rdeps(//..., set(//target)))'` or `nx affected` are exact, cheap, and do not depend on an LLM having extracted anything. For scoping a change and selecting tests, use these first.
 
 A defensible minimum: a tree-sitter-parsed graph of files, symbols, imports and calls in one SQLite file, rebuilt incrementally on content-hash diff, exposed as three or four tools such as find-symbol, find-references and trace-callers. The load-bearing edges are defines and references; everything richer is optional until a concrete query class justifies it. Turborepo already gives this repository the deterministic half through `--filter` on the task graph (`repo`).
 
-Two rules. **A stale graph is worse than no graph**, because it gives confident answers that no longer match the tree. And the payoff threshold is real: below a few hundred thousand lines, tree-sitter tags plus grep are cheaper and fresher than any index.
+Two rules. **A stale graph is worse than no graph**, because it gives confident answers that no longer match the tree. And the payoff threshold is a design judgment rather than a measurement: below a few hundred thousand lines, tree-sitter tags plus grep are likely cheaper and fresher than any index (`revised`). A code graph is optional for this product and must never become a prerequisite for Science workflows.
 
 ## 12. Observability
 
@@ -259,9 +265,25 @@ Nothing here requires adopting a framework. The companion catalogue's conclusion
 
 - **A second autonomy layer.** Anthropic's guidance is to add structure only when it demonstrably improves outcomes, and to prefer a single well-built call with good context over a graph (`documented`, [building effective agents](https://www.anthropic.com/engineering/building-effective-agents)).
 - **Model-chosen routing as the default.** It is the right tool when the decision space cannot be enumerated, and the wrong default everywhere else, because it is not replayable and it destroys failure attribution.
-- **Deep nesting.** Depth of one is restrictive, but unbounded delegation multiplies cost without adding capability. Two levels is the documented practical ceiling.
+- **Deep nesting.** Unbounded delegation multiplies cost without adding capability. The existing head, lead, specialist hierarchy is already two levels of delegation; treating that as the ceiling is a design judgment, not a measured limit (`revised`).
 - **A general graph editor before the graph is typed.** The current editor faithfully renders a twelve-item list. A visual editor over an untyped model would make the untyped model permanent.
 - **A full code property graph.** Statement and expression granularity is where index size explodes; it earns its cost for vulnerability dataflow, not for navigation.
+
+## 17. First release, as implemented
+
+Scope chosen on the reviewer's recommendation: one named sequential workflow with validated handoffs, saved step results and a visible run timeline, before any branching, fan-out or automatic retry.
+
+| Area | What lives there |
+|---|---|
+| Agents | Main orchestrator, project leads and specialist definitions, unchanged |
+| Workflows | Multiple named workflows per harness, shared across its projects; a step references an existing agent and inherits its settings with explicit overrides |
+| Chat and workflow run | Actual steps, working agents, inputs, validated outputs, failures, spend and the resume instruction, beneath the owning chat |
+| Memory | Unchanged and kept distinct from run state |
+| Code navigation | Not built; optional for the Coding harness only |
+
+What the implementation guarantees, each backed by a test: malformed output stops at its source with the failure kind recorded and the cursor left on that step; a resumed run reuses the same run id, never re-executes a completed step, and feeds completed outputs to later reads; a failed step with external effects is not rerun without an explicit override, and when rerun keeps its action identifier with the attempt incremented; every step's output is validated locally with the same schema on every provider; the turn and time limits steer the worker to write up one turn before aborting instead of truncating silently; and a configuration whose instructions cannot fit the model window is refused before a session is created.
+
+What it does not do yet, deliberately: parallel branches, conditional edges, bounded revision loops, automatic retry of any failure, workspace isolation per step, and evidence verification as a distinct step. Each of those is gated on the guarantees above holding in use.
 
 ## Evidence and limits
 
