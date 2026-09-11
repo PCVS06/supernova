@@ -17,7 +17,7 @@ const config = {
   files: ["out/**", "package.json"],
   extraResources: [
     {from: "resources/icons", to: "icons"},
-    {from: "../server/dist", to: "server", filter: ["cli.js", "tools/**"]},
+    {from: "../server/dist", to: "server", filter: ["cli.js", "tools/**", "node_modules/**"]},
     {from: "../../packages/web/dist", to: "web"},
   ],
   win: {
@@ -39,7 +39,7 @@ const config = {
     createDesktopShortcut: "always",
   },
   mac: {
-    icon: "icons/icon.icon",
+    icon: "icons/icon.icns",
     artifactName: "supernova-${version}-${arch}-mac.${ext}",
     entitlements: "resources/entitlements.mac.plist",
     entitlementsInherit: "resources/entitlements.mac.plist",

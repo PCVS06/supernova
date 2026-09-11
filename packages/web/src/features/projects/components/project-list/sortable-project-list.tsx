@@ -10,6 +10,8 @@ import ProjectListItem from "@/features/projects/components/project-list/project
 import {useProjectsStore} from "@/features/projects/stores/projects-store";
 import type {ProjectListProject} from "@/features/projects/types/project-list";
 import {cn} from "@/lib/cn";
+import {useHarnessLibrary, useMoveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
+import {showToast} from "@/components/ui/toast-manager";
 
 const dragModifiers = [restrictToVerticalAxis, restrictToParentElement];
 const dragMeasuring = {droppable: {strategy: MeasuringStrategy.Always}};
@@ -45,6 +47,8 @@ export default function SortableProjectList(props: SortableProjectListProps) {
   const {activeSessionId, className, expandedProjectIds, onToggleProject, projects} = props;
 
   const reorderProject = useProjectsStore((state) => state.reorderProject);
+  const library = useHarnessLibrary();
+  const move = useMoveHarnessProject();
   const suppressClickRef = useRef(false);
   const [activeProject, setActiveProject] = useState<ProjectListProject | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, {activationConstraint: {distance: 6}}));
@@ -64,6 +68,19 @@ export default function SortableProjectList(props: SortableProjectListProps) {
 
     const {active, over} = event;
     if (over && active.id !== over.id) {
+      const moving = projects.find((item) => item.id === active.id);
+      if (moving?.harnessProjectId && library.data) {
+        const ordered = [...projects];
+        const from = ordered.findIndex((item) => item.id === active.id);
+        const to = ordered.findIndex((item) => item.id === over.id);
+        ordered.splice(from, 1);
+        ordered.splice(to, 0, moving);
+        move.mutate(
+          {projectId: moving.harnessProjectId, beforeProjectId: ordered[to + 1]?.harnessProjectId ?? "", expectedRevision: library.data.revision},
+          {onError: () => showToast("Could not move the lab", "Settings changed elsewhere. Try again.")}
+        );
+        return;
+      }
       reorderProject(String(active.id), String(over.id));
     }
   };

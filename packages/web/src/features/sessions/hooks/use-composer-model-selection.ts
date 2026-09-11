@@ -7,6 +7,7 @@ import {useSessionModelsStore} from "@/features/sessions/stores/session-models-s
 
 interface UseComposerModelSelectionInput {
   readonly initialSelection?: ModelReference;
+  readonly initialThinkingLevel?: string;
   readonly sessionId?: string;
 }
 
@@ -39,7 +40,7 @@ function recentModel(models: readonly ModelDetails[], recentKeys: readonly strin
 
 /** Owns model and thinking-level selection for session composers. */
 export function useComposerModelSelection(input: UseComposerModelSelectionInput = {}): ComposerModelSelection {
-  const {initialSelection, sessionId} = input;
+  const {initialSelection, initialThinkingLevel, sessionId} = input;
 
   const {data: models, isPending} = useSessionModels();
   const availableModels = models ?? [];
@@ -54,7 +55,7 @@ export function useComposerModelSelection(input: UseComposerModelSelectionInput 
   const recordRecentThinkingLevel = useModelPickerStore((state) => state.recordRecentThinkingLevel);
 
   // Determine the active selection based on session ID, stored selection, and local selection
-  const activeSelection = sessionId ? (storedSessionSelection ?? initialSelection) : localSelection;
+  const activeSelection = sessionId ? (storedSessionSelection ?? initialSelection) : (localSelection ?? initialSelection);
   const activeSelectionModel = modelFromReference(availableModels, activeSelection);
 
   // Final selected model is active selection model if available, otherwise the most recent model, or the first available model
@@ -62,7 +63,7 @@ export function useComposerModelSelection(input: UseComposerModelSelectionInput 
 
   // If we have an active selection, we use that selection thinking level, otherwise we fallback
   // to the last thinking level used (which is normalized in case the model does not support it)
-  const preferredThinkingLevel = activeSelectionModel ? activeSelection?.thinkingLevel : lastThinkingLevel;
+  const preferredThinkingLevel = activeSelectionModel ? (activeSelection?.thinkingLevel ?? initialThinkingLevel) : (initialThinkingLevel ?? lastThinkingLevel);
   const resolvedThinkingLevel = selectedModelDetails ? resolveThinkingLevel(selectedModelDetails, preferredThinkingLevel) : undefined;
 
   const modelReference = selectedModelDetails ? createModelReference(selectedModelDetails, resolvedThinkingLevel) : undefined;

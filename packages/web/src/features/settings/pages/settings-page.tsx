@@ -18,7 +18,7 @@ export default function SettingsPage(props: SettingsPageProps) {
 
   return (
     <SidebarLayout appEnvironment={appEnvironment} className="select-text" sidebar={<SettingsSidebar activeSectionId={section.id} />} sidebarWidth={SETTINGS_SIDEBAR_WIDTH}>
-      <nav aria-label="Settings breadcrumb" className="flex h-12 shrink-0 items-center gap-1.5 px-5 text-sm sm:px-6">
+      <nav aria-label="Settings breadcrumb" className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-5 text-xs sm:px-6">
         <span className="text-ink-faint">Settings</span>
         <Icon aria-hidden="true" className="text-ink-faint" name="chevron-right" size="xs" />
         <span className="truncate text-ink">{section.label}</span>

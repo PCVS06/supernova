@@ -4,6 +4,10 @@ import {Context, Effect, Layer} from "effect";
 import {PiSdkService} from "@supernova/agent-runtime/layers/pi-sdk";
 import type {PiSessionManager} from "@supernova/agent-runtime/layers/shared/internal/pi-session-store";
 import {createPiCustomTools} from "@supernova/agent-runtime/layers/session-runtime/internal/tools/create-pi-custom-tools";
+import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
+import {createHarnessResources, createHarnessTools} from "@supernova/agent-runtime/layers/harnesses/internal/harness-runtime";
+import {harnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
+import {captureHarnessContext} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-context";
 
 export interface PiAgentSessionFactoryShape {
   readonly createAgentSession: (input: {readonly cwd: string; readonly sessionManager: PiSessionManager}) => Promise<{readonly session: AgentSession}>;
@@ -19,6 +23,29 @@ export const PiAgentSessionFactoryLive = Layer.effect(
 
     return {
       createAgentSession: async ({cwd, sessionManager}) => {
+        const harness = await harnessStore.forSession(sessionManager.getSessionId(), cwd);
+        if (harness) {
+          const resources = await createHarnessResources(harness);
+          const created = await piSdk.createAgentSession({
+            cwd,
+            ...resources,
+            modelRuntime: piSdk.modelRuntime,
+            sessionManager,
+            customTools: [...createPiCustomTools(), ...createHarnessTools(harness, piSdk, {chatId: sessionManager.getSessionId(), store: harnessRunStore})],
+          });
+          await created.session.bindExtensions({});
+          let contextWrites = Promise.resolve();
+          created.session.subscribe((event) => {
+            if (event.type !== "agent_start") return;
+            const context = captureHarnessContext(created.session, resources.resourceLoader);
+            contextWrites = contextWrites
+              .then(() => harnessRunStore.saveContext(sessionManager.getSessionId(), context))
+              .catch((error) => {
+                console.warn("pi+ could not save the chat's runtime receipt:", error instanceof Error ? error.message : String(error));
+              });
+          });
+          return created;
+        }
         const resourceLoader = piSdk.createResourceLoader({projectPath: cwd});
         await resourceLoader.reload();
 

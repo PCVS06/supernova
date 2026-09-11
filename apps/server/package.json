@@ -4,7 +4,8 @@
   "version": "0.1.1",
   "type": "module",
   "exports": {
-    "./process": "./src/process.ts"
+    "./process": "./src/process.ts",
+    "./build": "./scripts/build-server.ts"
   },
   "bin": {
     "supernova-server": "./dist/cli.js"
@@ -12,7 +13,7 @@
   "scripts": {
     "dev": "SUPERNOVA_SERVER_DEV=1 bun --watch src/cli.ts",
     "start": "node dist/cli.js",
-    "build": "rm -rf dist && bun build src/cli.ts --target node --outdir dist && bun scripts/prepare-tools.ts",
+    "build": "bun scripts/build-server.ts && bun scripts/prepare-tools.ts",
     "test": "bun test tests",
     "build:e2e": "bun run build && bun build tests/support/e2e-server.ts --target node --outfile dist/e2e-server.js",
     "lint": "eslint .",

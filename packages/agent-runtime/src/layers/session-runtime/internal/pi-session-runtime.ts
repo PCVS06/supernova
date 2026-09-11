@@ -204,6 +204,13 @@ export class PiSessionRuntime {
       await agentSession.prompt(activeTurn.prompt, images.length > 0 ? {images: [...images]} : undefined);
       await this.waitForPiSettlement();
 
+      // Surface the settled provider error before optional filesystem work. Waiting
+      // for settlement avoids treating a recoverable compaction/retry as terminal.
+      const lastAnswer = agentSession.state.messages.findLast((message) => message.role === "assistant");
+      if (lastAnswer?.stopReason === "error") {
+        await this.publishEvent({type: "session.error", sessionId: this.sessionId, error: lastAnswer.errorMessage || "The model could not answer. Choose another model or retry."});
+      }
+
       const afterTurnCheckpointId = randomUUID();
       const afterTurnStatus = await this.createCheckpoint(afterTurnCheckpointId, input.captureCheckpoints);
       sessionManager.appendCustomEntry(CHECKPOINT_CUSTOM_TYPE, {checkpointId: afterTurnCheckpointId, phase: "after-turn", status: afterTurnStatus});
@@ -290,6 +297,13 @@ export class PiSessionRuntime {
   /** Returns whether this runtime has been explicitly cancelled. */
   public isCancelled(): boolean {
     return this.cancelled;
+  }
+
+  /** Applies an optional background title without replacing a manual title or reviving a disposed runtime. */
+  public async applyGeneratedTitle(title: string): Promise<void> {
+    if (this.cancelled || this.releasePromise || !this.agentSession || this.agentSession.sessionManager.getSessionName() !== undefined) return;
+    this.agentSession.sessionManager.appendSessionInfo(title);
+    await this.publishSessionUpdate();
   }
 
   /**

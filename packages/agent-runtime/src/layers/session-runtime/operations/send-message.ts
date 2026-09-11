@@ -25,7 +25,10 @@ export async function sendMessage(runtime: PiSessionRuntime, titleGenerator: PiS
     const selectedModel = input.modelReference;
     const model = runtime.resolveModel(selectedModel);
 
-    const generatedTitle = sessionManager.getSessionName() === undefined ? await generateSessionTitle({input, model, titleGenerator}) : undefined;
+    const titlePending =
+      sessionManager.getSessionName() === undefined && !sessionManager.buildSessionContext().messages.some((message) => message.role === "user")
+        ? generateSessionTitle({input, model, titleGenerator})
+        : undefined;
     const messageContext = await prepareSendMessageContext(input, {
       projectPath: sessionManager.getCwd(),
       resourceCatalog: runtime.resourceCatalog,
@@ -36,7 +39,12 @@ export async function sendMessage(runtime: PiSessionRuntime, titleGenerator: PiS
     const checkpointStatus = await runtime.createCheckpoint(checkpointId, captureCheckpoints);
     await runtime.selectModel(selectedModel);
 
-    const {completion} = runtime.startTurn({beforeCheckpoint: {checkpointId, status: checkpointStatus}, captureCheckpoints, messageContext, title: generatedTitle});
+    const {completion} = runtime.startTurn({beforeCheckpoint: {checkpointId, status: checkpointStatus}, captureCheckpoints, messageContext, title: undefined});
+    void titlePending
+      ?.then((title) => {
+        if (title) return runtime.applyGeneratedTitle(title);
+      })
+      .catch(() => undefined);
 
     void completion
       .catch(async (cause) => {

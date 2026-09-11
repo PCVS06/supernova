@@ -27,13 +27,13 @@ export default function Dialog(props: DialogProps) {
           >
             <BaseDialog.Popup
               className={cn(
-                "pointer-events-auto relative flex max-h-full w-full flex-col overflow-hidden rounded-2xl corner-superellipse/1.3 border border-border-muted bg-surface-deep shadow-lg/5 before:pointer-events-none before:absolute before:inset-0 before:bg-surface-elevated-secondary/72",
+                "pointer-events-auto relative flex max-h-full w-full flex-col overflow-hidden rounded-2xl border border-border-strong bg-surface-deep shadow-lg",
                 "origin-center translate-y-0 scale-100 transform-gpu opacity-100 will-change-[opacity,transform] transition-[opacity,scale,translate] duration-200 ease-out data-closed:translate-y-1 data-closed:scale-[0.985] data-closed:opacity-0 data-ending-style:translate-y-1 data-ending-style:scale-[0.985] data-ending-style:opacity-0 data-starting-style:translate-y-1 data-starting-style:scale-[0.985] data-starting-style:opacity-0",
                 className
               )}
               data-slot="dialog-content"
             >
-              <div className="flex shrink-0 items-center justify-between px-5 pb-1 pt-5" data-slot="dialog-header">
+              <div className="mb-3 flex shrink-0 items-center justify-between border-b border-border px-5 py-4" data-slot="dialog-header">
                 <BaseDialog.Title className="text-base font-medium text-ink" data-slot="dialog-title">
                   {title}
                 </BaseDialog.Title>

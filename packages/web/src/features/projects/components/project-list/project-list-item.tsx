@@ -17,6 +17,9 @@ import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store
 import {hasUnseenActivity, useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
 import {formatUpdatedAt} from "@/features/projects/utils/format-updated-at";
 import {cn} from "@/lib/cn";
+import AgentMark from "@/features/harnesses/components/agent-mark";
+import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
+import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 
 const INITIAL_SESSION_LIMIT = 5;
 const SESSION_LIMIT_INCREMENT = 5;
@@ -37,6 +40,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   const animatedSessionListsRef = useRef(new WeakSet<HTMLElement>());
   const location = useLocation();
   const navigate = useNavigate();
+  const selectProject = useHarnessNavigationStore((state) => state.selectProject);
   const queryClient = useQueryClient();
   const removeProject = useProjectsStore((state) => state.removeProject);
   const renameProject = useProjectsStore((state) => state.renameProject);
@@ -85,7 +89,11 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   const canOpenInFinder = window.desktopApi?.environment === "mac";
 
   const handleToggle = (): void => {
-    onToggle(project.id);
+    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+    if (project.harnessProjectId) {
+      if (!expanded) onToggle(project.id);
+      void navigate({to: "/harness/$harnessId", params: {harnessId: project.harnessId ?? "coding"}, search: {projectId: project.harnessProjectId, section: "Chats"}});
+    } else onToggle(project.id);
   };
 
   const handleRemoveProject = (): void => {
@@ -97,6 +105,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   };
 
   const handleOpenSession = (sessionId: string): void => {
+    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
     void navigate({params: {sessionId}, to: "/session/$sessionId"});
   };
 
@@ -108,6 +117,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
 
   const handleNewSession = (event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
+    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
     void navigate({search: {projectId: project.id}, to: "/session/new"});
   };
 
@@ -136,12 +146,29 @@ export default function ProjectListItem(props: ProjectListItemProps) {
     <>
       <Button
         as="div"
-        className={cn("group flex w-full justify-between items-center gap-2 pl-2 pr-1 py-0.5 text-ink-muted hover:text-ink", actionsMenuOpen && "bg-overlay-hover")}
+        className={cn("group relative flex w-full justify-between items-center gap-1 pl-1 pr-1 py-1 text-ink-muted hover:text-ink", actionsMenuOpen && "bg-overlay-hover")}
+        title={`${project.name}\n${project.path}`}
         onClick={handleToggle}
         variant="primary"
       >
         <div className="flex min-w-0 flex-1 flex-row gap-2 items-center">
-          <Icon className="text-ink-muted" name={expanded ? "folder-open" : "folder"} size="sm" />
+          {project.harnessProjectId && (
+            <IconButton
+              label={`${expanded ? "Collapse" : "Expand"} chats in ${project.name}`}
+              className="size-4 shrink-0 text-ink-faint"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle(project.id);
+              }}
+            >
+              <Icon name="chevron-down" size="xs" className={cn(!expanded && "-rotate-90")} />
+            </IconButton>
+          )}
+          {project.harnessProjectId ? (
+            <AgentMark name={project.harnessProjectId} kind="lead" color={project.color ?? (project.isCoordinator ? "#ffffff" : undefined)} className="size-7 shrink-0" />
+          ) : (
+            <Icon className="text-ink-muted" name={expanded ? "folder-open" : "folder"} size="sm" />
+          )}
           {renaming && (
             <input
               className="min-w-0 flex-1 truncate bg-transparent text-sm text-ink-muted outline-none"
@@ -155,9 +182,14 @@ export default function ProjectListItem(props: ProjectListItemProps) {
               value={draftName}
             />
           )}
-          {!renaming && <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>}
+          {!renaming && (
+            <span className="min-w-0 flex-1 pr-5 text-[13px] leading-snug">
+              <span className="line-clamp-2">{project.harnessProjectId ? agentLabel(project.name) : project.name}</span>
+              {project.isCoordinator && <span className="mt-0.5 block text-[10px] text-ink-faint">Coordinates all labs</span>}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="absolute right-1 flex items-center gap-0.5 rounded-md bg-surface-sidebar opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
           <div className={cn("opacity-0 group-hover:opacity-100", actionsMenuOpen && "opacity-100")}>
             <Menu
               onOpenChange={setActionsMenuOpen}
@@ -178,12 +210,31 @@ export default function ProjectListItem(props: ProjectListItemProps) {
                   Open in Finder
                 </MenuItem>
               )}
-              <MenuItem icon={<Icon name="edit" size="xs" />} onClick={startRenaming}>
-                Rename project
-              </MenuItem>
-              <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
-                Remove
-              </MenuItem>
+              {project.harnessProjectId && (
+                <MenuItem
+                  icon={<Icon name="settings" size="xs" />}
+                  onClick={() => {
+                    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+                    void navigate({
+                      to: "/harness/$harnessId",
+                      params: {harnessId: project.harnessId ?? "coding"},
+                      search: {projectId: project.harnessProjectId, section: "Prompts"},
+                    });
+                  }}
+                >
+                  Project instructions
+                </MenuItem>
+              )}
+              {!project.harnessProjectId && (
+                <MenuItem icon={<Icon name="edit" size="xs" />} onClick={startRenaming}>
+                  Rename project
+                </MenuItem>
+              )}
+              {!project.harnessProjectId && (
+                <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
+                  Remove
+                </MenuItem>
+              )}
             </Menu>
           </div>
           <IconButton className="size-7" label={`New session in ${project.name}`} onClick={handleNewSession}>
@@ -202,7 +253,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
           )}
           {expanded && sessionsQuery.error != null && <li className="px-8 py-1 text-sm text-danger-ink">Unable to load sessions.</li>}
           {displayedSessions.map((session) => {
-            const selected = location.pathname === `/session/${session.id}`;
+            const selected = location.pathname === `/session/${session.id}` || location.pathname.startsWith(`/session/${session.id}/`);
             const sessionLive = sessionLiveStates[session.id];
             const sessionStreaming = sessionLive?.status === "streaming" || sessionLive?.status === "stopping" || sessionLive?.status === "compacting";
             const sessionUnseen = !sessionStreaming && hasUnseenActivity({activityAtMs: session.timestamp, visitedAt: sessionVisits[session.id]});
@@ -216,6 +267,8 @@ export default function ProjectListItem(props: ProjectListItemProps) {
                 projectPath={project.path}
                 selected={selected}
                 session={session}
+                color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(project.harnessProjectId ?? project.id))}
+                managed={!!project.harnessProjectId}
                 streaming={sessionStreaming}
                 unseen={sessionUnseen}
               />

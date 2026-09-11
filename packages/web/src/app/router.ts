@@ -1,6 +1,6 @@
 import {createRootRouteWithContext, createRoute, createRouter, redirect} from "@tanstack/react-router";
 import type {AppEnvironment} from "@/lib/app-environment";
-import {HomeLayoutRoute, HomeRoute, NewSessionRoute, RootRoute, SessionRoute, SettingsSectionRoute} from "@/app/routes";
+import {HarnessRunRoute, HarnessConfigRoute, HarnessesRoute, HomeLayoutRoute, HomeRoute, NewSessionRoute, RootRoute, SessionRoute, SettingsSectionRoute} from "@/app/routes";
 import {defaultSettingsSectionId, settingsSections} from "@/features/settings/data/settings-sections";
 
 interface RouterContext {
@@ -36,6 +36,7 @@ const sessionRoute = createRoute({
   path: "session/$sessionId",
   component: SessionRoute,
 });
+const harnessRunRoute = createRoute({getParentRoute: () => homeLayoutRoute, path: "session/$sessionId/run/$runId", component: HarnessRunRoute});
 
 const newSessionRoute = createRoute({
   getParentRoute: () => homeLayoutRoute,
@@ -54,7 +55,22 @@ const settingsSectionRoute = createRoute({
   component: SettingsSectionRoute,
 });
 
-const routeTree = rootRoute.addChildren([homeLayoutRoute.addChildren([indexRoute, newSessionRoute, sessionRoute]), settingsRoute, settingsSectionRoute]);
+const harnessesRoute = createRoute({getParentRoute: () => homeLayoutRoute, path: "harnesses", component: HarnessesRoute});
+const harnessConfigRoute = createRoute({
+  getParentRoute: () => homeLayoutRoute,
+  path: "harness/$harnessId",
+  component: HarnessConfigRoute,
+  validateSearch: (search: Record<string, unknown>): {section?: string; projectId?: string; agentName?: string} => ({
+    section: typeof search.section === "string" ? search.section : undefined,
+    projectId: typeof search.projectId === "string" ? search.projectId : undefined,
+    agentName: typeof search.agentName === "string" ? search.agentName : undefined,
+  }),
+});
+const routeTree = rootRoute.addChildren([
+  homeLayoutRoute.addChildren([indexRoute, newSessionRoute, sessionRoute, harnessRunRoute, harnessesRoute, harnessConfigRoute]),
+  settingsRoute,
+  settingsSectionRoute,
+]);
 
 export const router = createRouter({
   context: {

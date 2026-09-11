@@ -3,10 +3,10 @@ import IconButton from "@/components/ui/icon-button";
 
 export default function SessionComposerSkeleton() {
   return (
-    <div className="px-4 pb-4 md:px-6">
-      <div className="mx-auto max-w-3xl rounded-3xl corner-superellipse/1.3 bg-surface-control px-3 py-2 ring-1 ring-border-muted shadow-md">
+    <div className="px-4 pb-7 md:px-6">
+      <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-surface-control px-3 py-2.5">
         <textarea
-          className="scroll-fade-y max-h-48 min-h-10 w-full resize-none overflow-y-auto bg-transparent p-1 text-sm text-ink outline-none field-sizing-content placeholder:text-md placeholder:font-light placeholder:text-ink-strong/25 disabled:cursor-default"
+          className="scroll-fade-y max-h-48 min-h-10 w-full resize-none overflow-y-auto bg-transparent p-1 text-sm text-ink outline-none field-sizing-content placeholder:text-ink-faint disabled:cursor-default"
           disabled
           placeholder="Ask anything, @ to add files, or / for commands"
           rows={1}
@@ -14,10 +14,10 @@ export default function SessionComposerSkeleton() {
           readOnly
         />
 
-        <div className="flex items-center justify-between gap-2">
+        <div className="mt-2 flex items-center justify-between gap-2">
           <IconButton
             label="Attach files"
-            className="grid size-8 place-items-center rounded-full text-ink-faint disabled:cursor-default disabled:hover:bg-transparent"
+            className="grid size-8 place-items-center text-ink-faint disabled:cursor-default disabled:hover:bg-transparent"
             disabled
             size="none"
             title="Attach files"
@@ -33,7 +33,7 @@ export default function SessionComposerSkeleton() {
             </div>
             <IconButton
               label="Send message"
-              className="grid size-9 place-items-center rounded-full bg-overlay-pressed text-ink-muted disabled:cursor-default disabled:bg-overlay-pressed disabled:text-ink-muted"
+              className="grid size-9 place-items-center rounded-lg bg-overlay-pressed text-ink-muted disabled:cursor-default disabled:bg-overlay-pressed disabled:text-ink-muted"
               disabled
               size="none"
               variant="bare"

@@ -9,7 +9,7 @@ const APPEARANCE_STORAGE_KEY = "supernova-appearance";
 const SYSTEM_DARK_MODE_QUERY = "(prefers-color-scheme: dark)";
 
 export const DEFAULT_UI_FONT = "-apple-system, BlinkMacSystemFont, Inter, sans-serif";
-export const DEFAULT_CODE_FONT = '"SFMono-Regular", Consolas, "Liberation Mono", monospace';
+export const DEFAULT_CODE_FONT = '"SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace';
 
 export type ResolvedAppearanceMode = Exclude<DesktopTheme, "system">;
 
@@ -62,10 +62,10 @@ export const useAppearanceStore = create<AppearanceState>()(
     (set) => ({
       codeFont: undefined,
       fontSmoothing: true,
-      mode: "system",
-      resolvedMode: getSystemMode(),
+      mode: "dark",
+      resolvedMode: "dark",
       themeId: defaultTheme.id,
-      translucentSidebar: true,
+      translucentSidebar: false,
       uiFont: undefined,
       setCodeFont: (codeFont) => {
         applyFont("--font-mono", codeFont);
@@ -91,6 +91,20 @@ export const useAppearanceStore = create<AppearanceState>()(
     }),
     {
       name: APPEARANCE_STORAGE_KEY,
+      version: 1,
+      // Adopt the new identity once; subsequent appearance choices remain saved.
+      // Keep the storage key so projects, sessions, and other preferences are untouched.
+      migrate: (persistedState) => {
+        const saved = typeof persistedState === "object" && persistedState !== null ? persistedState : {};
+        return {
+          codeFont: "codeFont" in saved && typeof saved.codeFont === "string" ? saved.codeFont : undefined,
+          fontSmoothing: "fontSmoothing" in saved && typeof saved.fontSmoothing === "boolean" ? saved.fontSmoothing : true,
+          mode: "dark" as const,
+          themeId: defaultTheme.id,
+          translucentSidebar: false,
+          uiFont: "uiFont" in saved && typeof saved.uiFont === "string" ? saved.uiFont : undefined,
+        };
+      },
       partialize: (state) => ({
         codeFont: state.codeFont,
         fontSmoothing: state.fontSmoothing,

@@ -28,7 +28,7 @@ const sourceMacPng = join(sourceIcons, "macos.png");
 const sourcePng = join(sourceIcons, "icon.png");
 const resourcesIcons = "./resources/icons";
 const dockCanvasSize = 256;
-const dockContentSize = Math.round((dockCanvasSize * 824) / 1024);
+const dockContentSize = dockCanvasSize;
 const iconBorderRadiusRatio = 0.18;
 const linuxIconSizes = [16, 32, 48, 64, 128, 256, 512];
 

@@ -20,6 +20,7 @@ export const PiSessionTitleGeneratorLive = Layer.effect(
       generateSessionTitle: async ({contentParts, model}) => {
         const response = await piSdk.modelRuntime.completeSimple(model, sessionTitleContext({contentParts}), {
           maxTokens: sessionTitleMaxTokens,
+          signal: AbortSignal.timeout(15_000),
         });
 
         return titleFromResponse(response);

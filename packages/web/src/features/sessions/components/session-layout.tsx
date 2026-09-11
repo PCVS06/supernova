@@ -1,4 +1,4 @@
-import type {HTMLAttributes, ReactNode} from "react";
+import type {CSSProperties, HTMLAttributes, ReactNode} from "react";
 import {LayoutGroup, motion} from "framer-motion";
 import type {AppEnvironment} from "@/lib/app-environment";
 import AttachmentDropOverlay from "@/features/sessions/components/attachments/attachment-drop-overlay";
@@ -12,6 +12,8 @@ interface SessionLayoutProps {
   readonly timeline: ReactNode;
   readonly title: ReactNode;
   readonly titleActions?: ReactNode;
+  readonly contextBar?: ReactNode;
+  readonly color?: string;
 }
 
 export default function SessionLayout(props: SessionLayoutProps) {
@@ -19,7 +21,7 @@ export default function SessionLayout(props: SessionLayoutProps) {
   const titleOffset = appEnvironment === "mac" ? "left-48" : appEnvironment === "web" ? "left-12" : "left-29";
 
   return (
-    <div {...attachmentDropZoneProps} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <div {...attachmentDropZoneProps} className="chat-workspace relative flex min-h-0 min-w-0 flex-1 flex-col" style={{"--chat-accent": props.color ?? "#ffffff"} as CSSProperties}>
       <header className="flex h-12 min-w-0 shrink-0 items-center justify-between border-b border-border-muted px-4">
         <LayoutGroup>
           <div className={cn("sticky z-20 flex h-5 min-w-0 items-center gap-1.5 overflow-visible", titleOffset)}>
@@ -34,7 +36,7 @@ export default function SessionLayout(props: SessionLayoutProps) {
           </div>
         </LayoutGroup>
       </header>
-
+      {props.contextBar}
       {timeline}
       {composer}
       {attachmentDropOverlayVisible && <AttachmentDropOverlay />}

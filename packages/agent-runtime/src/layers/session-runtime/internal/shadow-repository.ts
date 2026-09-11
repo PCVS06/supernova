@@ -122,7 +122,7 @@ async function discoverCandidate(candidate: string, projectRoot: string): Promis
 }
 
 /** Finds the project root and its immediate child repositories, and assigns each one its shadow storage. */
-export async function discoverRepositories(projectRoot: string, repositoriesRoot: string): Promise<readonly DiscoveredRepository[]> {
+async function discoverProjectRepositories(projectRoot: string, repositoriesRoot: string): Promise<readonly DiscoveredRepository[]> {
   const candidates = [projectRoot];
   const children = await readdir(projectRoot, {withFileTypes: true});
   for (const child of children) if (child.isDirectory()) candidates.push(join(projectRoot, child.name));
@@ -141,6 +141,21 @@ export async function discoverRepositories(projectRoot: string, repositoriesRoot
       .map((candidate) => slashPath(relative(repository.root, candidate.root)));
     return {...repository, excludedRoots, shadowGitDir: join(repositoriesRoot, repository.repositoryId, "git")};
   });
+}
+
+/** Bounds read-only discovery so offline/cloud folders cannot hold chat startup indefinitely. */
+export async function discoverRepositories(projectRoot: string, repositoriesRoot: string): Promise<readonly DiscoveredRepository[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      discoverProjectRepositories(projectRoot, repositoriesRoot),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("Checkpoint discovery timed out. No workspace snapshot was captured.")), 1500);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Creates the shadow repository on first use and keeps it pointed at the source object database. */

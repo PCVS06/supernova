@@ -90,7 +90,7 @@ describe("mapping Pi tool invocations", () => {
     const invocation = PiToolInvocationFactory.create("unknown-tool", {value: 42});
     invocation.complete({details: {extra: true}, isError: false, output: "done"});
 
-    expect(invocation.toTool()).toEqual({input: {value: 42}, kind: "custom", result: {data: {extra: true}, output: "done"}, status: "completed"});
+    expect(invocation.toTool()).toEqual({input: {value: 42}, kind: "custom", name: "unknown-tool", result: {data: {extra: true}, output: "done"}, status: "completed"});
     expectValidTool(invocation.toTool());
   });
 });

@@ -4,8 +4,8 @@ import type {VirtualItem} from "@tanstack/react-virtual";
 import {animate, AnimatePresence, motion, useReducedMotion} from "framer-motion";
 import {useCallback, useLayoutEffect, useRef, useState} from "react";
 import type {UIEvent} from "react";
+import PiOrb from "@/components/brand/pi-orb";
 import {Marker, MarkerContent} from "@/components/ui/marker";
-import MatrixLoader from "@/components/ui/matrix-loader";
 import {MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerProvider, MessageScrollerViewport} from "@/components/ui/message-scroller";
 import SessionTimelineVirtualRow from "@/features/sessions/components/timeline/session-timeline-virtual-row";
 import type {TimelineVirtualItem} from "@/features/sessions/components/timeline/session-timeline-virtual-row";
@@ -418,12 +418,15 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
                 >
                   {compacting ? (
                     <Marker role="status" variant="separator">
-                      <MarkerContent className="shimmer text-ink-faint">{statusLabel}</MarkerContent>
+                      <MarkerContent className="flex items-center gap-2 text-ink-faint">
+                        <PiOrb className="size-12" state="working" />
+                        <span>{statusLabel}</span>
+                      </MarkerContent>
                     </Marker>
                   ) : (
-                    <p className="flex w-fit items-center gap-2.5 text-sm text-ink-faint" role="status">
-                      <MatrixLoader />
-                      <span className="shimmer">{statusLabel}</span>
+                    <p className="flex w-fit items-center gap-3 text-sm text-ink-faint" role="status">
+                      <PiOrb className="size-20" state="working" />
+                      <span>{statusLabel}</span>
                     </p>
                   )}
                 </div>

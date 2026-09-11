@@ -24,7 +24,7 @@ export default function UpdateInstallDialog(props: UpdateInstallDialogProps) {
       title={version ? `Install ${version} and restart?` : "Install update and restart?"}
     >
       <div className="flex flex-col gap-5 pb-5 pt-2">
-        <p className="text-sm text-ink-muted">Supernova will close and reopen on the new version. Running sessions will be interrupted.</p>
+        <p className="text-sm text-ink-muted">pi+ will close and reopen on the new version. Running sessions will be interrupted.</p>
         <div className="flex justify-end gap-2">
           <Button className="w-auto px-3 py-1.5 text-sm" onClick={onCancel} variant="primary">
             Cancel

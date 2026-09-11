@@ -4,6 +4,10 @@ import type {IconName} from "@/components/ui/icon";
 import type {SessionWorkEvent} from "@/features/sessions/types/session-timeline-item";
 import type {Tool} from "@supernova/contracts/sessions/schemas";
 import {fileName, skillName} from "@/features/sessions/lib/timeline/tool-details";
+import AgentMark from "@/features/harnesses/components/agent-mark";
+import {agentLabel} from "@/features/harnesses/lib/agent-identity";
+import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
+import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 
 type ToolEvent = Extract<SessionWorkEvent, {type: "tool"}>;
 type FileMutationTool = Extract<Tool, {kind: "file-edit" | "file-write"}>;
@@ -135,6 +139,54 @@ function WebFetchToolTitle(props: {tool: Extract<Tool, {kind: "web-fetch"}>}) {
   );
 }
 
+function CustomToolTitle({tool}: {tool: Extract<Tool, {kind: "custom"}>}) {
+  const library = useHarnessLibrary();
+  const {activeHarnessId, activeProjectId} = useHarnessNavigationStore();
+  const harness = library.data?.harnesses.find((item) => item.id === activeHarnessId);
+  const project = library.data?.projects.find((item) => item.id === activeProjectId);
+  const targetLab = library.data?.projects.find((item) => item.id === tool.input?.projectId);
+  const tasks = tool.input?.chain ?? tool.input?.tasks;
+  const names =
+    tool.name === "lab_agent"
+      ? [targetLab?.name ?? "Lab orchestrator"]
+      : tool.name === "harness_workflow"
+        ? (harness?.graph.steps ?? [])
+        : typeof tool.input?.agent === "string"
+          ? [tool.input.agent]
+          : Array.isArray(tasks)
+            ? tasks.flatMap((task) => (task && typeof task === "object" && typeof task.agent === "string" ? [task.agent] : []))
+            : [];
+  const delegation = ["subagent", "harness_workflow", "lab_agent"].includes(tool.name ?? "");
+  if (!delegation)
+    return (
+      <ToolTitleRow icon="server">
+        <span className="min-w-0 wrap-break-word">
+          {tool.status === "pending" ? "Running" : tool.status === "error" ? "Failed" : "Ran"} {tool.name ?? "tool"}
+        </span>
+      </ToolTitleRow>
+    );
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="text-xs">{tool.status === "pending" ? "Delegating" : tool.status === "error" ? "Delegation failed" : "Delegated"}</span>
+      {names.map((name, index) => {
+        const agent = project?.agents.find((item) => item.name === name) ?? harness?.agents.find((item) => item.name === name);
+        return (
+          <span className="flex min-w-0 items-center gap-1.5" key={name + index}>
+            <AgentMark
+              name={targetLab?.id ?? name}
+              color={targetLab?.color ?? agent?.color}
+              kind={tool.name === "lab_agent" ? "lead" : "specialist"}
+              className="size-7"
+              working={tool.status === "pending" && names.length === 1}
+            />
+            <span className="truncate">{agentLabel(name)}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function ToolTitleContent(props: {event: ToolEvent}) {
   const {event} = props;
 
@@ -152,6 +204,8 @@ function ToolTitleContent(props: {event: ToolEvent}) {
       return <FindToolTitle tool={event.tool} />;
     case "web-fetch":
       return <WebFetchToolTitle tool={event.tool} />;
+    case "custom":
+      return <CustomToolTitle tool={event.tool} />;
     default:
       return <DefaultToolTitle tool={event.tool} />;
   }

@@ -103,7 +103,7 @@ export abstract class PiToolInvocation<TPiInput = unknown, TPiDetails = unknown,
 
   /** Converts the invocation's current state into a serializable tool event payload. */
   public toTool(): Tool {
-    const base = {input: this.input, kind: this.kind} as const;
+    const base = {input: this.input, kind: this.kind, ...(this.kind === "custom" ? {name: this.name} : {})} as const;
     if (this.status === "error") return {...base, error: this.errorMessage(), status: "error"} as Tool;
     if (this.status === "completed") return {...base, result: this.completedResult(), status: "completed"} as Tool;
     return {...base, status: "pending"} as Tool;

@@ -112,7 +112,7 @@ function sessionToolStates<const Kind extends string, const Input extends Schema
   input: Input,
   result: Result
 ) {
-  const kindField = {kind: Schema.Literal(kind)};
+  const kindField = {kind: Schema.Literal(kind), name: Schema.optional(Schema.String)};
 
   return [
     Schema.Struct({...pendingToolFields, ...kindField, input: Schema.optional(input)}),

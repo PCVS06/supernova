@@ -101,8 +101,8 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
 
         <section
           className={cn(
-            "flex h-full min-h-0 min-w-0 flex-1 flex-col border-l-[0.1px] bg-surface",
-            sidebarVisible ? "rounded-xl border-border-strong" : "rounded-r-xl border-l-transparent transition-[border-color,border-radius] delay-200 duration-0"
+            "flex h-full min-h-0 min-w-0 flex-1 flex-col border-l bg-surface",
+            sidebarVisible ? "border-border-strong" : "border-l-transparent transition-[border-color] delay-200 duration-0"
           )}
         >
           {children}

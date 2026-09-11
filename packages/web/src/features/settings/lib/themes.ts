@@ -1,4 +1,4 @@
-import {supernovaTheme} from "@/features/settings/data/themes/supernova";
+import {piRetroTheme} from "@/features/settings/data/themes/pi-retro";
 
 export interface ThemeVariant {
   readonly codeThemeId: string;
@@ -107,8 +107,8 @@ export function resolveTheme(variant: ThemeVariant) {
   } as const;
 }
 
-export const appThemes = [supernovaTheme] as const;
-export const defaultTheme = supernovaTheme;
+export const appThemes = [piRetroTheme] as const;
+export const defaultTheme = piRetroTheme;
 export type ThemeId = (typeof appThemes)[number]["id"];
 
 /** Returns the selected bundled theme or the default theme. */

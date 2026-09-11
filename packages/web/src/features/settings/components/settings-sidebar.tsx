@@ -1,4 +1,5 @@
 import {Link} from "@tanstack/react-router";
+import PiBrand from "@/components/brand/pi-brand";
 import Icon from "@/components/ui/icon";
 import {cn} from "@/lib/cn";
 import {settingsSections} from "@/features/settings/data/settings-sections";
@@ -13,6 +14,7 @@ export default function SettingsSidebar(props: SettingsSidebarProps) {
 
   return (
     <aside className="flex h-full w-full shrink-0 flex-col md:w-72">
+      <PiBrand />
       <nav className="scroll-fade-y min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-1">
         <div className="space-y-0.5">
           <Link
@@ -33,7 +35,7 @@ export default function SettingsSidebar(props: SettingsSidebarProps) {
                 <Link
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-xl corner-superellipse/1.3 px-2 py-1.5 text-left text-sm text-ink hover:bg-overlay-hover hover:text-ink-strong",
-                    isActive && "bg-overlay-hover"
+                    isActive && "bg-overlay-hover text-ink-strong"
                   )}
                   params={{sectionId: section.id}}
                   to="/settings/$sectionId"

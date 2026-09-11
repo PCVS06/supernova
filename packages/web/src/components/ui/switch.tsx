@@ -4,19 +4,19 @@ import {cn} from "@/lib/cn";
 
 type SwitchProps = ComponentProps<typeof BaseSwitch.Root>;
 
-/** Accessible Base UI switch styled for Supernova controls. */
+/** Keyboard-accessible monochrome switch with subtly rounded geometry. */
 export default function Switch(props: SwitchProps) {
   const {className, ...switchProps} = props;
 
   return (
     <BaseSwitch.Root
       className={cn(
-        "relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border border-border bg-surface-raised outline-none transition-colors data-checked:border-accent data-checked:bg-accent focus-visible:ring-2 focus-visible:ring-accent-focus/60 data-disabled:cursor-default data-disabled:opacity-50",
+        "relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-md border border-border-strong bg-surface-raised outline-none transition-colors data-checked:border-ink data-checked:bg-ink focus-visible:ring-2 focus-visible:ring-accent-focus/60 data-disabled:cursor-default data-disabled:opacity-50",
         className
       )}
       {...switchProps}
     >
-      <BaseSwitch.Thumb className="block size-4.5 translate-x-0.5 rounded-full bg-white ring-1 ring-black/10 transition-transform data-checked:translate-x-4.5" />
+      <BaseSwitch.Thumb className="block size-4 translate-x-0.5 rounded-xs bg-ink-muted transition-transform data-checked:translate-x-4.5 data-checked:bg-ink-inverse motion-reduce:transition-none" />
     </BaseSwitch.Root>
   );
 }

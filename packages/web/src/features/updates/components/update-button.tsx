@@ -34,7 +34,7 @@ export default function UpdateButton(props: UpdateButtonProps) {
   const runUpdateAction = (action: () => Promise<void>, failureTitle: string): void => {
     setPending(true);
     void action()
-      .catch(() => showToast(failureTitle, "Restart Supernova and try again."))
+      .catch(() => showToast(failureTitle, "Restart pi+ and try again."))
       .finally(() => setPending(false));
   };
 

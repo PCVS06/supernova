@@ -1,4 +1,5 @@
 import Button from "@/components/ui/button";
+import PiOrb from "@/components/brand/pi-orb";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import SessionActionsMenu from "@/features/sessions/components/session-actions-menu";
@@ -6,10 +7,13 @@ import SessionTitleText from "@/features/sessions/components/session-title-text"
 import {useRenameSession} from "@/features/sessions/hooks/api/use-rename-session";
 import {useInlineRename} from "@/hooks/use-inline-rename";
 import {cn} from "@/lib/cn";
+import ChatRunList from "@/features/harnesses/components/chat-run-list";
 
 interface ProjectSessionListItemProps {
   session: {id: string; title: string; pinned: boolean; updatedAt: string};
   projectPath: string;
+  color?: string;
+  managed?: boolean;
   selected: boolean;
   streaming: boolean;
   unseen: boolean;
@@ -20,7 +24,7 @@ interface ProjectSessionListItemProps {
 
 /** Renders a sidebar session with shared actions and local inline renaming. */
 export default function ProjectSessionListItem(props: ProjectSessionListItemProps) {
-  const {session, projectPath, selected, streaming, unseen, onOpen, onPrefetch, onTogglePinned} = props;
+  const {session, projectPath, selected, streaming, unseen, onOpen, onPrefetch, onTogglePinned, color, managed} = props;
   const renameSession = useRenameSession();
   const {draftName, handleBlur, handleChange, handleClick, handleFocus, handleInputRef, handleKeyDown, renaming, startRenaming} = useInlineRename({
     initialValue: session.title,
@@ -31,8 +35,12 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
     <li onFocusCapture={onPrefetch} onPointerDown={onPrefetch} onPointerEnter={onPrefetch}>
       <Button
         as="div"
-        className={cn("group/session flex w-full items-center gap-2 py-1.5 pl-2 pr-1 text-left", selected && "bg-overlay-pressed text-ink")}
+        className={cn(
+          "group/session flex w-full items-center gap-2 border-l-2 border-transparent py-1.5 pl-2 pr-1 text-left",
+          selected && "border-l-ink bg-overlay-pressed text-ink"
+        )}
         onClick={onOpen}
+        style={selected ? {borderLeftColor: color, color} : undefined}
         variant="primary"
       >
         <IconButton
@@ -67,9 +75,9 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
         <span className="grid w-12 shrink-0 place-items-center justify-items-end">
           <span className="col-start-1 row-start-1 w-full justify-self-end whitespace-nowrap pr-1.5 text-right text-xs text-ink-muted group-hover/session:invisible group-focus-within/session:invisible group-has-[[data-popup-open]]/session:invisible">
             {streaming ? (
-              <span className="inline-block size-2 animate-spin rounded-full border border-border-strong border-t-ink" aria-label="Session streaming" />
+              <PiOrb color={color} className="ml-auto size-5" label="Session streaming" state="working" />
             ) : unseen ? (
-              <span className="inline-block size-1.5 rounded-full bg-accent" aria-label="Finished while closed" role="status" />
+              <span className="inline-block size-1.5 bg-ink" aria-label="Finished while closed" role="status" />
             ) : (
               session.updatedAt
             )}
@@ -83,6 +91,7 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
           />
         </span>
       </Button>
+      {managed && <ChatRunList sessionId={session.id} live={selected || streaming} />}
     </li>
   );
 }

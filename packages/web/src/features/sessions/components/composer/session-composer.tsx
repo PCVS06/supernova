@@ -182,7 +182,7 @@ function SessionComposerAttachButton(props: SessionComposerAttachButtonProps) {
       <input accept={SESSION_ATTACHMENT_ACCEPT} className="hidden" disabled={disabled} multiple onChange={handleChange} ref={fileInputRef} type="file" />
       <IconButton
         label={label}
-        className="grid size-8 place-items-center rounded-full text-ink-muted transition hover:bg-overlay-hover hover:text-ink-strong disabled:cursor-default disabled:text-ink-faint disabled:hover:bg-transparent"
+        className="grid size-8 place-items-center rounded-lg text-ink-muted transition hover:bg-overlay-hover hover:text-ink-strong disabled:cursor-default disabled:text-ink-faint disabled:hover:bg-transparent"
         disabled={disabled}
         onClick={handleClick}
         size="none"
@@ -211,7 +211,7 @@ function SessionComposerSubmitButton(props: SessionComposerSubmitButtonProps) {
   return (
     <IconButton
       label={label}
-      className="grid size-9 place-items-center rounded-full bg-ink text-ink-inverse transition hover:bg-ink-strong disabled:cursor-default disabled:bg-overlay-pressed disabled:text-ink-muted"
+      className="grid size-9 place-items-center rounded-lg bg-ink text-ink-inverse transition hover:bg-ink-strong disabled:cursor-default disabled:bg-overlay-pressed disabled:text-ink-muted"
       disabled={disabled}
       onClick={onClick}
       size="none"
@@ -315,7 +315,7 @@ export default function SessionComposer(props: SessionComposerProps) {
             <div className="pointer-events-auto">{topExtension}</div>
           </div>
         )}
-        <div className="relative z-10 rounded-3xl corner-superellipse/1.3 bg-surface-control px-3 py-2 ring-1 ring-border-muted shadow-md">
+        <div className="relative z-10 rounded-2xl border border-border bg-surface-control px-3 py-2.5 transition-colors focus-within:border-ink-faint">
           <SessionComposerAttachments attachments={attachments} />
           <SessionComposerInput
             attachmentDisabled={attachmentDisabled}
@@ -326,7 +326,7 @@ export default function SessionComposer(props: SessionComposerProps) {
             projectPath={projectPath}
             slashCommandActions={slashCommandActions}
           />
-          <div className="flex items-center justify-between gap-2">
+          <div className="mt-2 flex items-center justify-between gap-2">
             <SessionComposerAttachButton attachments={attachments} disabled={attachmentDisabled} />
             <div className="flex min-w-0 items-center gap-4">
               {toolbarControls}

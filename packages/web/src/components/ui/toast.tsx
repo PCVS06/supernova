@@ -21,7 +21,7 @@ function ToastItem(props: {readonly toast: ToastObject}) {
     <Toast.Root
       className={cn(
         "absolute right-2 -bottom-1 z-[calc(1000-var(--toast-index))]",
-        "w-full rounded-2xl border border-border bg-surface-popover/95 p-3 backdrop-blur-3xl",
+        "w-full rounded-xl border border-border-strong bg-surface-popover p-3 shadow-lg",
         "select-text",
 
         // Stack tuning

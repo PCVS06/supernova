@@ -1,5 +1,5 @@
 import type {Session} from "@supernova/contracts/sessions/schemas";
-import {useCallback, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import type {AppEnvironment} from "@/lib/app-environment";
 import CheckpointConflictDialog from "@/features/sessions/components/checkpoint-conflict-dialog";
 import ModelPicker from "@/features/sessions/components/composer/pickers/model-picker";
@@ -24,6 +24,10 @@ import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store
 import {useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
 import {useInlineRename} from "@/hooks/use-inline-rename";
 import {useMountEffect} from "@/lib/use-mount-effect";
+import ChatContextBar from "@/features/harnesses/components/chat-context-bar";
+import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
+import {agentColor} from "@/features/harnesses/lib/agent-identity";
+import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 
 interface SessionLoadingProps {
   readonly appEnvironment: AppEnvironment;
@@ -57,6 +61,13 @@ interface SessionConversationProps {
 
 function SessionConversation(props: SessionConversationProps) {
   const {appEnvironment, session} = props;
+  const library = useHarnessLibrary();
+  const project = library.data?.projects.find((item) => item.path === session.projectPath);
+  const head = library.data?.harnesses.some((item) => item.coordinatorProjectId === project?.id);
+  const selectProject = useHarnessNavigationStore((state) => state.selectProject);
+  useEffect(() => {
+    if (project) selectProject(project.harnessId, project.id);
+  }, [project, selectProject]);
 
   const markSessionVisited = useSessionVisitsStore((state) => state.markSessionVisited);
   const renameSessionMutation = useRenameSessionMutation();
@@ -139,6 +150,8 @@ function SessionConversation(props: SessionConversationProps) {
     <>
       <SessionLayout
         appEnvironment={appEnvironment}
+        color={project ? (project.color ?? (head ? "#ffffff" : agentColor(project.id))) : undefined}
+        contextBar={<ChatContextBar sessionId={session.id} projectPath={session.projectPath} />}
         attachmentDropOverlayVisible={composerAttachments.isDraggingFiles}
         attachmentDropZoneProps={composerAttachments.dropZoneProps}
         composer={

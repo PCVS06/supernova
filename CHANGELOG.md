@@ -8,14 +8,41 @@ All notable changes to Supernova are documented in this file.
 
 ### Added
 
+- Added chat-owned worker receipts with nested delegation, status, tasks, working folders, model/effort, instruction layers, runtime tools/skills and final results.
+- Added bounded lab-view management for project leads: names, colors and ordering only, with revision and ownership checks.
+- Added per-agent model, reasoning effort, skills and colored pi identities, with project overrides and shared defaults.
+- Added a real Science Space head-to-lab delegation tool, pinned lab configurations and an explicit orchestration hierarchy.
+- Added harness workspaces with configurable agents, shared and project prompts, context policy, bounded execution, and visual sequential handoff graphs. Science Pi can be imported from a local package without modifying the original lab files; new harness chats capture their configuration.
+- Added a monochrome pixel pi orb for the animated logo and live chat activity, with a still reduced-motion appearance.
+
 ### Changed
 
+- Split harness configuration into Agents, Resources, Memory and Graph / Workflows. Chats remain in the sidebar. Resources exposes registered tools and scientific connectors with separate, app-wide encrypted credential storage. Memory reads actual scientific ledgers and explicitly identifies the missing specialist-private memory layer. The new visual graph editor remains on hold.
+- Give Memory the same identity workbench as Agents, with consistent harness/project/specialist navigation, searchable records and evidence, and a separate scope/storage panel.
+
+- Unified coordinator, project-lead and specialist editors with one portrait size, aligned headers and forms, matching tabs and identity controls, consistent list rows, and the same responsive picker and scrolling behavior.
+- Labs now open to chats. Removed the permanent sidebar team and configuration-scope switcher; instructions are organized by shared manual, project brief and agent role, with advanced controls grouped separately.
+- Chat pi marks and selected sidebar chats inherit their project's color. Specialists use a three-dot orbital pi identity, and separate agent tabs distinguish coordinators, project leads and specialists.
+- Model and effort settings now use dark, keyboard-accessible menus instead of native select popups.
+- Main orchestrator, Project leads and Specialists have separate agent tabs. Project leads have a lab-only searchable list, large colored pi portraits, coordination relationships, and Settings, Instructions and Skills panels.
+- Moved instructions into their owning agent panels: shared manual with the main orchestrator, project briefs with project leads, and specialist roles with specialists, with separate scope labels and revision-safe saves.
+- Made every harness directly visible in the sidebar; replaced the top switcher with expandable harness, head, lab and team navigation.
+- Split agent editing into compact master/detail panes with independent scrolling and clearer shared, project and role prompt scopes.
+- Kept harness settings focused on prompts, agents, context, workflows, run limits, and projects; extension entry points and package paths stay internal.
+- Enlarged the animated pi mark in working chats, compaction, navigation, and the new-chat screen.
+- Restyled pi+ with a black monochrome palette, modern typography and softly rounded controls, subtle monospace accents, and shared pixel-pi navigation branding. Existing installs adopt dark, opaque appearance once; appearance controls remain available.
 - Changed the desktop, favicon, and new-session branding to a custom white π mark on a black background.
 
 ### Fixed
 
+- Fixed Science extension loading in the packaged desktop app by shipping the Pi SDK's runtime dependencies.
+- Removed title generation from the first-answer critical path, bounded read-only checkpoint discovery and surfaced settled provider errors before after-turn checkpoint work.
+- Unified the skill picker and managed runtime skill catalogue, applied model/effort defaults to new chats, and preserved custom tool names and delegation outputs in the timeline.
+- Fixed the Pi logo's visible background box in chats and the macOS icon's rounded shape and spacing.
+
 ### Removed
 
+- Removed repetitive explanations and status banners from harness settings, Memory, Resources and agent navigation.
 ## [0.1.1]
 
 ### Added

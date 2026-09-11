@@ -5,6 +5,17 @@ import {ProvidersService} from "@supernova/agent-runtime/services/providers-serv
 import {ProjectsService} from "@supernova/agent-runtime/services/projects-service";
 import {SessionRuntimeService} from "@supernova/agent-runtime/services/session-runtime-service";
 import {SessionsService} from "@supernova/agent-runtime/services/sessions-service";
+import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
+import {harnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
+import {harnessPromptLayers} from "@supernova/agent-runtime/layers/harnesses/lib/harness-prompts";
+import {getHarnessResources, getHarnessMemory} from "@supernova/agent-runtime/layers/harnesses/internal/harness-resources";
+import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
+import {HarnessConfigurationError} from "@supernova/contracts/harnesses/procedures";
+import {CreateSessionError} from "@supernova/contracts/sessions/procedures";
+
+function configurationEffect<T>(run: () => Promise<T>) {
+  return Effect.tryPromise({try: run, catch: (error) => new HarnessConfigurationError({message: error instanceof Error ? error.message : "Harness configuration failed."})});
+}
 
 export const AgentRpcLive = AgentRpcGroup.toLayer(
   Effect.gen(function* () {
@@ -15,6 +26,45 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
     const sessions = yield* SessionsService;
 
     return {
+      getHarnessResources: ({harnessId, projectId}) => configurationEffect(() => getHarnessResources(harnessId, projectId)),
+      getHarnessMemory: ({harnessId, projectId}) => configurationEffect(() => getHarnessMemory(harnessId, projectId)),
+      getToolCredentials: () => configurationEffect(() => toolCredentials.status()),
+      saveToolCredential: ({name, value}) => configurationEffect(() => toolCredentials.save(name, value)),
+      getHarnessLibrary: () => configurationEffect(() => harnessStore.list()),
+      updateHarnessView: ({projectId, beforeProjectId, expectedRevision}) =>
+        configurationEffect(async () => harnessStore.updateView(await harnessStore.resolveProject(projectId), {projectId, beforeProjectId}, expectedRevision)),
+      getChatHarness: ({sessionId}) =>
+        configurationEffect(async () => {
+          const session = await Effect.runPromise(sessions.get(sessionId));
+          const snapshot = await harnessStore.forSession(sessionId, session.projectPath);
+          return {
+            snapshot,
+            captured: await harnessStore.hasSnapshot(sessionId),
+            instructions: snapshot ? harnessPromptLayers(snapshot) : [],
+            runtime: await harnessRunStore.context(sessionId),
+          };
+        }),
+      listHarnessRuns: ({sessionId}) =>
+        configurationEffect(async () => {
+          await Effect.runPromise(sessions.get(sessionId));
+          return harnessRunStore.list(sessionId);
+        }),
+      getHarnessRun: ({sessionId, runId}) =>
+        configurationEffect(async () => {
+          await Effect.runPromise(sessions.get(sessionId));
+          return harnessRunStore.get(sessionId, runId);
+        }),
+      getHarnessSkills: ({harnessId}) => configurationEffect(async () => (await harnessStore.listSkills(harnessId)).map(({name, description}) => ({name, description}))),
+      saveHarness: ({harness, expectedRevision}) => configurationEffect(() => harnessStore.save(harness, expectedRevision)),
+      saveHarnessProject: ({project, expectedRevision}) => configurationEffect(() => harnessStore.saveProject(project, expectedRevision)),
+      importScienceHarness: ({packagePath, rootPath, expectedRevision}) => configurationEffect(() => harnessStore.importScience(packagePath, rootPath, expectedRevision)),
+      createHarnessSession: ({projectId}) =>
+        configurationEffect(async () => {
+          const snapshot = await harnessStore.resolveProject(projectId);
+          const session = await Effect.runPromise(sessions.create(snapshot.project.path));
+          await harnessStore.bindSession(session.id, snapshot);
+          return session;
+        }),
       abortSession: ({sessionId}) => sessionRuntime.abortSession(sessionId),
       archiveProjectSession: ({projectPath, sessionId}) =>
         Effect.gen(function* () {
@@ -26,7 +76,13 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       cancelProviderLogin: ({loginSessionId}) => providers.cancelLogin(loginSessionId),
       compactSession: (input) => sessionRuntime.compactSession(input),
       createFolder: ({path}) => folders.create(path),
-      createSession: ({projectPath}) => sessions.create(projectPath),
+      createSession: ({projectPath}) =>
+        configurationEffect(async () => {
+          const snapshot = await harnessStore.resolveNewSession(projectPath);
+          const session = await Effect.runPromise(sessions.create(snapshot.project.path));
+          await harnessStore.bindSession(session.id, snapshot);
+          return session;
+        }).pipe(Effect.mapError((error) => new CreateSessionError({message: error.message}))),
       getSession: ({sessionId}) =>
         Effect.flatMap(sessionRuntime.getCommittedSession(sessionId), (committedSession) => (committedSession ? Effect.succeed(committedSession) : sessions.get(sessionId))),
       listFolderFiles: ({projectPath, query}) => folders.listFiles(projectPath, query),

@@ -90,12 +90,7 @@ export default function UserMessage(props: UserMessageProps) {
           </div>
         )}
 
-        <div
-          className={cn(
-            "max-w-full rounded-2xl corner-superellipse/1.3 bg-surface-raised px-3.5 py-2 text-sm leading-relaxed wrap-break-word text-ink",
-            !hasContent && "text-ink-muted"
-          )}
-        >
+        <div className={cn("max-w-full rounded-xl bg-surface-raised px-3.5 py-2 text-sm leading-relaxed wrap-break-word text-ink", !hasContent && "text-ink-muted")}>
           {hasContent ? <UserMessageStructuredContent message={message} /> : "(No content)"}
         </div>
         <MessageActions align="end" copyText={copyText} onRevert={onRevertToMessage ? handleRevert : undefined} timestamp={message.timestamp} />

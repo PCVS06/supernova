@@ -4,6 +4,23 @@ import {useProjectList} from "@/features/projects/hooks/use-project-list";
 import SettingsPage from "@/features/settings/pages/settings-page";
 import NewSessionPage from "@/features/sessions/pages/new-session-page";
 import SessionPage from "@/features/sessions/pages/session-page";
+import HarnessesPage from "@/features/harnesses/pages/harnesses-page";
+import HarnessConfigPage from "@/features/harnesses/pages/harness-config-page";
+import HarnessRunPage from "@/features/harnesses/pages/harness-run-page";
+
+export function HarnessRunRoute() {
+  const {sessionId, runId} = useParams({from: "/home-layout/session/$sessionId/run/$runId"});
+  return <HarnessRunPage sessionId={sessionId} runId={runId} />;
+}
+
+export function HarnessesRoute() {
+  return <HarnessesPage />;
+}
+export function HarnessConfigRoute() {
+  const {harnessId} = useParams({from: "/home-layout/harness/$harnessId"});
+  const search = useSearch({from: "/home-layout/harness/$harnessId"});
+  return <HarnessConfigPage key={harnessId} harnessId={harnessId} {...search} />;
+}
 
 function EmptySessionState() {
   return (
@@ -45,7 +62,7 @@ export function NewSessionRoute() {
 
   if (!project) return <EmptySessionState />;
 
-  return <NewSessionPage projectName={project.name} projectPath={project.path} />;
+  return <NewSessionPage harnessProjectId={project.harnessProjectId} projectName={project.name} projectPath={project.path} />;
 }
 
 export function SettingsSectionRoute() {
