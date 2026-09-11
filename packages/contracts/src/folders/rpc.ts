@@ -9,6 +9,15 @@ import {
   FolderSuggestionsListError,
   FolderSuggestionsListPayload,
   FolderSuggestionsListResult,
+  FolderEntriesListError,
+  FolderEntriesListPayload,
+  FolderEntriesListResult,
+  FolderFileReadError,
+  FolderFileReadPayload,
+  FolderFileReadResult,
+  FolderFileWriteError,
+  FolderFileWritePayload,
+  FolderFileWriteResult,
 } from "@supernova/contracts/folders/procedures";
 
 export const FolderCreateRpc = Rpc.make("createFolder", {
@@ -29,4 +38,22 @@ export const FolderFilesListRpc = Rpc.make("listFolderFiles", {
   success: FolderFilesListResult,
 });
 
-export const FolderRpcs = [FolderCreateRpc, FolderSuggestionsListRpc, FolderFilesListRpc] as const;
+export const FolderEntriesListRpc = Rpc.make("listFolderEntries", {
+  error: FolderEntriesListError,
+  payload: FolderEntriesListPayload,
+  success: FolderEntriesListResult,
+});
+
+export const FolderFileReadRpc = Rpc.make("readFolderFile", {
+  error: FolderFileReadError,
+  payload: FolderFileReadPayload,
+  success: FolderFileReadResult,
+});
+
+export const FolderFileWriteRpc = Rpc.make("writeFolderFile", {
+  error: FolderFileWriteError,
+  payload: FolderFileWritePayload,
+  success: FolderFileWriteResult,
+});
+
+export const FolderRpcs = [FolderCreateRpc, FolderSuggestionsListRpc, FolderFilesListRpc, FolderEntriesListRpc, FolderFileReadRpc, FolderFileWriteRpc] as const;

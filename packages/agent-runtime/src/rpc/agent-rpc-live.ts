@@ -11,6 +11,7 @@ import {harnessPromptLayers} from "@supernova/agent-runtime/layers/harnesses/lib
 import {getHarnessResources, getHarnessMemory} from "@supernova/agent-runtime/layers/harnesses/internal/harness-resources";
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
 import {HarnessConfigurationError} from "@supernova/contracts/harnesses/procedures";
+import {FolderEntriesListError, FolderFileReadError, FolderFileWriteError} from "@supernova/contracts/folders/procedures";
 import {CreateSessionError} from "@supernova/contracts/sessions/procedures";
 
 function configurationEffect<T>(run: () => Promise<T>) {
@@ -96,6 +97,10 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       getSession: ({sessionId}) =>
         Effect.flatMap(sessionRuntime.getCommittedSession(sessionId), (committedSession) => (committedSession ? Effect.succeed(committedSession) : sessions.get(sessionId))),
       listFolderFiles: ({projectPath, query}) => folders.listFiles(projectPath, query),
+      // Placeholders until the folder file service lands.
+      listFolderEntries: ({path}) => Effect.fail(new FolderEntriesListError({message: `Listing ${path || "the project root"} is not available yet.`})),
+      readFolderFile: ({path}) => Effect.fail(new FolderFileReadError({message: `Reading ${path} is not available yet.`})),
+      writeFolderFile: ({path}) => Effect.fail(new FolderFileWriteError({message: `Writing ${path} is not available yet.`})),
       listFolderSuggestions: ({query}) => folders.listSuggestions(query),
       listProviders: () => providers.list(),
       listProjectSessions: (input) => projects.listSessions(input),
@@ -106,6 +111,7 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       renameSession: (input) => sessions.rename(input),
       revertToMessage: (input) => sessionRuntime.revertToMessage(input),
       sendMessage: (input) => sessionRuntime.sendMessage(input),
+      steerSession: () => Effect.void,
       startProviderLogin: ({authType, providerId}) => providers.startLogin(providerId, authType),
       submitProviderLoginInput: ({input, loginSessionId}) => providers.submitLoginInput(loginSessionId, input),
       watchProviderLoginSession: ({loginSessionId}) => providers.watchLoginSession(loginSessionId),

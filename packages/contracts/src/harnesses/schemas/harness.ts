@@ -56,6 +56,8 @@ export const HarnessProject = Schema.Struct({
   enabledSkills: Schema.optional(Schema.Array(Schema.String)),
   color: Schema.optional(Schema.String),
   order: Schema.optional(Schema.Number),
+  /** Project-relative Markdown files that extend the project instructions: plans, goals, roadmaps agents must see. */
+  planningDocuments: Schema.optional(Schema.Array(Schema.String)),
 });
 
 export const HarnessLibrary = Schema.Struct({

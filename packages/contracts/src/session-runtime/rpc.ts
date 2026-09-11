@@ -6,6 +6,7 @@ import {
   RedoCheckpointPayload,
   RevertToMessagePayload,
   SendMessagePayload,
+  SteerSessionPayload,
   SessionStreamEvent,
   UndoCheckpointPayload,
   WatchEventsPayload,
@@ -13,6 +14,10 @@ import {
 
 export const SendMessageRpc = Rpc.make("sendMessage", {
   payload: SendMessagePayload,
+});
+
+export const SteerSessionRpc = Rpc.make("steerSession", {
+  payload: SteerSessionPayload,
 });
 
 export const AbortSessionRpc = Rpc.make("abortSession", {
@@ -44,4 +49,13 @@ export const WatchEventsRpc = Rpc.make("watchEvents", {
   success: SessionStreamEvent,
 });
 
-export const SessionRuntimeRpcs = [SendMessageRpc, AbortSessionRpc, CompactSessionRpc, RevertToMessageRpc, UndoCheckpointRpc, RedoCheckpointRpc, WatchEventsRpc] as const;
+export const SessionRuntimeRpcs = [
+  SendMessageRpc,
+  SteerSessionRpc,
+  AbortSessionRpc,
+  CompactSessionRpc,
+  RevertToMessageRpc,
+  UndoCheckpointRpc,
+  RedoCheckpointRpc,
+  WatchEventsRpc,
+] as const;
