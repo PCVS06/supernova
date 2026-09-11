@@ -22,6 +22,7 @@ export type IconName =
   | "check"
   | "chevron-down"
   | "chevron-right"
+  | "columns"
   | "compact"
   | "copy"
   | "corner-left-up"
@@ -43,6 +44,7 @@ export type IconName =
   | "more-horizontal"
   | "new-session"
   | "panel-left"
+  | "panel-right"
   | "panel-top"
   | "palette"
   | "paperclip"
@@ -50,6 +52,7 @@ export type IconName =
   | "plus"
   | "rectangle-horizontal"
   | "redo"
+  | "reload"
   | "restart"
   | "search"
   | "send"
@@ -85,6 +88,7 @@ const icons = {
   check: getStaticIcon(lucideIcons, "check"),
   "chevron-down": getStaticIcon(lucideIcons, "chevron-down"),
   "chevron-right": getStaticIcon(lucideIcons, "chevron-right"),
+  columns: getStaticIcon(lucideIcons, "columns-2"),
   compact: getStaticIcon(lucideIcons, "minimize-2"),
   copy: getStaticIcon(lucideIcons, "copy"),
   "corner-left-up": getStaticIcon(lucideIcons, "corner-left-up"),
@@ -106,6 +110,7 @@ const icons = {
   "more-horizontal": getStaticIcon(lucideIcons, "more-horizontal"),
   "new-session": getStaticIcon(cuidaIcons, "edit-outline"),
   "panel-left": getStaticIcon(tablerIcons, "layout-sidebar"),
+  "panel-right": getStaticIcon(lucideIcons, "panel-right"),
   "panel-top": getStaticIcon(lucideIcons, "panel-top"),
   palette: getStaticIcon(lucideIcons, "palette"),
   paperclip: getStaticIcon(lucideIcons, "paperclip"),
@@ -113,6 +118,7 @@ const icons = {
   plus: getStaticIcon(lucideIcons, "plus"),
   "rectangle-horizontal": getStaticIcon(lucideIcons, "rectangle-horizontal"),
   redo: getStaticIcon(lucideIcons, "redo-2"),
+  reload: getStaticIcon(lucideIcons, "rotate-cw"),
   restart: getStaticIcon(fluentIcons, "arrow-clockwise-16-filled"),
   search: getStaticIcon(lucideIcons, "search"),
   send: getStaticIcon(stashIcons, "arrow-up-solid"),

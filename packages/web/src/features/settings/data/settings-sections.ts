@@ -1,10 +1,11 @@
 import type {ComponentType} from "react";
 import type {IconName} from "@/components/ui/icon";
+import HarnessesPage from "@/features/harnesses/pages/harnesses-page";
 import AppearanceSection from "@/features/settings/pages/sections/appearance-section";
 import GeneralSection from "@/features/settings/pages/sections/general-section";
 import ProvidersSection from "@/features/settings/pages/sections/providers-section";
 
-export type SettingsSectionId = "appearance" | "general" | "providers";
+export type SettingsSectionId = "appearance" | "general" | "harnesses" | "providers";
 
 export interface SettingsSection {
   Component: ComponentType;
@@ -31,6 +32,12 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "server",
     id: "providers",
     label: "Providers",
+  },
+  {
+    Component: HarnessesPage,
+    icon: "workflow",
+    id: "harnesses",
+    label: "Harnesses",
   },
 ];
 

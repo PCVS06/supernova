@@ -36,9 +36,8 @@ export default function HarnessSidebarSection(props: {
         </Button>
         <Link
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-sm font-medium hover:text-ink-strong"
-          to="/harness/$harnessId"
+          to="/settings/harness/$harnessId"
           params={{harnessId: harness.id}}
-          search={{section: "Chats"}}
           onClick={() => selectHarness(harness.id)}
         >
           <PiOrb className="size-7" state="still" />

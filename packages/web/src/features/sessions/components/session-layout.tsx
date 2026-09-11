@@ -1,42 +1,64 @@
 import type {CSSProperties, HTMLAttributes, ReactNode} from "react";
-import {LayoutGroup, motion} from "framer-motion";
 import type {AppEnvironment} from "@/lib/app-environment";
 import AttachmentDropOverlay from "@/features/sessions/components/attachments/attachment-drop-overlay";
-import {cn} from "@/lib/cn";
+import SessionHeader from "@/features/sessions/components/session-header";
+
+/** Sticky inset that keeps the routed chat's header clear of the platform window controls. */
+function titleOffsetClassName(appEnvironment: AppEnvironment): string {
+  if (appEnvironment === "mac") return "left-48";
+  if (appEnvironment === "web") return "left-12";
+
+  return "left-29";
+}
 
 interface SessionLayoutProps {
+  /** Chat-level actions such as split and close. */
+  readonly actions?: ReactNode;
   readonly appEnvironment: AppEnvironment;
   readonly attachmentDropOverlayVisible?: boolean;
   readonly attachmentDropZoneProps?: Pick<HTMLAttributes<HTMLDivElement>, "onDragEnter" | "onDragLeave" | "onDragOver" | "onDrop">;
+  readonly badge?: ReactNode;
+  readonly color?: string;
   readonly composer: ReactNode;
+  /** Compact strip under the header with the chat's goals and instructions. */
+  readonly contextStrip?: ReactNode;
+  readonly mark?: ReactNode;
   readonly timeline: ReactNode;
   readonly title: ReactNode;
   readonly titleActions?: ReactNode;
-  readonly contextBar?: ReactNode;
-  readonly color?: string;
+  /** A pane sits beside the routed chat and is never under the window controls. */
+  readonly variant?: "pane" | "primary";
 }
 
+/** One chat surface: header, context strip, transcript and composer in a single frame. */
 export default function SessionLayout(props: SessionLayoutProps) {
-  const {appEnvironment, attachmentDropOverlayVisible = false, attachmentDropZoneProps, composer, timeline, title, titleActions} = props;
-  const titleOffset = appEnvironment === "mac" ? "left-48" : appEnvironment === "web" ? "left-12" : "left-29";
+  const {
+    actions,
+    appEnvironment,
+    attachmentDropOverlayVisible = false,
+    attachmentDropZoneProps,
+    badge,
+    color,
+    composer,
+    contextStrip,
+    mark,
+    timeline,
+    title,
+    titleActions,
+    variant = "primary",
+  } = props;
 
   return (
-    <div {...attachmentDropZoneProps} className="chat-workspace relative flex min-h-0 min-w-0 flex-1 flex-col" style={{"--chat-accent": props.color ?? "#ffffff"} as CSSProperties}>
-      <header className="flex h-12 min-w-0 shrink-0 items-center justify-between border-b border-border-muted px-4">
-        <LayoutGroup>
-          <div className={cn("sticky z-20 flex h-5 min-w-0 items-center gap-1.5 overflow-visible", titleOffset)}>
-            <motion.h1 className="min-w-0 max-w-xs truncate text-sm font-medium leading-5 text-ink" layout="position" transition={{duration: 0.18, ease: "easeOut"}}>
-              {title}
-            </motion.h1>
-            {titleActions && (
-              <motion.div className="shrink-0" layout="position" transition={{duration: 0.18, ease: "easeOut"}}>
-                {titleActions}
-              </motion.div>
-            )}
-          </div>
-        </LayoutGroup>
-      </header>
-      {props.contextBar}
+    <div {...attachmentDropZoneProps} className="chat-workspace relative flex min-h-0 min-w-0 flex-1 flex-col" style={{"--chat-accent": color ?? "#ffffff"} as CSSProperties}>
+      <SessionHeader
+        actions={actions}
+        badge={badge}
+        mark={mark}
+        offsetClassName={variant === "primary" ? titleOffsetClassName(appEnvironment) : undefined}
+        title={title}
+        titleActions={titleActions}
+      />
+      {contextStrip}
       {timeline}
       {composer}
       {attachmentDropOverlayVisible && <AttachmentDropOverlay />}

@@ -17,6 +17,8 @@ interface UseSessionTimelineResult {
   liveContext: SessionContextUsage | null;
   liveTimelineItems: readonly SessionTimelineItem[];
   slashCommandActions: ClientSlashCommandActions;
+  /** Delivers text to the turn that is already running. */
+  readonly steerTurn: (text: string) => void;
   stopStreaming: () => void;
   streamError: string | null;
   readonly streamStatus: SessionLiveStatus;
@@ -67,6 +69,7 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
   const redoCheckpoint = useSessionLiveStore((state) => state.redoCheckpoint);
   const revertSessionToMessage = useSessionLiveStore((state) => state.revertToMessage);
   const sendMessage = useSessionLiveStore((state) => state.sendMessage);
+  const steerSession = useSessionLiveStore((state) => state.steerSession);
   const undoCheckpoint = useSessionLiveStore((state) => state.undoCheckpoint);
 
   const streamStatus = sessionState?.status ?? "idle";
@@ -88,6 +91,12 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
     }
 
     sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId});
+  };
+
+  const steerTurn = (text: string): void => {
+    if (streamStatus !== "streaming") return;
+
+    steerSession({rpcClient, sessionId, text});
   };
 
   const stopStreaming = (): void => {
@@ -140,6 +149,7 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
     liveTimelineItems,
     slashCommandActions: {compact: triggerCompaction, redo, undo},
     revertToMessage,
+    steerTurn,
     submitMessage,
     stopStreaming,
   };

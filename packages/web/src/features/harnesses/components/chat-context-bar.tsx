@@ -19,9 +19,9 @@ export default function ChatContextBar({sessionId, projectPath}: {sessionId: str
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-2 text-xs">
         <Link
           className="truncate text-ink-muted"
-          to="/harness/$harnessId"
+          to="/settings/harness/$harnessId"
           params={{harnessId: project?.harnessId ?? snapshot!.harness.id}}
-          search={{projectId: project?.id ?? snapshot!.project.id, section: "Chats"}}
+          search={{projectId: project?.id ?? snapshot!.project.id, section: "projects"}}
         >
           {agentLabel(project?.name ?? snapshot!.project.name)} <span className="text-ink-faint">/ Chat · talking to the project lead</span>
         </Link>

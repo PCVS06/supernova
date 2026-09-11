@@ -3,6 +3,7 @@ import {useQueryClient} from "@tanstack/react-query";
 import {useNavigate} from "@tanstack/react-router";
 import PiOrb from "@/components/brand/pi-orb";
 import AttachmentDropOverlay from "@/features/sessions/components/attachments/attachment-drop-overlay";
+import ComposerToolbarGroup from "@/features/sessions/components/composer/composer-toolbar-group";
 import ModelPicker from "@/features/sessions/components/composer/pickers/model-picker";
 import ThinkingLevelPicker from "@/features/sessions/components/composer/pickers/thinking-level-picker";
 import SessionComposer from "@/features/sessions/components/composer/session-composer";
@@ -105,21 +106,25 @@ export default function NewSessionPage(props: NewSessionPageProps) {
               onSubmit={handleSubmit}
               projectPath={projectPath}
               toolbarControls={
-                <div className="flex gap-2">
-                  <ModelPicker
-                    selectedModel={modelSelection.selectedModelDetails}
-                    disabled={composerDisabled}
-                    models={modelSelection.availableModels}
-                    onModelChange={handleModelChange}
-                  />
-                  {thinkingLevels.length > 0 && (
-                    <ThinkingLevelPicker
+                <div className="flex min-w-0 items-center gap-3">
+                  <ComposerToolbarGroup label="Model">
+                    <ModelPicker
+                      selectedModel={modelSelection.selectedModelDetails}
                       disabled={composerDisabled}
-                      onThinkingLevelChange={modelSelection.selectThinkingLevel}
-                      selectedThinkingLabel={modelSelection.selectedThinkingLabel}
-                      selectedThinkingLevel={modelSelection.modelReference?.thinkingLevel}
-                      thinkingLevels={thinkingLevels}
+                      models={modelSelection.availableModels}
+                      onModelChange={handleModelChange}
                     />
+                  </ComposerToolbarGroup>
+                  {thinkingLevels.length > 0 && (
+                    <ComposerToolbarGroup label="Effort">
+                      <ThinkingLevelPicker
+                        disabled={composerDisabled}
+                        onThinkingLevelChange={modelSelection.selectThinkingLevel}
+                        selectedThinkingLabel={modelSelection.selectedThinkingLabel}
+                        selectedThinkingLevel={modelSelection.modelReference?.thinkingLevel}
+                        thinkingLevels={thinkingLevels}
+                      />
+                    </ComposerToolbarGroup>
                   )}
                 </div>
               }

@@ -90,10 +90,8 @@ export default function ProjectListItem(props: ProjectListItemProps) {
 
   const handleToggle = (): void => {
     selectProject(project.harnessId ?? "coding", project.harnessProjectId);
-    if (project.harnessProjectId) {
-      if (!expanded) onToggle(project.id);
-      void navigate({to: "/harness/$harnessId", params: {harnessId: project.harnessId ?? "coding"}, search: {projectId: project.harnessProjectId, section: "Chats"}});
-    } else onToggle(project.id);
+    // Chats live in the sidebar, so a project row only expands or collapses; configuration is behind the gear.
+    onToggle(project.id);
   };
 
   const handleRemoveProject = (): void => {
@@ -216,9 +214,9 @@ export default function ProjectListItem(props: ProjectListItemProps) {
                   onClick={() => {
                     selectProject(project.harnessId ?? "coding", project.harnessProjectId);
                     void navigate({
-                      to: "/harness/$harnessId",
+                      to: "/settings/harness/$harnessId",
                       params: {harnessId: project.harnessId ?? "coding"},
-                      search: {projectId: project.harnessProjectId, section: "Prompts"},
+                      search: {projectId: project.harnessProjectId, section: "projects"},
                     });
                   }}
                 >

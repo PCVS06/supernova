@@ -2,13 +2,12 @@ import {createRootRouteWithContext, createRoute, createRouter, redirect} from "@
 import type {AppEnvironment} from "@/lib/app-environment";
 import {
   HarnessRunRoute,
-  HarnessConfigRoute,
-  HarnessesRoute,
   HomeLayoutRoute,
   HomeRoute,
   NewSessionRoute,
   RootRoute,
   SessionRoute,
+  SettingsHarnessConfigRoute,
   SettingsSectionRoute,
   WorkflowRunRoute,
 } from "@/app/routes";
@@ -16,6 +15,21 @@ import {defaultSettingsSectionId, settingsSections} from "@/features/settings/da
 
 interface RouterContext {
   appEnvironment: AppEnvironment;
+}
+
+interface HarnessConfigSearch {
+  section?: string;
+  projectId?: string;
+  agentName?: string;
+}
+
+/** Harness configuration keeps the same search contract on the legacy and the settings route, so old links survive the redirect. */
+function validateHarnessConfigSearch(search: Record<string, unknown>): HarnessConfigSearch {
+  return {
+    section: typeof search.section === "string" ? search.section : undefined,
+    projectId: typeof search.projectId === "string" ? search.projectId : undefined,
+    agentName: typeof search.agentName === "string" ? search.agentName : undefined,
+  };
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
@@ -67,20 +81,35 @@ const settingsSectionRoute = createRoute({
   component: SettingsSectionRoute,
 });
 
-const harnessesRoute = createRoute({getParentRoute: () => homeLayoutRoute, path: "harnesses", component: HarnessesRoute});
-const harnessConfigRoute = createRoute({
+const settingsHarnessConfigRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "settings/harness/$harnessId",
+  component: SettingsHarnessConfigRoute,
+  validateSearch: validateHarnessConfigSearch,
+});
+
+// Harness configuration moved into settings. The former routes stay as redirects so existing links keep working.
+const harnessesRedirectRoute = createRoute({
+  getParentRoute: () => homeLayoutRoute,
+  path: "harnesses",
+  beforeLoad: () => {
+    throw redirect({params: {sectionId: "harnesses"}, to: "/settings/$sectionId"});
+  },
+});
+
+const harnessConfigRedirectRoute = createRoute({
   getParentRoute: () => homeLayoutRoute,
   path: "harness/$harnessId",
-  component: HarnessConfigRoute,
-  validateSearch: (search: Record<string, unknown>): {section?: string; projectId?: string; agentName?: string} => ({
-    section: typeof search.section === "string" ? search.section : undefined,
-    projectId: typeof search.projectId === "string" ? search.projectId : undefined,
-    agentName: typeof search.agentName === "string" ? search.agentName : undefined,
-  }),
+  validateSearch: validateHarnessConfigSearch,
+  beforeLoad: ({params, search}) => {
+    throw redirect({params: {harnessId: params.harnessId}, search, to: "/settings/harness/$harnessId"});
+  },
 });
-const routeTree = rootRoute.addChildren([
-  homeLayoutRoute.addChildren([indexRoute, newSessionRoute, sessionRoute, harnessRunRoute, workflowRunRoute, harnessesRoute, harnessConfigRoute]),
+
+export const routeTree = rootRoute.addChildren([
+  homeLayoutRoute.addChildren([indexRoute, newSessionRoute, sessionRoute, harnessRunRoute, workflowRunRoute, harnessesRedirectRoute, harnessConfigRedirectRoute]),
   settingsRoute,
+  settingsHarnessConfigRoute,
   settingsSectionRoute,
 ]);
 

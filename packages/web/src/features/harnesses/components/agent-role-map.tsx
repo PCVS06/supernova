@@ -1,72 +1,65 @@
 import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
+import Icon from "@/components/ui/icon";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import EditorTabs from "@/features/harnesses/components/editor-tabs";
+import type {HarnessSectionId} from "@/features/harnesses/lib/harness-sections";
 
-/** Separate workspaces for the main orchestrator, project leads and specialists. */
-export default function AgentRoleMap({
-  harness,
-  project,
-  projects,
-  specialists,
-  onSelect,
-}: {
+interface AgentRoleMapProps {
   harness: HarnessConfig;
   project?: HarnessProject;
   projects: readonly HarnessProject[];
-  specialists: boolean;
-  onSelect: (projectId: string | undefined, section: string) => void;
-}) {
+  section: HarnessSectionId;
+  onSelect: (projectId: string | undefined, section: HarnessSectionId) => void;
+}
+
+/** Sub-navigation of the Agents tab: the main orchestrator, project leads, specialists, and what they remember. */
+export default function AgentRoleMap(props: AgentRoleMapProps) {
+  const {harness, project, projects, section, onSelect} = props;
   const head = projects.find((item) => item.id === harness.coordinatorProjectId);
   const labs = projects.filter((item) => item.id !== head?.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const lab = project?.id !== head?.id ? project : undefined;
-  const active = specialists ? "specialists" : head && !lab ? "main" : "projects";
   const tabs = [
     ...(head
       ? [
           {
-            id: "main",
-            title: "Main orchestrator",
-            name: head.id,
-            color: head.color ?? "#ffffff",
-            count: undefined,
-            kind: "lead" as const,
-            action: () => onSelect(head.id, "Overview"),
+            value: "orchestrator" as HarnessSectionId,
+            label: "Main orchestrator",
+            icon: <AgentMark name={head.id} color={head.color ?? "#ffffff"} kind="lead" className="size-7" />,
+            action: () => onSelect(head.id, "orchestrator"),
           },
         ]
       : []),
     {
-      id: "projects",
-      title: "Project leads",
-      name: lab?.id ?? "project-leads",
-      color: lab?.color,
+      value: "leads" as HarnessSectionId,
+      label: "Project leads",
       count: labs.length,
-      kind: "lead" as const,
-      action: () => onSelect(lab?.id ?? labs[0]?.id, "Overview"),
+      disabled: !!head && !labs.length,
+      icon: <AgentMark name={lab?.id ?? "project-leads"} color={lab?.color} kind="lead" className="size-7" />,
+      action: () => onSelect(lab?.id ?? labs[0]?.id, "leads"),
     },
     {
-      id: "specialists",
-      title: "Specialists",
-      name: "specialist-roles",
-      color: undefined,
+      value: "specialists" as HarnessSectionId,
+      label: "Specialists",
       count: harness.agents.length,
-      kind: "specialist" as const,
-      action: () => onSelect(project?.id, "Team"),
+      icon: <AgentMark name="specialist-roles" className="size-7" />,
+      action: () => onSelect(project?.id, "specialists"),
+    },
+    {
+      value: "memory" as HarnessSectionId,
+      label: "Memory",
+      icon: <Icon className="text-ink-muted" name="archive" size="md" />,
+      action: () => onSelect(project?.id, "memory"),
     },
   ];
+
   return (
-    <section className="shrink-0 border-b border-border px-6 pt-2">
+    <div className="shrink-0 border-b border-border px-5 pt-2 sm:px-6">
       <EditorTabs
         label="Agent role tabs"
-        value={active}
-        items={tabs.map((tab) => ({
-          value: tab.id,
-          label: tab.title,
-          count: tab.count,
-          disabled: tab.id === "projects" && !!head && !labs.length,
-          icon: <AgentMark name={tab.name} color={tab.color} kind={tab.kind} className="size-7" />,
-        }))}
-        onChange={(value) => tabs.find((tab) => tab.id === value)?.action()}
+        value={section}
+        items={tabs.map((tab) => ({value: tab.value, label: tab.label, count: tab.count, disabled: tab.disabled, icon: tab.icon}))}
+        onChange={(value) => tabs.find((tab) => tab.value === value)?.action()}
       />
-    </section>
+    </div>
   );
 }

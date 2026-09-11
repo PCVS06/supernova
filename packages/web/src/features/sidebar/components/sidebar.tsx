@@ -102,7 +102,11 @@ export default function Sidebar() {
             </Button>
           </p>
         )}
-        <Link to="/harnesses" className="mt-2 flex items-center gap-2 rounded-lg px-2 py-2 text-xs text-ink-muted hover:bg-overlay-hover">
+        <Link
+          className="mt-2 flex items-center gap-2 rounded-lg px-2 py-2 text-xs text-ink-muted hover:bg-overlay-hover"
+          params={{sectionId: "harnesses"}}
+          to="/settings/$sectionId"
+        >
           <Icon name="plus" size="xs" />
           Manage harnesses
         </Link>

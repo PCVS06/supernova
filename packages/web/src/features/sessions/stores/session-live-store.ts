@@ -129,18 +129,26 @@ interface RevertToMessageInput extends CheckpointNavigationInput {
   readonly turnId: string;
 }
 
+interface SteerSessionInput {
+  readonly rpcClient: RpcClient;
+  readonly sessionId: string;
+  readonly text: string;
+}
+
 interface SessionLiveStoreState {
-  /** Session currently open in the main view; its activity is stamped as seen. */
-  readonly activeSessionId: string | null;
+  /** Chats currently shown by a pane, counted per open pane; their activity is stamped as seen. */
+  readonly openSessions: Record<string, number>;
   readonly sessions: Record<string, SessionLiveState | undefined>;
   readonly abortSession: (input: {rpcClient: RpcClient; sessionId: string}) => void;
   readonly applyEvent: (event: SessionStreamEvent) => boolean;
+  readonly closeSession: (sessionId: string) => void;
   readonly compactSession: (input: CompactSessionInput) => void;
+  readonly openSession: (sessionId: string) => void;
   readonly redoCheckpoint: (input: CheckpointNavigationInput) => Promise<CheckpointNavigationOutcome>;
   readonly resetRevisions: () => void;
   readonly revertToMessage: (input: RevertToMessageInput) => Promise<CheckpointNavigationOutcome>;
   readonly sendMessage: (input: SendSessionMessageInput) => void;
-  readonly setActiveSession: (sessionId: string | null) => void;
+  readonly steerSession: (input: SteerSessionInput) => void;
   readonly undoCheckpoint: (input: CheckpointNavigationInput) => Promise<CheckpointNavigationOutcome>;
 }
 
@@ -158,17 +166,30 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
       return {sessions: {...state.sessions, [event.sessionId]: reduceSessionEvent(entry, event)}};
     });
 
-    // Activity in the open session is seen as it happens. Stamping the
-    // activity time rather than now keeps a later completion unseen.
+    // Activity in an open chat is seen as it happens, in any pane showing it.
+    // Stamping the activity time rather than now keeps a later completion unseen.
     const activityAt = applied ? sessionEventActivityAt(event) : null;
-    if (activityAt !== null && event.sessionId === get().activeSessionId) {
+    if (activityAt !== null && (get().openSessions[event.sessionId] ?? 0) > 0) {
       useSessionVisitsStore.getState().markSessionVisited(event.sessionId, activityAt);
     }
     return applied;
   };
 
-  const setActiveSession = (sessionId: string | null): void => {
-    set((state) => (state.activeSessionId === sessionId ? state : {activeSessionId: sessionId}));
+  // Panes open and close independently, so an open chat is counted rather than
+  // replaced; the same chat may be routed and paned at the same time.
+  const openSession = (sessionId: string): void => {
+    set((state) => ({openSessions: {...state.openSessions, [sessionId]: (state.openSessions[sessionId] ?? 0) + 1}}));
+  };
+
+  const closeSession = (sessionId: string): void => {
+    set((state) => {
+      const remaining = (state.openSessions[sessionId] ?? 0) - 1;
+      const openSessions = {...state.openSessions};
+      if (remaining > 0) openSessions[sessionId] = remaining;
+      else delete openSessions[sessionId];
+
+      return {openSessions};
+    });
   };
 
   const resetRevisions = (): void => {
@@ -208,6 +229,21 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
             },
           };
         });
+      });
+  };
+
+  const steerSession = (input: SteerSessionInput): void => {
+    const {rpcClient, sessionId, text} = input;
+    const steeringText = text.trim();
+    const stream = get().sessions[sessionId];
+    if (steeringText.length === 0 || !stream || (stream.status !== "streaming" && stream.status !== "compacting")) return;
+
+    // Steering has no optimistic projection: the running turn reports the
+    // interruption through the normal live-turn events.
+    void rpcClient
+      .run((rpc) => rpc.steerSession({sessionId, text: steeringText}))
+      .catch((cause: unknown) => {
+        showToast("Unable to steer this turn", errorMessage(cause, "The running step did not accept the steering message."));
       });
   };
 
@@ -346,15 +382,17 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
 
   return {
     abortSession,
-    activeSessionId: null,
     applyEvent,
+    closeSession,
     compactSession,
+    openSession,
+    openSessions: {},
     redoCheckpoint,
     resetRevisions,
     revertToMessage,
     sendMessage,
     sessions: {},
-    setActiveSession,
+    steerSession,
     undoCheckpoint,
   };
 });

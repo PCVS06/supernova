@@ -11,6 +11,7 @@ import {useRef, useState} from "react";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import ComposerAttachmentPreview from "@/features/sessions/components/attachments/composer-attachment-preview";
+import ComposerSendAction, {STEER_EXPLANATION} from "@/features/sessions/components/composer/composer-send-action";
 import ComposerEditor from "@/features/sessions/components/composer/editor/composer-editor";
 import ComposerReference from "@/features/sessions/components/composer/editor/composer-reference";
 import type {ComposerAttachmentsController} from "@/features/sessions/hooks/use-composer-attachments";
@@ -25,6 +26,8 @@ import {cn} from "@/lib/cn";
 type ComposerClipboardEvent = ClipboardEvent<HTMLElement> | globalThis.ClipboardEvent;
 
 type ComposerEditorInstance = ReturnType<typeof useEditor>;
+
+const KEYBOARD_HINT = "Enter sends · Shift+Enter adds a line";
 
 interface SessionComposerDraft {
   readonly contentParts: readonly UserMessageContentPart[];
@@ -195,38 +198,13 @@ function SessionComposerAttachButton(props: SessionComposerAttachButtonProps) {
   );
 }
 
-interface SessionComposerSubmitButtonProps {
-  readonly canInterrupt: boolean;
-  readonly canSubmit: boolean;
-  readonly isStreaming: boolean;
-  readonly onClick: () => void;
-  readonly streamStatus: SessionLiveStatus;
-}
-
-function SessionComposerSubmitButton(props: SessionComposerSubmitButtonProps) {
-  const {canInterrupt, canSubmit, isStreaming, onClick, streamStatus} = props;
-  const disabled = isStreaming ? !canInterrupt : !canSubmit;
-  const label = isStreaming ? (streamStatus === "stopping" ? "Stopping stream" : "Stop streaming") : "Send message";
-
-  return (
-    <IconButton
-      label={label}
-      className="grid size-9 place-items-center rounded-lg bg-ink text-ink-inverse transition hover:bg-ink-strong disabled:cursor-default disabled:bg-overlay-pressed disabled:text-ink-muted"
-      disabled={disabled}
-      onClick={onClick}
-      size="none"
-      variant="bare"
-    >
-      <Icon name={isStreaming ? "stop" : "send"} size="md" />
-    </IconButton>
-  );
-}
-
 interface SessionComposerProps {
   readonly attachments: ComposerAttachmentsController;
   readonly disabled: boolean;
   readonly draft: SessionComposerDraft;
   readonly onInterrupt?: () => void;
+  /** Delivers the draft text to the running turn instead of queuing a new one. */
+  readonly onSteer?: (text: string) => void;
   readonly onSubmit: (contentParts: readonly UserMessageContentPart[]) => void;
   readonly placeholder?: string;
   readonly projectPath: string;
@@ -236,13 +214,14 @@ interface SessionComposerProps {
   readonly topExtension?: ReactNode;
 }
 
-/** Renders the message composer, including editor, attachments, toolbar, and submit/stop action. */
+/** Renders the message composer, including editor, attachments, toolbar, and its send, steer and stop actions. */
 export default function SessionComposer(props: SessionComposerProps) {
   const {
     attachments,
     disabled,
     draft,
     onInterrupt,
+    onSteer,
     onSubmit,
     placeholder = "Ask anything, @ to add files, or / for commands",
     projectPath,
@@ -260,6 +239,8 @@ export default function SessionComposer(props: SessionComposerProps) {
   const attachmentDisabled = inputDisabled || attachments.isProcessing;
   const canSubmit = (draftText.trim().length > 0 || attachments.attachments.length > 0) && !inputDisabled && !attachments.isProcessing && streamStatus === "idle";
   const canInterrupt = streamStatus === "streaming";
+  // Steering carries text only, so attachments stay in the draft for the next turn.
+  const canSteer = onSteer !== undefined && streamStatus === "streaming" && draftText.trim().length > 0 && !inputDisabled;
 
   const editor = useEditor(
     {
@@ -298,13 +279,28 @@ export default function SessionComposer(props: SessionComposerProps) {
     draft.clear?.();
   };
 
-  const handleSubmitButtonClick = (): void => {
+  const steer = (): void => {
+    if (!canSteer) return;
+
+    onSteer?.(editor ? editor.getText() : draftText);
+    editor?.commands.clearContent();
+    setDraftText("");
+    draft.setEditableContentParts?.([]);
+  };
+
+  // The keyboard follows the visible primary action: it steers a running turn
+  // and sends an idle one.
+  const handleEditorSubmit = (): void => {
     if (isStreaming) {
-      if (canInterrupt) onInterrupt?.();
+      steer();
       return;
     }
 
     submit();
+  };
+
+  const handleInterrupt = (): void => {
+    if (canInterrupt) onInterrupt?.();
   };
 
   return (
@@ -315,26 +311,37 @@ export default function SessionComposer(props: SessionComposerProps) {
             <div className="pointer-events-auto">{topExtension}</div>
           </div>
         )}
-        <div className="relative z-10 rounded-2xl border border-border bg-surface-control px-3 py-2.5 transition-colors focus-within:border-ink-faint">
+        <div
+          className={cn(
+            "@container relative z-10 rounded-2xl border border-border bg-surface-control px-3 py-2.5 transition-colors focus-within:border-ink-faint",
+            isStreaming && "border-ink-faint"
+          )}
+          data-stream-status={streamStatus}
+        >
           <SessionComposerAttachments attachments={attachments} />
           <SessionComposerInput
             attachmentDisabled={attachmentDisabled}
             attachments={attachments}
             input={{draftText, editor, onSuggestionMatchChange: setSuggestionMatch, suggestionMatch}}
-            onSubmit={submit}
+            onSubmit={handleEditorSubmit}
             placeholder={placeholder}
             projectPath={projectPath}
             slashCommandActions={slashCommandActions}
           />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <SessionComposerAttachButton attachments={attachments} disabled={attachmentDisabled} />
-            <div className="flex min-w-0 items-center gap-4">
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <SessionComposerAttachButton attachments={attachments} disabled={attachmentDisabled} />
               {toolbarControls}
-              <SessionComposerSubmitButton
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="hidden max-w-64 truncate text-xs text-ink-faint @lg:inline">{isStreaming ? STEER_EXPLANATION : KEYBOARD_HINT}</span>
+              <ComposerSendAction
                 canInterrupt={canInterrupt}
-                canSubmit={canSubmit}
-                isStreaming={isStreaming}
-                onClick={handleSubmitButtonClick}
+                canSend={canSubmit}
+                canSteer={canSteer}
+                onInterrupt={handleInterrupt}
+                onSend={submit}
+                onSteer={steer}
                 streamStatus={streamStatus}
               />
             </div>

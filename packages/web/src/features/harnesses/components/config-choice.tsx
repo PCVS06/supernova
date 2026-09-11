@@ -3,6 +3,7 @@ import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import Menu, {MenuItem, MenuLabel} from "@/components/ui/menu";
 import SearchField from "@/components/ui/search-field";
+import {cn} from "@/lib/cn";
 
 /** Keyboard-accessible dark choices using the same menu surface as the chat composer. */
 export default function ConfigChoice({
@@ -10,11 +11,15 @@ export default function ConfigChoice({
   value,
   options,
   onChange,
+  className,
+  disabled,
 }: {
   label: string;
   value: string;
   options: readonly {value: string; label: string}[];
   onChange: (value: string) => void;
+  className?: string;
+  disabled?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const selected = options.find((item) => item.value === value);
@@ -30,7 +35,11 @@ export default function ConfigChoice({
       trigger={(props) => (
         <Button
           {...props}
-          className="flex h-10 w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-surface-control px-3 text-left text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ink-faint"
+          disabled={disabled}
+          className={cn(
+            "flex h-10 w-full min-w-0 items-center justify-between gap-3 rounded-xl corner-superellipse/1.3 border border-border bg-surface-control px-3 text-left text-sm hover:border-border-strong disabled:opacity-60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ink-faint",
+            className
+          )}
         >
           <span className="truncate">{selected?.label ?? `${value} · not supported by this model`}</span>
           <Icon name="chevron-down" size="xs" className="shrink-0 text-ink-muted" />

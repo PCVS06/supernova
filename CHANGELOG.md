@@ -8,6 +8,11 @@ All notable changes to Supernova are documented in this file.
 
 ### Added
 
+- Added named workflows with typed handoffs: each step references an existing agent, reads only the outputs it declares, and returns output that is validated against its contract on every provider. Runs are saved and resume from the failed step without re-running completed work or repeating an external action; a run page beneath the chat shows every step's inputs, outputs, failures, spend and the exact resume instruction.
+- Added a workspace panel with a project file tree, a file viewer that can add a file reference to the chat, and a browser view.
+- Added split view: open up to three chats from any projects side by side, each with its own draft and live stream.
+- Added steering: while a turn is running, Send becomes Steer and interrupts the current step with your message.
+- Added project planning documents: Markdown files such as PLAN.md and GOALS.md kept in the project, edited in place, and included in every agent's instructions for that project so long-term plans survive across chats.
 - Added chat-owned worker receipts with nested delegation, status, tasks, working folders, model/effort, instruction layers, runtime tools/skills and final results.
 - Added bounded lab-view management for project leads: names, colors and ordering only, with revision and ownership checks.
 - Added per-agent model, reasoning effort, skills and colored pi identities, with project overrides and shared defaults.
@@ -17,6 +22,11 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
+- Moved harness configuration into Settings, with one header, one tab bar and one form vocabulary across Agents, Resources, Workflows and Projects. Memory now sits inside Agents, context rules and files inside Resources, and run limits inside Workflows.
+- Replaced the handoff list with a workflow graph: node cards connected by labelled edges, inline insert and remove, and a side-panel inspector for the selected step.
+- Every agent, lead and project mark now uses the particle ring in its role color; the three-dot specialist mark is gone.
+- Reworked the chat surface: a header with the project mark, title and role badge; a compact context strip with the project's planning documents; collapsed tool events; a composer with labelled model and effort controls and an unmistakable primary action.
+- Specialist workers now receive a wind-down message one turn before their turn cap and shortly before their timeout instead of stopping silently, and a configuration whose instructions cannot fit the model's window is refused before a session starts.
 - Split harness configuration into Agents, Resources, Memory and Graph / Workflows. Chats remain in the sidebar. Resources exposes registered tools and scientific connectors with separate, app-wide encrypted credential storage. Memory reads actual scientific ledgers and explicitly identifies the missing specialist-private memory layer. The new visual graph editor remains on hold.
 - Give Memory the same identity workbench as Agents, with consistent harness/project/specialist navigation, searchable records and evidence, and a separate scope/storage panel.
 
@@ -43,6 +53,7 @@ All notable changes to Supernova are documented in this file.
 ### Removed
 
 - Removed repetitive explanations and status banners from harness settings, Memory, Resources and agent navigation.
+
 ## [0.1.1]
 
 ### Added

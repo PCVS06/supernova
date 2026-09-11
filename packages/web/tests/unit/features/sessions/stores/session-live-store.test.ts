@@ -116,14 +116,14 @@ describe("session live store", () => {
   beforeEach(() => {
     vi.stubGlobal("window", {clearTimeout, setTimeout});
     disconnect();
-    useSessionLiveStore.setState({activeSessionId: null, sessions: {}});
+    useSessionLiveStore.setState({openSessions: {}, sessions: {}});
     useSessionVisitsStore.setState({visits: {}});
   });
 
   afterEach(() => {
     disconnect();
     disconnect = () => undefined;
-    useSessionLiveStore.setState({activeSessionId: null, sessions: {}});
+    useSessionLiveStore.setState({openSessions: {}, sessions: {}});
     useSessionVisitsStore.setState({visits: {}});
     vi.unstubAllGlobals();
   });
@@ -370,8 +370,8 @@ describe("session live store", () => {
   });
 
   it("stamps the open session as visited when authoritative activity arrives", () => {
-    const {applyEvent, setActiveSession} = useSessionLiveStore.getState();
-    setActiveSession("session-open");
+    const {applyEvent, openSession} = useSessionLiveStore.getState();
+    openSession("session-open");
 
     applyEvent({revision: 1, session: session({id: "session-open", updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-open", type: "session.snapshot"});
     applyEvent({revision: 1, session: session({updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-1", type: "session.snapshot"});
@@ -379,12 +379,31 @@ describe("session live store", () => {
     expect(useSessionVisitsStore.getState().visits).toEqual({"session-open": "2026-01-01T00:05:00.000Z"});
   });
 
+  it("stamps every chat a pane has open, not only the routed one", () => {
+    const {applyEvent, closeSession, openSession} = useSessionLiveStore.getState();
+    openSession("session-routed");
+    openSession("session-paned");
+
+    applyEvent({revision: 1, session: session({id: "session-routed", updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-routed", type: "session.snapshot"});
+    applyEvent({revision: 1, session: session({id: "session-paned", updatedAt: "2026-01-01T00:06:00.000Z"}), sessionId: "session-paned", type: "session.snapshot"});
+
+    expect(useSessionVisitsStore.getState().visits).toEqual({
+      "session-paned": "2026-01-01T00:06:00.000Z",
+      "session-routed": "2026-01-01T00:05:00.000Z",
+    });
+
+    closeSession("session-paned");
+    applyEvent({revision: 2, session: session({id: "session-paned", updatedAt: "2026-01-01T00:08:00.000Z"}), sessionId: "session-paned", type: "session.snapshot"});
+
+    expect(useSessionVisitsStore.getState().visits["session-paned"]).toBe("2026-01-01T00:06:00.000Z");
+  });
+
   it("keeps visit stamps at the activity time so later activity stays unseen", () => {
-    const {applyEvent, setActiveSession} = useSessionLiveStore.getState();
-    setActiveSession("session-1");
+    const {applyEvent, closeSession, openSession} = useSessionLiveStore.getState();
+    openSession("session-1");
     applyEvent({revision: 1, session: session({updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-1", type: "session.snapshot"});
 
-    setActiveSession(null);
+    closeSession("session-1");
     applyEvent({revision: 2, session: session({updatedAt: "2026-01-01T00:09:00.000Z"}), sessionId: "session-1", type: "session.snapshot"});
 
     expect(useSessionVisitsStore.getState().visits["session-1"]).toBe("2026-01-01T00:05:00.000Z");

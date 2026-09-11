@@ -59,9 +59,10 @@ export default function AssistantWork(props: AssistantWorkProps) {
 
   if (item.live || !item.collapsible) {
     return (
-      <section className="group/message flex flex-col gap-5">
+      <section className="group/message flex flex-col gap-4">
+        {/* Tool output starts folded behind its one-line title, so a long turn stays readable. */}
         {item.events.map((event) => (
-          <WorkEvent event={event} key={event.id} live={item.live} toolDetailMode="visible" />
+          <WorkEvent event={event} key={event.id} live={item.live} toolDetailMode="collapsible" />
         ))}
         {!item.live && <MessageActions copyText={copyText} />}
       </section>

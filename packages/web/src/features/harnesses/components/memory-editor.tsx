@@ -3,16 +3,34 @@ import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
-import EditorTabs from "@/features/harnesses/components/editor-tabs";
+import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
+import ConfigCard, {configCardClass} from "@/features/harnesses/components/config-card";
 import ConfigChoice from "@/features/harnesses/components/config-choice";
-import AgentMark from "@/features/harnesses/components/agent-mark";
+import EditorTabs from "@/features/harnesses/components/editor-tabs";
 import AgentWorkbench from "@/features/harnesses/components/agent-workbench";
 import {useHarnessMemory} from "@/features/harnesses/hooks/api/use-harness-resources";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
+import {cn} from "@/lib/cn";
 
-export default function MemoryEditor(props: {harness: HarnessConfig; project?: HarnessProject; projects: readonly HarnessProject[]; onOpenContext?: (projectId?: string) => void}) {
+type MemoryScope = "harness" | "projects" | "specialists";
+
+const scopeOptions: readonly {value: MemoryScope; label: string}[] = [
+  {value: "harness", label: "Harness memory"},
+  {value: "projects", label: "Project memory"},
+  {value: "specialists", label: "Specialist memory"},
+];
+
+interface MemoryEditorProps {
+  harness: HarnessConfig;
+  project?: HarnessProject;
+  projects: readonly HarnessProject[];
+  onOpenContext?: (projectId?: string) => void;
+}
+
+/** What the agents of this harness have saved. Read-only: records are written by the agents, never here. */
+export default function MemoryEditor(props: MemoryEditorProps) {
   const {harness, project, projects, onOpenContext} = props;
-  const [scope, setScope] = useState<"harness" | "projects" | "specialists">(project && project.id !== harness.coordinatorProjectId ? "projects" : "harness");
+  const [scope, setScope] = useState<MemoryScope>(project && project.id !== harness.coordinatorProjectId ? "projects" : "harness");
   const [section, setSection] = useState<"records" | "storage">("records");
   const [projectId, setProjectId] = useState(project?.id ?? projects[0]?.id ?? "");
   const [agentId, setAgentId] = useState("");
@@ -45,119 +63,108 @@ export default function MemoryEditor(props: {harness: HarnessConfig; project?: H
         role: scope === "harness" ? "Harness memory" : "Project memory",
         description: scope === "harness" ? (head ? ownerName : "Not connected") : "",
       };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="memory-workspace">
-      <section className="shrink-0 border-b border-border px-6 pt-2">
-        <EditorTabs
-          label="Memory scopes"
-          value={scope}
-          onChange={(value) => {
-            setScope(value);
-            setQuery("");
-          }}
-          items={[
-            {value: "harness", label: "Harness", icon: <AgentMark name={head?.id ?? harness.id} color={head?.color ?? "#ffffff"} kind="lead" className="size-7" />},
-            {value: "projects", label: "Projects", count: labs.length, disabled: !labs.length, icon: <AgentMark name="project-memory" kind="lead" className="size-7" />},
-            {
-              value: "specialists",
-              label: "Specialists",
-              count: agents.length,
-              disabled: !agents.length || !projects.length,
-              icon: <AgentMark name="specialist-memory" className="size-7" />,
-            },
-          ]}
-        />
-      </section>
-      <div className="min-h-0 flex-1">
-        <AgentWorkbench
-          key={scope}
-          kind={specialist ? "specialist" : "lead"}
-          identity={identity}
-          selection={
-            scope === "harness"
-              ? undefined
-              : {
-                  purpose: "memory",
-                  label: specialist ? "Specialists" : "Projects",
-                  value: specialist ? (agent?.name ?? "") : (selectedProjectId ?? ""),
-                  items: specialist
-                    ? agents.map((item) => ({id: item.name, name: agentLabel(item.name), color: item.color, subtitle: "Uses project memory"}))
-                    : labs.map((item) => ({id: item.id, name: agentLabel(item.name), color: item.color, subtitle: "Project ledger"})),
-                  onChange: (id) => {
-                    if (specialist) setAgentId(id);
-                    else setProjectId(id);
-                    setQuery("");
-                  },
-                }
-          }
-          navigation={
-            <EditorTabs
-              label="Memory detail tabs"
-              value={section}
-              onChange={setSection}
-              items={[
-                {value: "records", label: "Records"},
-                {value: "storage", label: "Scope & storage"},
-              ]}
-            />
-          }
-        >
-          {specialist && selectableProjects.length > 0 && (
-            <label className="block space-y-2">
-              <span className="text-sm">Project memory source</span>
+      <AgentWorkbench
+        key={scope}
+        kind={specialist ? "specialist" : "lead"}
+        identity={identity}
+        selection={
+          scope === "harness"
+            ? undefined
+            : {
+                purpose: "memory",
+                label: specialist ? "Specialists" : "Projects",
+                value: specialist ? (agent?.name ?? "") : (selectedProjectId ?? ""),
+                items: specialist
+                  ? agents.map((item) => ({id: item.name, name: agentLabel(item.name), color: item.color, subtitle: "Uses project memory"}))
+                  : labs.map((item) => ({id: item.id, name: agentLabel(item.name), color: item.color, subtitle: "Project ledger"})),
+                onChange: (id) => {
+                  if (specialist) setAgentId(id);
+                  else setProjectId(id);
+                  setQuery("");
+                },
+              }
+        }
+        navigation={
+          <EditorTabs
+            label="Memory detail tabs"
+            value={section}
+            onChange={setSection}
+            items={[
+              {value: "records", label: "Records"},
+              {value: "storage", label: "Scope & storage"},
+            ]}
+          />
+        }
+      >
+        <SettingsGroup title="Memory scope">
+          <SettingsRow
+            control={
               <ConfigChoice
-                label="Memory project"
-                value={selectedProjectId ?? ""}
-                options={selectableProjects.map((item) => ({value: item.id, label: agentLabel(item.name)}))}
-                onChange={(id) => {
-                  setProjectId(id);
+                className="sm:w-64"
+                label="Memory scope"
+                value={scope}
+                options={scopeOptions.map((option) => ({
+                  value: option.value,
+                  label: option.value === "projects" && !labs.length ? `${option.label} · no projects` : option.label,
+                }))}
+                onChange={(value) => {
+                  setScope(value as MemoryScope);
                   setQuery("");
                 }}
               />
-            </label>
+            }
+            description="Memory belongs to a harness or a project. Specialists read the memory of the project they work in."
+            title="Whose memory"
+          />
+          {specialist && selectableProjects.length > 0 && (
+            <SettingsRow
+              control={
+                <ConfigChoice
+                  className="sm:w-64"
+                  label="Memory project"
+                  value={selectedProjectId ?? ""}
+                  options={selectableProjects.map((item) => ({value: item.id, label: agentLabel(item.name)}))}
+                  onChange={(id) => {
+                    setProjectId(id);
+                    setQuery("");
+                  }}
+                />
+              }
+              description="The project ledger this specialist reads from."
+              title="Project memory source"
+            />
           )}
-          {section === "storage" ? (
-            <div className="space-y-6">
-              <dl className="divide-y divide-border rounded-xl border border-border px-5 text-sm">
-                <div className="py-4">
-                  <dt className="text-xs text-ink-muted">Owner</dt>
-                  <dd className="mt-1">{ownerName}</dd>
-                </div>
-                <div className="py-4">
-                  <dt className="text-xs text-ink-muted">Source file</dt>
-                  <dd className="mt-2 break-all font-mono text-xs leading-relaxed">{owner ? `${owner.path}/.science-memory/ledger.jsonl` : "No source connected"}</dd>
-                </div>
-                <div className="py-4">
-                  <dt className="text-xs text-ink-muted">Access</dt>
-                  <dd className="mt-1">Read-only</dd>
-                </div>
-                {specialist && (
-                  <div className="py-4">
-                    <dt className="text-xs text-ink-muted">Private memory</dt>
-                    <dd className="mt-1">Not connected</dd>
-                  </div>
-                )}
-              </dl>
-              {onOpenContext && (
-                <Button className="flex items-center gap-2 text-sm text-ink-muted hover:text-ink" onClick={() => onOpenContext(scope === "harness" ? undefined : owner?.id)}>
-                  <Icon name="settings" size="sm" />
-                  Context loading & settings
-                  <Icon name="arrow-right" size="xs" />
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="flex items-center gap-2 text-sm font-medium">
-                    {specialist ? "Shared project records" : "Saved records"}
-                    <span className="rounded-full border border-border px-2 py-0.5 font-mono text-xs text-ink-muted">
-                      {memory.data?.unavailableReason ? "—" : (memory.data?.total ?? "—")}
-                    </span>
-                  </h3>
-                  <p className="mt-1 text-xs text-ink-muted">{ownerName} · read-only</p>
-                </div>
+        </SettingsGroup>
+
+        {section === "storage" ? (
+          <SettingsGroup title="Scope & storage">
+            <SettingsRow description={ownerName} title="Owner" />
+            <SettingsRow description={owner ? `${owner.path}/.science-memory/ledger.jsonl` : "No source connected"} title="Source file" />
+            <SettingsRow description="Read-only. Records are written by the agents, never from this screen." title="Access" />
+            {specialist && <SettingsRow description="Not connected. Specialists share the project ledger." title="Private memory" />}
+            {onOpenContext && (
+              <SettingsRow
+                control={
+                  <Button
+                    className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink"
+                    onClick={() => onOpenContext(scope === "harness" ? undefined : owner?.id)}
+                  >
+                    <Icon name="settings" size="xs" />
+                    Context loading & settings
+                  </Button>
+                }
+                description="Memory is recalled through the context rules of this harness."
+                title="Context loading"
+              />
+            )}
+          </SettingsGroup>
+        ) : (
+          <SettingsGroup title={specialist ? "Shared project records" : "Saved records"}>
+            <SettingsRow
+              control={
                 <Button
                   aria-label="Refresh memory"
                   disabled={memory.isFetching}
@@ -167,17 +174,22 @@ export default function MemoryEditor(props: {harness: HarnessConfig; project?: H
                   <Icon name="restart" size="xs" />
                   Refresh
                 </Button>
-              </div>
+              }
+              description={`${ownerName} · read-only`}
+              title={`${memory.data?.unavailableReason ? "—" : (memory.data?.total ?? "—")} records`}
+            >
               <Input aria-label="Search memory" placeholder="Search saved records…" value={query} onChange={(event) => setQuery(event.target.value)} />
+            </SettingsRow>
+            <div className="space-y-2 px-3 sm:px-4">
               {memory.isPending && (
                 <p role="status" className="py-8 text-center text-sm text-ink-muted">
                   Reading memory…
                 </p>
               )}
               {memory.isError && (
-                <p role="alert" className="rounded-xl border border-border p-5 text-sm text-danger-ink">
+                <ConfigCard className="text-sm text-danger-ink" role="alert">
                   Could not read memory. No files were changed. Use Refresh to try again.
-                </p>
+                </ConfigCard>
               )}
               {memory.data && (
                 <>
@@ -188,7 +200,7 @@ export default function MemoryEditor(props: {harness: HarnessConfig; project?: H
                   )}
                   {memory.data.total > 200 && <p className="text-xs text-ink-muted">Showing the 200 most recently updated records.</p>}
                   {!records.length && (
-                    <div className="flex flex-col items-center rounded-xl border border-border bg-surface-raised px-6 py-12 text-center">
+                    <ConfigCard className="flex flex-col items-center px-6 py-12 text-center">
                       <span className="mb-4 flex size-12 items-center justify-center rounded-full border border-border text-ink-muted">
                         <Icon name="archive" size="md" />
                       </span>
@@ -207,14 +219,14 @@ export default function MemoryEditor(props: {harness: HarnessConfig; project?: H
                           View scope & storage
                         </Button>
                       )}
-                    </div>
+                    </ConfigCard>
                   )}
                   {records.map((record) => (
-                    <article key={record.id} className="overflow-hidden rounded-xl border border-border bg-surface-raised">
+                    <article className={cn(configCardClass, "overflow-hidden")} key={record.id}>
                       <div className="p-5">
                         <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-                          <span className="rounded-full border border-border px-2.5 py-1 break-words">{record.kind.replaceAll("_", " ")}</span>
-                          <span className="rounded-full bg-surface-control px-2.5 py-1 break-words">{record.state.replaceAll("_", " ")}</span>
+                          <span className="break-words rounded-full border border-border px-2.5 py-1">{record.kind.replaceAll("_", " ")}</span>
+                          <span className="break-words rounded-full bg-surface-control px-2.5 py-1">{record.state.replaceAll("_", " ")}</span>
                           <span className="ml-auto text-ink-faint">Updated {record.updatedAt.slice(0, 10)}</span>
                         </div>
                         <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed">{record.statement}</p>
@@ -241,9 +253,9 @@ export default function MemoryEditor(props: {harness: HarnessConfig; project?: H
                 </>
               )}
             </div>
-          )}
-        </AgentWorkbench>
-      </div>
+          </SettingsGroup>
+        )}
+      </AgentWorkbench>
     </div>
   );
 }

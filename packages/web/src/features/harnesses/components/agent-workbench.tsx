@@ -4,7 +4,9 @@ import PiOrb from "@/components/brand/pi-orb";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
+import SettingsPageShell from "@/features/settings/components/settings-page-shell";
 import AgentMark from "@/features/harnesses/components/agent-mark";
+import type {AgentMarkKind} from "@/features/harnesses/components/agent-mark";
 import ConfigChoice from "@/features/harnesses/components/config-choice";
 import EditorTabs from "@/features/harnesses/components/editor-tabs";
 import {agentColor} from "@/features/harnesses/lib/agent-identity";
@@ -12,8 +14,15 @@ import {cn} from "@/lib/cn";
 
 export type AgentEditorSection = "settings" | "prompt" | "skills";
 
-interface WorkbenchContentProps {
-  kind: "lead" | "specialist";
+/** The three panels every agent-like role is edited through. */
+const agentEditorSections: readonly {value: AgentEditorSection; label: string}[] = [
+  {value: "settings", label: "Settings"},
+  {value: "prompt", label: "Instructions"},
+  {value: "skills", label: "Skills"},
+];
+
+interface AgentWorkbenchProps {
+  kind: AgentMarkKind;
   identity?: {id: string; name: string; role: string; description: string; color?: string};
   selection?: {
     label: string;
@@ -23,18 +32,25 @@ interface WorkbenchContentProps {
     onAdd?: () => void;
     purpose?: "memory";
   };
+  /** Detail navigation. Defaults to the shared settings/instructions/skills tabs when `section` is given instead. */
+  navigation?: ReactNode;
+  section?: AgentEditorSection;
+  onSectionChange?: (section: AgentEditorSection) => void;
   children: ReactNode;
 }
 
-type AgentWorkbenchProps = WorkbenchContentProps &
-  ({section: AgentEditorSection; onSectionChange: (section: AgentEditorSection) => void; navigation?: never} | {navigation: ReactNode; section?: never; onSectionChange?: never});
-
-/** Shared identity, selector, navigation and scroll ownership for agent settings and memory. */
+/** Shared identity, selector, navigation and scroll ownership for agent settings, leads, projects and memory. */
 export default function AgentWorkbench(props: AgentWorkbenchProps) {
-  const {kind, identity, selection, children} = props;
+  const {kind, identity, selection, navigation, section, onSectionChange, children} = props;
   const [query, setQuery] = useState("");
   const prefix = kind === "lead" ? "lead" : "agent";
   const filtered = selection?.items.filter((item) => `${item.name} ${item.searchText ?? ""}`.toLowerCase().includes(query.toLowerCase())) ?? [];
+  const detailNavigation =
+    navigation ??
+    (section && onSectionChange && (
+      <EditorTabs label={kind === "lead" ? "Lead editor tabs" : "Agent editor tabs"} value={section} items={agentEditorSections} onChange={onSectionChange} />
+    ));
+
   return (
     <div className="harness-agent-layout flex h-full min-h-0 overflow-hidden" data-testid={`${prefix}-workbench`}>
       {selection && (
@@ -85,7 +101,7 @@ export default function AgentWorkbench(props: AgentWorkbenchProps) {
                   aria-pressed={selection.value === item.id}
                   onClick={() => selection.onChange(item.id)}
                   className={cn(
-                    "agent-editor-row mb-1 flex min-h-18 w-full items-center gap-3 rounded-lg px-2 py-2 text-left outline-none hover:bg-overlay-hover focus-visible:bg-overlay-hover",
+                    "agent-editor-row mb-1 flex min-h-18 w-full items-center gap-3 rounded-xl corner-superellipse/1.3 px-2 py-2 text-left outline-none hover:bg-overlay-hover focus-visible:bg-overlay-hover",
                     selection.value === item.id && "bg-surface-control"
                   )}
                 >
@@ -111,16 +127,10 @@ export default function AgentWorkbench(props: AgentWorkbenchProps) {
       )}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="agent-editor-detail">
         {identity && (
-          <header className="agent-editor-header shrink-0 border-b border-border px-6 pt-5">
-            <div className="agent-editor-content mx-auto w-full max-w-3xl">
+          <header className="agent-editor-header shrink-0 border-b border-border px-5 pt-5 sm:px-6">
+            <div className="mx-auto w-full max-w-4xl">
               <div className="agent-editor-hero flex min-h-24 items-center gap-4">
-                <PiOrb
-                  label={`${identity.name} ${kind} identity`}
-                  className="agent-editor-portrait size-24"
-                  color={agentColor(identity.id, identity.color)}
-                  state="idle"
-                  variant={kind === "lead" ? "orb" : "specialist"}
-                />
+                <PiOrb label={`${identity.name} ${kind} identity`} className="agent-editor-portrait size-24" color={agentColor(identity.id, identity.color)} state="idle" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs uppercase tracking-wider text-ink-muted">{identity.role}</p>
                   <h2 className="mt-1 line-clamp-2 text-xl font-medium leading-snug" title={identity.name}>
@@ -129,26 +139,11 @@ export default function AgentWorkbench(props: AgentWorkbenchProps) {
                   {identity.description && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink-muted">{identity.description}</p>}
                 </div>
               </div>
-              <div className="mt-3">
-                {props.navigation ?? (
-                  <EditorTabs
-                    label={kind === "lead" ? "Lead editor tabs" : "Agent editor tabs"}
-                    value={props.section!}
-                    items={[
-                      {value: "settings", label: "Settings"},
-                      {value: "prompt", label: "Instructions"},
-                      {value: "skills", label: "Skills"},
-                    ]}
-                    onChange={props.onSectionChange!}
-                  />
-                )}
-              </div>
+              {detailNavigation && <div className="mt-3">{detailNavigation}</div>}
             </div>
           </header>
         )}
-        <div className="agent-editor-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-6" data-testid={`${prefix}-detail-scroll`}>
-          <div className="agent-editor-content mx-auto w-full max-w-3xl space-y-6">{children}</div>
-        </div>
+        <SettingsPageShell testId={`${prefix}-detail-scroll`}>{children}</SettingsPageShell>
       </section>
     </div>
   );

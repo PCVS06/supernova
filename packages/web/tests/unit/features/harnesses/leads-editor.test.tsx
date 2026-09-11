@@ -73,9 +73,8 @@ describe("lead workbench", () => {
     expect(html).not.toContain('aria-label="Configure Science Space lead"');
     expect(html).toContain("lead-list-scroll");
     expect(html).toContain('style="color:#7dd3fc"');
-    expect(html).toContain("Reports to");
-    expect(html).not.toContain("Owns this project&#x27;s work, not other labs.");
-    expect(html).toContain('data-variant="specialist"');
+    expect(html).toContain("Reports to Science Space");
+    expect(html).toContain('data-kind="specialist"');
     expect(html).toContain('aria-label="Lead color #7dd3fc" aria-pressed="true"');
   });
   it("changes only the selected lead model and effort, never shared defaults", () => {
@@ -104,11 +103,15 @@ describe("lead workbench", () => {
     expect(project).toContain('aria-label="Project instructions"');
     expect(project).toContain('aria-label="Lead role prompt"');
   });
-  it("separates the three role levels with an explicit selected tab", () => {
-    const html = renderToStaticMarkup(<AgentRoleMap harness={harness} project={lab} projects={[head, lab]} specialists={false} onSelect={vi.fn()} />);
+  it("separates the role levels and memory with an explicit selected tab", () => {
+    const html = renderToStaticMarkup(<AgentRoleMap harness={harness} project={lab} projects={[head, lab]} section="leads" onSelect={vi.fn()} />);
     expect(html).toContain('aria-label="Main orchestrator" aria-pressed="false"');
     expect(html).toContain('aria-label="Project leads" aria-pressed="true"');
     expect(html).toContain('aria-label="Specialists" aria-pressed="false"');
+    expect(html).toContain('aria-label="Memory" aria-pressed="false"');
+    const memory = renderToStaticMarkup(<AgentRoleMap harness={harness} project={lab} projects={[head, lab]} section="memory" onSelect={vi.fn()} />);
+    expect(memory).toContain('aria-label="Memory" aria-pressed="true"');
+    expect(memory).toContain('aria-label="Project leads" aria-pressed="false"');
   });
   it("uses the same portrait, editor navigation and settings order for all three roles", () => {
     const specialist = renderToStaticMarkup(<AgentsEditor agents={harness.agents} harness={harness} onChange={vi.fn()} />);
@@ -123,7 +126,6 @@ describe("lead workbench", () => {
       expect(html).not.toContain('data-state="working"');
     }
     expect(specialist).toContain('aria-label="Reviewer specialist identity"');
-    expect(specialist).toContain('data-variant="specialist"');
     expect(specialist).toContain('aria-label="Search specialists"');
     expect(render(lab).html).toContain('aria-label="Search project leads"');
   });

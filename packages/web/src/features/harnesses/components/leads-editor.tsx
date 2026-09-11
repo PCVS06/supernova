@@ -1,10 +1,11 @@
 import {useState} from "react";
-import AgentWorkbench from "@/features/harnesses/components/agent-workbench";
-import AgentIdentityPicker from "@/features/harnesses/components/agent-identity-picker";
 import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
+import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
+import AgentWorkbench from "@/features/harnesses/components/agent-workbench";
+import AgentIdentityPicker from "@/features/harnesses/components/agent-identity-picker";
 import AgentMark from "@/features/harnesses/components/agent-mark";
-import {ConfigField, PromptEditor} from "@/features/harnesses/components/config-fields";
+import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import SkillsEditor from "@/features/harnesses/components/skills-editor";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
@@ -34,6 +35,7 @@ export default function LeadsEditor(props: LeadsEditorProps) {
   for (const agent of project?.agents ?? []) agents.set(agent.name, agent);
   const specialists = [...agents.values()];
   const rolePrompt = project ? (project.orchestratorPrompt ?? (isHead ? harness.orchestratorPrompt : "") ?? "") : (harness.orchestratorPrompt ?? "");
+
   return (
     <AgentWorkbench
       kind="lead"
@@ -64,104 +66,120 @@ export default function LeadsEditor(props: LeadsEditorProps) {
     >
       {section === "settings" && (
         <>
-          <ExecutionEditor
-            value={project ? project.execution : harness.execution}
-            inherited={project ? harness.execution : undefined}
-            inheritLabel="Use default model"
-            onChange={(execution) => (project ? onChangeProject({execution}) : onChangeHarness({execution}))}
-          />
-          {project && <AgentIdentityPicker name={project.id} color={color} kind="lead" onChange={(color) => onChangeProject({color})} />}
-          <section aria-label="Lead responsibilities" className="rounded-xl border border-border bg-surface-raised p-4">
-            <h3 className="text-xs uppercase tracking-wider text-ink-muted">Responsibilities</h3>
-            {isHead ? (
-              <>
-                {labs[0] && (
-                  <Button onClick={() => onSelect(labs[0]!.id)} className="mt-3 text-xs underline underline-offset-4">
-                    Open project leads →
-                  </Button>
-                )}
-              </>
-            ) : (
-              <p className="mt-2 text-sm leading-relaxed">
-                {head ? (
-                  <>
-                    Reports to{" "}
-                    <Button className="underline underline-offset-4" onClick={() => onSelect(head.id)}>
-                      {agentLabel(head.name)}
-                    </Button>
-                  </>
-                ) : (
-                  "Project lead"
-                )}
-              </p>
-            )}
-            <Button onClick={onOpenSpecialists} className="mt-4 flex w-full items-center gap-3 border-t border-border pt-3 text-left">
-              {!isHead && (
+          <SettingsGroup title="Execution">
+            <ExecutionEditor
+              value={project ? project.execution : harness.execution}
+              inherited={project ? harness.execution : undefined}
+              inheritLabel="Use default model"
+              onChange={(execution) => (project ? onChangeProject({execution}) : onChangeHarness({execution}))}
+            />
+          </SettingsGroup>
+          {project && (
+            <SettingsGroup title="Identity">
+              <AgentIdentityPicker name={project.id} color={color} kind="lead" onChange={(next) => onChangeProject({color: next})} />
+            </SettingsGroup>
+          )}
+          <SettingsGroup title="Responsibilities">
+            <SettingsRow
+              control={
+                isHead
+                  ? labs[0] && (
+                      <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={() => onSelect(labs[0]!.id)}>
+                        Open project leads
+                      </Button>
+                    )
+                  : head && (
+                      <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={() => onSelect(head.id)}>
+                        Open {agentLabel(head.name)}
+                      </Button>
+                    )
+              }
+              description={
+                isHead
+                  ? `Coordinates ${labs.length} projects and keeps their chats separate.`
+                  : head
+                    ? `Reports to ${agentLabel(head.name)} and owns this project's work only.`
+                    : "Owns this project's work."
+              }
+              title="Accountability"
+            />
+            <SettingsRow
+              control={
+                <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={onOpenSpecialists}>
+                  Configure specialists
+                </Button>
+              }
+              description="Specialists are shared definitions this lead may delegate to."
+              title={`${specialists.length} specialists`}
+            >
+              {!isHead && specialists.length > 0 && (
                 <span className="flex shrink-0 -space-x-2">
-                  {specialists.slice(0, 3).map((agent) => (
+                  {specialists.slice(0, 6).map((agent) => (
                     <AgentMark key={agent.name} name={agent.name} color={agent.color} className="size-8 rounded-full bg-surface-raised" />
                   ))}
                 </span>
               )}
-              <span className="flex-1 text-xs">
-                <span className="block text-ink">{specialists.length} specialists</span>
-              </span>
-              <span aria-hidden="true" className="text-ink-muted">
-                →
-              </span>
-            </Button>
-          </section>
-          {project && (
-            <details className="border-t border-border pt-4 text-xs text-ink-muted">
-              <summary className="cursor-pointer">Working folder</summary>
-              <p className="mt-2 break-all font-mono">{project.path}</p>
-            </details>
-          )}
+            </SettingsRow>
+            {project && <SettingsRow description={project.path} title="Working folder" />}
+          </SettingsGroup>
         </>
       )}
       {section === "prompt" && (
         <>
-          {isHead || !project ? (
-            <ConfigField label="Shared operating manual · all projects">
-              <PromptEditor label="Shared operating instructions" value={harness.systemPrompt} onChange={(systemPrompt) => onChangeHarness({systemPrompt})} />
-            </ConfigField>
-          ) : (
-            <details className="rounded-xl border border-border p-4">
-              <summary className="cursor-pointer text-sm">Shared operating manual · inherited</summary>
-              <pre className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap text-xs text-ink-muted">{harness.systemPrompt || "No shared instructions."}</pre>
-              {head && (
-                <Button className="mt-3 text-xs underline" onClick={() => onSelect(head.id)}>
-                  Edit in Main orchestrator → Instructions
-                </Button>
-              )}
-            </details>
-          )}
-          {project && (
-            <ConfigField label={isHead ? "Science Space brief · central chats only" : "Project brief · this project only"}>
-              <PromptEditor label="Project instructions" value={project.systemPrompt} onChange={(systemPrompt) => onChangeProject({systemPrompt})} />
-            </ConfigField>
-          )}
-          <ConfigField label={isHead ? "Coordination role · main orchestrator only" : "Lead role · main chat agent only"}>
-            <PromptEditor
-              label="Lead role prompt"
-              value={rolePrompt}
-              onChange={(value) => (project ? onChangeProject({orchestratorPrompt: value || undefined}) : onChangeHarness({orchestratorPrompt: value || undefined}))}
-            />
-          </ConfigField>
+          <SettingsGroup title="Shared operating manual">
+            {isHead || !project ? (
+              <SettingsRow description="Every project of this harness inherits these instructions." title="Shared instructions · all projects">
+                <PromptEditor label="Shared operating instructions" value={harness.systemPrompt} onChange={(systemPrompt) => onChangeHarness({systemPrompt})} />
+              </SettingsRow>
+            ) : (
+              <SettingsRow
+                control={
+                  head && (
+                    <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={() => onSelect(head.id)}>
+                      Edit in Main orchestrator
+                    </Button>
+                  )
+                }
+                description="Owned by the main orchestrator and inherited here."
+                title="Shared operating manual · inherited"
+              >
+                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-surface-raised/70 p-4 font-mono text-xs leading-relaxed text-ink-muted">
+                  {harness.systemPrompt || "No shared instructions."}
+                </pre>
+              </SettingsRow>
+            )}
+          </SettingsGroup>
+          <SettingsGroup title="This role">
+            {project && (
+              <SettingsRow
+                description={isHead ? "Used by central chats only." : "Used by this project's chats only."}
+                title={isHead ? "Central brief · central chats only" : "Project brief · this project only"}
+              >
+                <PromptEditor label="Project instructions" value={project.systemPrompt} onChange={(systemPrompt) => onChangeProject({systemPrompt})} />
+              </SettingsRow>
+            )}
+            <SettingsRow
+              description="Only the main chat agent reads this. Specialists keep their own prompts."
+              title={isHead ? "Coordination role · main orchestrator only" : "Lead role · main chat agent only"}
+            >
+              <PromptEditor
+                label="Lead role prompt"
+                value={rolePrompt}
+                onChange={(value) => (project ? onChangeProject({orchestratorPrompt: value || undefined}) : onChangeHarness({orchestratorPrompt: value || undefined}))}
+              />
+            </SettingsRow>
+          </SettingsGroup>
         </>
       )}
       {section === "skills" && (
-        <>
-          <div className="rounded-xl border border-border p-4">
-            <h3 className="text-sm font-medium">{project ? "Project skill availability" : "Shared skill availability"}</h3>
-          </div>
+        <SettingsGroup title={project ? "Project skill availability" : "Shared skill availability"}>
           <SkillsEditor
             harnessId={harness.id}
             value={project ? project.enabledSkills : harness.enabledSkills}
             inherited={project ? harness.enabledSkills : undefined}
             onChange={(enabledSkills) => (project ? onChangeProject({enabledSkills}) : onChangeHarness({enabledSkills}))}
           />
-        </>
+        </SettingsGroup>
       )}
     </AgentWorkbench>
   );

@@ -107,14 +107,21 @@ describe("chat organization", () => {
     expect(html).toContain('href="/session/chat/workflow/wf-2"');
     expect(html).not.toContain('aria-label="Workers in this chat"');
   });
-  it("distinguishes a worker by shape, not only color", () => {
+  it("gives every role the same rune ring and separates specialists by color alone", () => {
     const worker = renderToStaticMarkup(<AgentMark name="reviewer" color="#7dd3fc" />);
-    const lead = renderToStaticMarkup(<AgentMark name="reviewer" color="#7dd3fc" kind="lead" />);
+    const lead = renderToStaticMarkup(<AgentMark name="science-space" color="#ffffff" kind="lead" />);
+    const working = renderToStaticMarkup(<AgentMark name="reviewer" working />);
+    for (const html of [worker, lead, working]) {
+      expect(html).toContain("pi-orb-particles");
+      expect(html).not.toContain("pi-specialist-orbit");
+      expect(html).not.toContain("data-variant");
+    }
     expect(worker).toContain("Specialist worker");
-    expect(worker).toContain('data-variant="specialist"');
-    expect(worker).toContain("pi-specialist-orbit");
-    expect(lead).toContain('data-variant="orb"');
-    expect(lead).not.toContain("pi-specialist-orbit");
+    expect(worker).toContain('style="color:#7dd3fc"');
+    expect(lead).toContain("Project lead");
+    expect(lead).toContain('style="color:#ffffff"');
+    expect(working).toContain('data-state="working"');
+    expect(worker).toContain('data-state="still"');
   });
   it("does not present configuration as an observed runtime prompt", () => {
     const html = renderToStaticMarkup(<InstructionReceipt layers={[{kind: "shared", owner: "Science Space", label: "Shared manual", content: "Scientific rules"}]} />);

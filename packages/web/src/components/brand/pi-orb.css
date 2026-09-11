@@ -20,17 +20,6 @@
   animation: none;
 }
 
-.pi-orb[data-state="working"] .pi-specialist-orbit {
-  transform-origin: 20px 20px;
-  animation: pi-specialist-orbit 6s linear infinite;
-}
-
-@keyframes pi-specialist-orbit {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @keyframes pi-orb-shimmer {
   0%,
   100% {
@@ -52,9 +41,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pi-orb-particles {
-    animation: none;
-  }
-  .pi-orb[data-state="working"] .pi-specialist-orbit {
     animation: none;
   }
 }

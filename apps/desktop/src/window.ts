@@ -55,6 +55,7 @@ export function createWindow({serverUrl, rendererUrl, iconsDir}: CreateWindowOpt
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,
     },
   });
 
