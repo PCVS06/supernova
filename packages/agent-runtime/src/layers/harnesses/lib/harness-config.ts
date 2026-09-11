@@ -32,9 +32,81 @@ export function migrateLegacyGraph(harness: HarnessConfig): HarnessWorkflow[] {
   ];
 }
 
+/** The literature workflow an imported Science harness starts with, when its four agents exist and nothing else was configured. */
+export function defaultScienceWorkflow(agentNames: ReadonlySet<string>): HarnessWorkflow | undefined {
+  const agents = ["literature-scout", "methodologist", "falsification-reviewer", "scientific-synthesizer"];
+  if (!agents.every((name) => agentNames.has(name))) return undefined;
+  return {
+    id: "literature-review",
+    name: "Literature review",
+    description: "Scout the sources, design the method, try to break it, then synthesise for the project lead.",
+    steps: [
+      {
+        id: "scout",
+        agent: "literature-scout",
+        instructions: "Find the most relevant sources for the task. Prefer primary sources and say what could not be found.",
+        reads: [],
+        output: {
+          fields: [
+            {name: "sources", type: "string[]", required: true, description: "One entry per source: citation, what it shows, how much to trust it."},
+            {name: "gaps", type: "string", required: true, description: "What the literature does not answer."},
+          ],
+        },
+        effects: "none",
+      },
+      {
+        id: "method",
+        agent: "methodologist",
+        instructions: "Design a method that answers the task given the sources: design, variables, analysis plan. State every assumption.",
+        reads: ["scout"],
+        output: {
+          fields: [
+            {name: "design", type: "string", required: true},
+            {name: "assumptions", type: "string[]", required: true},
+            {name: "risks", type: "string[]", required: true, description: "Where the design could mislead."},
+          ],
+        },
+        effects: "none",
+      },
+      {
+        id: "falsify",
+        agent: "falsification-reviewer",
+        instructions: "Try to break the design: confounds, alternative explanations, and the evidence that would falsify the claim. Decide whether to proceed.",
+        reads: ["scout", "method"],
+        output: {
+          fields: [
+            {name: "objections", type: "string[]", required: true},
+            {name: "verdict", type: "string", required: true, description: "proceed, revise, or stop."},
+            {name: "required_changes", type: "string[]", required: true},
+          ],
+        },
+        effects: "none",
+      },
+      {
+        id: "synthesis",
+        agent: "scientific-synthesizer",
+        instructions: "Write the synthesis for the project lead: what is known, what the method will establish, what the reviewer demands, and what happens next.",
+        reads: ["scout", "method", "falsify"],
+        output: {
+          fields: [
+            {name: "summary", type: "string", required: true},
+            {name: "next_steps", type: "string[]", required: true},
+            {name: "open_questions", type: "string[]", required: true},
+          ],
+        },
+        effects: "none",
+      },
+    ],
+    limits: {maxWallClockSeconds: 3600},
+  };
+}
+
 export function normalizeHarnessHierarchy(library: HarnessLibrary): HarnessLibrary {
   const harnesses = library.harnesses.map((harness) => {
-    const workflows = migrateLegacyGraph(harness);
+    const migrated = migrateLegacyGraph(harness);
+    const seeded =
+      harness.id === "science" && !migrated.length && harness.workflows === undefined ? defaultScienceWorkflow(new Set(harness.agents.map((agent) => agent.name))) : undefined;
+    const workflows = seeded ? [seeded] : migrated;
     const coordinatorProjectId =
       harness.coordinatorProjectId ?? library.projects.find((project) => project.harnessId === harness.id && project.path === harness.source?.rootPath)?.id;
     return {

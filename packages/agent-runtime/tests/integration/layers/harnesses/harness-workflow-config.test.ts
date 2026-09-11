@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest";
 import type {HarnessConfig, HarnessWorkflow} from "@supernova/contracts/harnesses/schemas";
 import {
   createDefaultHarness,
+  defaultScienceWorkflow,
   maxInstructionChars,
   migrateLegacyGraph,
   normalizeHarnessHierarchy,
@@ -83,5 +84,21 @@ describe("workflow configuration", () => {
     const library = normalizeHarnessHierarchy({revision: 1, harnesses: [harness({graph: {steps: ["reviewer"]}})], projects: []});
     expect(library.harnesses[0]!.workflows).toEqual([workflow()]);
     expect(library.harnesses[0]!.graph.steps).toEqual(["scout", "reviewer"]);
+  });
+
+  it("seeds the literature workflow for an imported Science harness that has its four agents and no workflows", () => {
+    const names = ["literature-scout", "methodologist", "falsification-reviewer", "scientific-synthesizer"];
+    const science: HarnessConfig = {
+      ...createDefaultHarness("science", "Science Pi"),
+      agents: names.map((name) => ({name, description: name, systemPrompt: name, tools: ["read"]})),
+      workflows: undefined,
+    };
+    const library = normalizeHarnessHierarchy({revision: 1, harnesses: [science], projects: []});
+    expect(library.harnesses[0]!.workflows?.map((item) => item.id)).toEqual(["literature-review"]);
+    expect(library.harnesses[0]!.graph.steps).toEqual(names);
+    expect(() => validateHarness(library.harnesses[0]!)).not.toThrow();
+    expect(defaultScienceWorkflow(new Set(["literature-scout"]))).toBeUndefined();
+    // An explicit empty list is a choice, not an absence, and is left alone.
+    expect(normalizeHarnessHierarchy({revision: 1, harnesses: [{...science, workflows: []}], projects: []}).harnesses[0]!.workflows).toEqual([]);
   });
 });
