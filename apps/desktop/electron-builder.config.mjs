@@ -17,7 +17,9 @@ const config = {
   files: ["out/**", "package.json"],
   extraResources: [
     {from: "resources/icons", to: "icons"},
-    {from: "../server/dist", to: "server", filter: ["cli.js", "tools/**", "node_modules/**"]},
+    {from: "../server/dist", to: "server", filter: ["cli.js", "tools/**"]},
+    // electron-builder never copies a source's top-level node_modules, so the externalised runtime ships from its own entry.
+    {from: "../server/dist/node_modules", to: "server/node_modules"},
     {from: "../../packages/web/dist", to: "web"},
   ],
   win: {

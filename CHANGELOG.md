@@ -55,6 +55,7 @@ All notable changes to Supernova are documented in this file.
 
 ### Fixed
 
+- Fixed packaged desktop builds failing to start with "Supernova API exited before readiness": the bundled server's runtime dependencies were dropped during packaging, so the API could not load them.
 - An unsigned macOS copy of pi+ can never be replaced by the updater, and a downloaded update whose signature does not match is refused by macOS. Both cases now explain themselves and offer a download from the releases page instead of failing with a code-signature error.
 - Fixed Science extension loading in the packaged desktop app by shipping the Pi SDK's runtime dependencies.
 - Removed title generation from the first-answer critical path, bounded read-only checkpoint discovery and surfaced settled provider errors before after-turn checkpoint work.
