@@ -450,6 +450,12 @@ test("a first-message goal pauses, survives reload and stops at its limit", asyn
   await expect.poll(() => existsSync(controlPath("started-goal-acceptance"))).toBe(true);
   const tray = page.getByRole("region", {name: "Goal and queued messages"});
   await expect(tray.getByText("Active", {exact: true})).toBeVisible();
+  const composer = page.getByRole("group", {name: "Message composer"});
+  const [trayBounds, composerBounds] = await Promise.all([tray.boundingBox(), composer.boundingBox()]);
+  expect(trayBounds).not.toBeNull();
+  expect(composerBounds).not.toBeNull();
+  expect(Math.abs(trayBounds!.x - composerBounds!.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(trayBounds!.width - composerBounds!.width)).toBeLessThanOrEqual(2);
   await tray.getByRole("button", {name: "Pause", exact: true}).click();
   await expect(tray.getByText("Paused", {exact: true})).toBeVisible();
   await page.reload();

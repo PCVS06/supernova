@@ -91,6 +91,24 @@ describe("session composer primary action", () => {
     expect(html).not.toContain("bounded continuation");
   });
 
+  it("joins durable controls and the composer inside one frame", () => {
+    const html = renderToStaticMarkup(
+      <SessionComposer
+        attachments={attachments}
+        controlTray={<section data-testid="durable-controls">Goal</section>}
+        disabled={false}
+        draft={{contentParts: []}}
+        onSubmit={vi.fn()}
+        projectPath="/workspace"
+        streamStatus="idle"
+      />
+    );
+
+    expect(html).toContain('aria-label="Message composer"');
+    expect(html).toContain('data-controls-attached="true"');
+    expect(html).toContain('data-testid="durable-controls"');
+  });
+
   it("allows queueing during compaction while steering is unavailable", () => {
     const html = composerMarkup({contentParts: [{text: "Check the logs next", type: "text"}], streamStatus: "compacting"});
     expect(html).toContain('aria-label="Queue message"');

@@ -31,10 +31,10 @@ describe("appearance upgrade", () => {
     vi.unstubAllGlobals();
   });
 
-  it("starts dark and opaque even on a light operating system", async () => {
+  it("starts dark with glass chrome even on a light operating system", async () => {
     const {initializeAppearance, useAppearanceStore} = await import("@/features/settings/stores/appearance-store");
     initializeAppearance();
-    expect(useAppearanceStore.getState()).toMatchObject({mode: "dark", resolvedMode: "dark", themeId: "pi-retro", translucentSidebar: false});
+    expect(useAppearanceStore.getState()).toMatchObject({mode: "dark", resolvedMode: "dark", themeId: "pi-retro", translucentSidebar: true});
   });
 
   it("upgrades the old appearance once while preserving custom fonts and unrelated storage", async () => {
@@ -52,12 +52,12 @@ describe("appearance upgrade", () => {
     expect(useAppearanceStore.getState()).toMatchObject({
       mode: "dark",
       themeId: "pi-retro",
-      translucentSidebar: false,
+      translucentSidebar: true,
       codeFont: "Menlo",
       uiFont: "Inter",
       fontSmoothing: false,
     });
-    expect(JSON.parse(localStorage.getItem(storageKey) ?? "{}").version).toBe(1);
+    expect(JSON.parse(localStorage.getItem(storageKey) ?? "{}").version).toBe(2);
     expect(localStorage.getItem("supernova-projects")).toBe(projects);
   });
 

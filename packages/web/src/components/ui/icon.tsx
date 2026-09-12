@@ -166,7 +166,7 @@ interface IconProps extends Omit<IconifyIconProps, "children" | "icon" | "size">
 export default function Icon(props: IconProps) {
   const {className, name, size = "md", ...iconProps} = props;
   const icon = icons[name];
-  const resolvedClassName = cn(sizeClasses[size], "shrink-0", className);
+  const resolvedClassName = cn(sizeClasses[size], "ui-icon shrink-0", className);
 
   return <IconifyIcon aria-hidden="true" className={resolvedClassName} icon={icon} ssr {...iconProps} />;
 }

@@ -41,6 +41,7 @@ describe("sidebar footer", () => {
     expect(html).toContain('aria-label="Open settings"');
     expect(html).toContain('aria-label="Use light theme"');
     expect(html).toContain('aria-label="Open help"');
+    expect(html).toContain("ui-icon");
     expect(html).not.toContain(">Settings<");
     buttons.get("Use light theme")!.onClick?.({} as never);
     expect(state.setMode).toHaveBeenCalledExactlyOnceWith("light");

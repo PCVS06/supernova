@@ -25,6 +25,7 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
   const macEnvironment = appEnvironment === "mac";
   const resizable = onSidebarWidthChange != null;
   const workspaceChrome = trailingTitlebarActions != null;
+  const glassChrome = translucentSidebar;
 
   const handleResizePointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     if (!onSidebarWidthChange) return;
@@ -62,9 +63,9 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
     <main className={cn("h-svh overflow-hidden text-ink", desktopEnvironment && "bg-transparent", className)}>
       <section
         className={cn(
-          "relative flex h-full min-h-0 overflow-hidden bg-surface-sidebar",
+          "relative flex h-full min-h-0 overflow-hidden",
           workspaceChrome && "pt-12",
-          (macEnvironment || appEnvironment === "windows") && translucentSidebar && "bg-surface-sidebar-translucent backdrop-blur-sm backdrop-saturate-[1.35]"
+          glassChrome ? "app-glass-chrome bg-surface-sidebar-translucent" : "bg-surface-sidebar"
         )}
       >
         {(titlebarActions != null || macEnvironment || appEnvironment === "windows") && (

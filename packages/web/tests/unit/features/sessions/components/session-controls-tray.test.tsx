@@ -60,6 +60,8 @@ describe("authoritative goal and queue tray", () => {
     expect(html).not.toContain("passes");
     expect(html).toContain("w-full");
     expect(html).not.toContain("mx-1");
+    expect(html).not.toContain("rounded-t-xl");
+    expect(html).not.toContain("border-b-0");
   });
 
   it.each([

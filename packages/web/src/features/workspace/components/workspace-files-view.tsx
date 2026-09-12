@@ -76,7 +76,7 @@ function WorkspaceFileNavigator(props: WorkspaceFileNavigatorProps) {
   return (
     <aside
       aria-label="Project file navigation"
-      className={compact ? "flex min-h-0 shrink-0 flex-col bg-surface-sidebar" : "flex min-h-0 min-w-0 flex-1 flex-col bg-surface-sidebar"}
+      className={compact ? "flex min-h-0 shrink-0 flex-col bg-transparent" : "flex min-h-0 min-w-0 flex-1 flex-col bg-transparent"}
       style={compact ? {width} : undefined}
     >
       <p className="shrink-0 truncate px-3 pb-1 pt-3 text-xs text-ink-faint" title={projectPath}>

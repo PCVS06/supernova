@@ -54,7 +54,7 @@ export default function ComposerSendAction(props: ComposerSendActionProps) {
           title={steerPrimary ? "Give this text to the running agent now" : sendLabel === "Queue message" ? "Queue message — runs after the current turn, in order" : sendLabel}
           variant="filled"
         >
-          <Icon name={sendLabel === "Start goal" ? "gauge" : sendLabel === "Queue message" && !steerPrimary ? "new-chat" : "send"} size="sm" />
+          <Icon name={sendLabel === "Queue message" && !steerPrimary ? "new-chat" : "send"} size="sm" />
         </IconButton>
       )}
       {streaming && (

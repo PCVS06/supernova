@@ -1,5 +1,6 @@
 import type {CSSProperties, PointerEvent} from "react";
 import {useRef, useState} from "react";
+import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
 import type {AppEnvironment} from "@/lib/app-environment";
 import {cn} from "@/lib/cn";
 import WorkspaceBrowserView from "@/features/workspace/components/workspace-browser-view";
@@ -23,8 +24,10 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
   const visible = useWorkspacePanelStore((state) => state.visible);
   const width = useWorkspacePanelStore((state) => state.width);
   const setWidth = useWorkspacePanelStore((state) => state.setWidth);
+  const translucentSidebar = useAppearanceStore((state) => state.translucentSidebar);
   const panelRef = useRef<HTMLElement>(null);
   const [resizing, setResizing] = useState(false);
+  const glassChrome = translucentSidebar;
 
   const handleResizePointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     const rightEdge = panelRef.current?.getBoundingClientRect().right;
@@ -68,7 +71,8 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
     >
       <div
         className={cn(
-          "absolute inset-y-0 right-0 flex min-h-0 flex-col border-l border-border-strong bg-surface-sidebar transition-opacity duration-200 ease-out motion-reduce:transition-none",
+          "absolute inset-y-0 right-0 flex min-h-0 flex-col border-l border-border-strong transition-opacity duration-200 ease-out motion-reduce:transition-none",
+          glassChrome ? "app-glass-chrome bg-surface-sidebar-translucent" : "bg-surface-sidebar",
           visible ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         style={{width: panelWidth}}

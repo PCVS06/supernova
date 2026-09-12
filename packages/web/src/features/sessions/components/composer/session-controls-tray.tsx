@@ -138,7 +138,7 @@ export default function SessionControlsTray(props: SessionControlsTrayProps) {
   const controlsDisabled = pending || !!state?.error;
 
   return (
-    <section aria-label="Goal and queued messages" className="w-full overflow-hidden rounded-t-xl border border-b-0 border-border bg-surface-drawer">
+    <section aria-label="Goal and queued messages" className="w-full overflow-hidden border-b border-border bg-surface-drawer">
       {state && state.queue.length > 0 && (
         <>
           <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-2 text-xs text-ink-muted">

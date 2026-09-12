@@ -158,6 +158,27 @@
 }
 
 @layer components {
+  .app-glass-chrome {
+    background: linear-gradient(145deg, rgb(255 255 255 / 6.5%), rgb(255 255 255 / 2.2%) 42%, rgb(255 255 255 / 0.8%)), rgb(3 3 4 / 82%);
+    backdrop-filter: blur(24px) saturate(135%);
+    -webkit-backdrop-filter: blur(24px) saturate(135%);
+  }
+
+  .ui-icon {
+    transition:
+      color 160ms ease,
+      filter 160ms ease,
+      opacity 160ms ease;
+  }
+
+  :root[data-color-mode="dark"] .ui-icon {
+    filter: drop-shadow(0 0 3px rgb(255 255 255 / 18%));
+  }
+
+  :root[data-color-mode="dark"] :is(button, a, [role="button"]):hover .ui-icon {
+    filter: drop-shadow(0 0 4px rgb(255 255 255 / 30%));
+  }
+
   .workspace-tabs {
     scrollbar-width: none;
   }

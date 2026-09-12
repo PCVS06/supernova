@@ -65,7 +65,7 @@ export const useAppearanceStore = create<AppearanceState>()(
       mode: "dark",
       resolvedMode: "dark",
       themeId: defaultTheme.id,
-      translucentSidebar: false,
+      translucentSidebar: true,
       uiFont: undefined,
       setCodeFont: (codeFont) => {
         applyFont("--font-mono", codeFont);
@@ -91,7 +91,7 @@ export const useAppearanceStore = create<AppearanceState>()(
     }),
     {
       name: APPEARANCE_STORAGE_KEY,
-      version: 1,
+      version: 2,
       // Adopt the new identity once; subsequent appearance choices remain saved.
       // Keep the storage key so projects, sessions, and other preferences are untouched.
       migrate: (persistedState) => {
@@ -101,7 +101,7 @@ export const useAppearanceStore = create<AppearanceState>()(
           fontSmoothing: "fontSmoothing" in saved && typeof saved.fontSmoothing === "boolean" ? saved.fontSmoothing : true,
           mode: "dark" as const,
           themeId: defaultTheme.id,
-          translucentSidebar: false,
+          translucentSidebar: true,
           uiFont: "uiFont" in saved && typeof saved.uiFont === "string" ? saved.uiFont : undefined,
         };
       },

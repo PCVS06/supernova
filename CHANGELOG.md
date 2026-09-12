@@ -8,6 +8,7 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
+- Changed the dark shell to keep work surfaces pure black while sidebars use subtle glass translucency and softly illuminated icons.
 - Changed the dark workspace to pure-black surfaces with hidden scrollbar chrome, a compact grouped Context inspector, and icon-only settings, theme and help controls.
 - Simplified Goal and dictation feedback by removing pass-count terminology, redundant continuation copy and empty-speech errors.
 - Changed the primary chat to a headerless workspace, with Split View beside the right-sidebar control and secondary panes retaining compact identity headers.
@@ -33,6 +34,7 @@ All notable changes to Supernova are documented in this file.
 
 ### Fixed
 
+- Fixed the Goal tray and composer drawing overlapping frames, and kept the compact send arrow as the primary action when starting a goal.
 - Fixed desktop Browser stability by replacing the embedded webview with an isolated native browser surface that survives workspace tab changes.
 - Fixed late first-message acceptance from reopening its chat after the user had already navigated away, and aligned the Goal tray with the full composer width.
 - Fixed workspace tabs so their focus treatment and hidden tab-strip scrollbar no longer distort or overlap the tab row.

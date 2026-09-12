@@ -26,7 +26,7 @@ export default function WorkspaceFileViewer(props: WorkspaceFileViewerProps) {
   const lines = file && !file.binary ? file.content.split("\n") : [];
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-muted px-3">
         <span className="min-w-0 flex-1 truncate text-xs text-ink-muted" title={path}>
           {pathFileName(projectPath)} / <span className="text-ink">{path}</span>

@@ -5,7 +5,7 @@ import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
 import {cn} from "@/lib/cn";
 
 const HELP_URL = "https://github.com/PCVS06/supernova#readme";
-const footerActionClassName = "grid size-8 place-items-center rounded-lg text-ink-faint transition-colors hover:bg-overlay-hover hover:text-ink";
+const footerActionClassName = "grid size-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-overlay-hover hover:text-ink-strong";
 
 interface SidebarFooterProps {
   readonly settingsActive: boolean;
