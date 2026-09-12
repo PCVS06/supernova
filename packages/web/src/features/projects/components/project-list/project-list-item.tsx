@@ -17,6 +17,7 @@ import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store
 import {hasUnseenActivity, useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
 import {formatUpdatedAt} from "@/features/projects/utils/format-updated-at";
 import {cn} from "@/lib/cn";
+import AgentMark from "@/features/harnesses/components/agent-mark";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import {useHarnessLibrary, useRemoveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
@@ -196,11 +197,20 @@ export default function ProjectListItem(props: ProjectListItemProps) {
               {folderMissing ? (
                 <Icon className="shrink-0 text-danger-ink" name="alert" size="sm" />
               ) : project.harnessProjectId ? (
-                <Icon className={cn("text-ink-faint transition-transform motion-reduce:transition-none", !expanded && "-rotate-90")} name="chevron-down" size="xs" />
+                <AgentMark
+                  className="size-6 shrink-0"
+                  color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(project.harnessProjectId))}
+                  kind="lead"
+                  name={project.harnessProjectId}
+                  working={workingSessions.length > 0}
+                />
               ) : (
                 <Icon className="shrink-0 text-ink-faint" name={expanded ? "folder-open" : "folder"} size="sm" />
               )}
             </span>
+            {!folderMissing && project.harnessProjectId && (
+              <Icon className={cn("-ml-1 shrink-0 text-ink-faint transition-transform motion-reduce:transition-none", !expanded && "-rotate-90")} name="chevron-down" size="xs" />
+            )}
             <span className="min-w-0 flex-1">
               <span className="line-clamp-2 break-words text-sm font-medium leading-5">{projectLabel}</span>
               {(project.isCoordinator || folderMissing || workingSessions.length > 0) && (

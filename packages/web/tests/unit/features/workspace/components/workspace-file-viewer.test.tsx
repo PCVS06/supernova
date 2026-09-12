@@ -28,7 +28,7 @@ describe("workspace file viewer", () => {
   });
 
   it("numbers the lines it shows", () => {
-    const html = renderToStaticMarkup(<WorkspaceFileViewer path="src/example.ts" projectPath="/workspace" sessionId="chat-1" />);
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="src/example.ts" projectPath="/workspace" />);
 
     expect(html).toContain("first");
     expect(html).toContain("second");
@@ -38,7 +38,7 @@ describe("workspace file viewer", () => {
 
   it("renders planning documents with headings and keeps a source view available", () => {
     state.file = file({content: "# Research plan\n\n- Validate assumptions\n- Check evidence"});
-    const html = renderToStaticMarkup(<WorkspaceFileViewer path="PLAN.md" projectPath="/workspace" sessionId="chat-1" />);
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="PLAN.md" projectPath="/workspace" />);
     expect(html).toContain("<h1");
     expect(html).toContain("Research plan");
     expect(html).toContain("Validate assumptions");
@@ -49,7 +49,7 @@ describe("workspace file viewer", () => {
   it("says when the server cut the file at its read limit", () => {
     state.file = file({size: 2_097_152, truncated: true});
 
-    const html = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" sessionId="chat-1" />);
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" />);
 
     expect(html).toContain("Showing the start of this file only");
     expect(html).toContain("2.0 MB");
@@ -58,27 +58,18 @@ describe("workspace file viewer", () => {
   it("says when a file is binary instead of showing empty content", () => {
     state.file = file({binary: true, content: "", path: "assets/logo.png", size: 4_096});
 
-    const html = renderToStaticMarkup(<WorkspaceFileViewer path="assets/logo.png" projectPath="/workspace" sessionId="chat-1" />);
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="assets/logo.png" projectPath="/workspace" />);
 
     expect(html).toContain("This is a binary file");
     expect(html).toContain("4 KB");
     expect(html).not.toContain("<ol");
   });
 
-  it("offers the file to the open chat and withholds the action without one", () => {
-    const withChat = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" sessionId="chat-1" />);
-    const withoutChat = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" sessionId={null} />);
-
-    expect(withChat).toContain("Add to chat");
-    expect(withChat).not.toContain('disabled=""');
-    expect(withoutChat).toContain('disabled=""');
-  });
-
   it("reports a file it cannot read", () => {
     state.file = undefined;
     state.failing = true;
 
-    const html = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" sessionId="chat-1" />);
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" />);
 
     expect(html).toContain("This file could not be read.");
   });

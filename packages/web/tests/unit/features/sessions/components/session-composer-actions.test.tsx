@@ -40,6 +40,8 @@ describe("session composer primary action", () => {
     const html = composerMarkup({contentParts: [{text: "Fix the parser", type: "text"}], streamStatus: "idle"});
 
     expect(html).toContain('aria-label="Send message"');
+    expect(html).toContain("rounded-full");
+    expect(html).not.toContain(">Send<");
     expect(html).not.toContain("Steer");
     expect(html).not.toContain("Enter sends");
     expect(html).not.toContain("Shift+Enter");

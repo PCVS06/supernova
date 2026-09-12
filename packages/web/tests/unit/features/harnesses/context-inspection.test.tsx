@@ -20,10 +20,13 @@ describe("context inspection", () => {
     expect(html).toContain(notice);
     expect(html).toContain("Always cite primary evidence.");
     expect(html).toContain("Retain falsification criteria.");
-    expect(html).not.toContain("<details");
+    expect(html).toContain("<details");
+    expect(html).not.toContain('open=""');
+    expect(html).toContain(">Harness<");
+    expect(html).toContain(">Project<");
     expect(html).toContain("No runtime receipt yet");
-    expect(html).toContain('aria-label="Resources"');
-    expect(html).toContain('aria-label="Runtime"');
+    expect(html).toContain(">Resources<");
+    expect(html).toContain(">Runtime<");
   });
 
   it.each([

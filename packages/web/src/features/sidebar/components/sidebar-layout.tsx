@@ -90,12 +90,15 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
           </nav>
         )}
 
-        <div
+        <aside
+          aria-hidden={!sidebarVisible}
+          aria-label="Primary sidebar"
           className={cn(
-            "relative shrink-0 overflow-hidden",
+            "relative shrink-0 overflow-hidden will-change-[width]",
             !resizing && "transition-[width] duration-250 ease-in-out",
             sidebarVisible ? (resizable ? "w-full md:w-(--sidebar-width)" : "w-(--sidebar-width)") : "w-0"
           )}
+          inert={!sidebarVisible}
           style={sidebarStyle}
         >
           <div
@@ -109,7 +112,7 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
             {sidebar}
           </div>
           {resizable && sidebarVisible && <div className="absolute bottom-0 right-0 top-0 hidden w-1 cursor-col-resize md:block" onPointerDown={handleResizePointerDown} />}
-        </div>
+        </aside>
 
         <section
           className={cn(

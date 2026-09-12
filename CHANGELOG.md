@@ -8,10 +8,12 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
-- Changed the primary chat to a headerless workspace, with Split View moved beside the composer controls and secondary panes retaining compact identity headers.
-- Changed the right workspace access to one icon toggle that opens an in-panel switcher for Files, Browser, Terminal and Context, with the panel sliding in and out like the main sidebar. Context now opens directly beside the active chat instead of in a dialog.
-- Changed the file workspace to keep the open document beside its project tree, with rendered Markdown and a source view.
-- Changed harness project rows to use a compact disclosure chevron instead of repeating the animated π mark.
+- Changed the primary chat to a headerless workspace, with Split View beside the right-sidebar control and secondary panes retaining compact identity headers.
+- Changed the right workspace access to one icon toggle and an in-panel switcher for Files, Browser, Terminal and Context. Its default width now matches the main sidebar.
+- Changed project files to open as full-width tabs that stay available while switching workspace views, with rendered Markdown, source view and a compact Add to chat action.
+- Changed chat context into independently collapsible Harness, Project, Role, Context, Resources and Runtime sections with one continuous scroll area.
+- Changed harness project rows to keep their colored π mark visible beside a separate disclosure chevron.
+- Changed the composer primary action to a smaller circular arrow button.
 - Reworked the harness settings: every agent page has Settings, Instructions, Skills and Memory tabs; Resources is harness-wide only; the Projects tab is a per-project planning tool with Plan, Instructions and Setup; Workflows shows Workflows and Limits.
 - Redesigned the sidebar: a search field, small-caps harness headers with hover-only actions, aligned project and chat rows whose actions no longer overlap the name, a Lead pill for the coordinating project, and a quiet footer.
 - The project Plan tab is a full-height workspace: a documents column beside the open document, Save, Revert and Cmd+S, a starting structure for files that do not exist yet, and a document list that saves as soon as it changes.
@@ -26,6 +28,7 @@ All notable changes to Supernova are documented in this file.
 
 ### Fixed
 
+- Fixed the right workspace reopening on its picker instead of the last selected content and jumping wider whenever a file opened.
 - A project whose folder disappeared from disk no longer fails new chats with a generic "Please try again"; the sidebar and settings mark it as missing, the toast names the folder, and its plan and instructions stay editable.
 - Projects removed from a harness no longer linger in the sidebar as unmanaged folders.
 

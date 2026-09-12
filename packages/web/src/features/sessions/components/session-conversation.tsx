@@ -21,7 +21,6 @@ import UndoneTurnsDrawer from "@/features/sessions/components/composer/undone-tu
 import SessionActionsMenu from "@/features/sessions/components/session-actions-menu";
 import SessionLayout from "@/features/sessions/components/session-layout";
 import SessionTitleText from "@/features/sessions/components/session-title-text";
-import SplitSessionPicker from "@/features/sessions/components/split-session-picker";
 import SessionTimeline from "@/features/sessions/components/timeline/session-timeline";
 import {useRenameSession as useRenameSessionMutation} from "@/features/sessions/hooks/api/use-rename-session";
 import {useSessionControls} from "@/features/sessions/hooks/api/use-session-controls";
@@ -32,7 +31,6 @@ import {useComposerModelSelection} from "@/features/sessions/hooks/use-composer-
 import {useSessionTimeline} from "@/features/sessions/hooks/use-session-timeline";
 import {sessionComposerDraftKey} from "@/features/sessions/stores/composer-drafts-store";
 import {useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
-import {MAX_SPLIT_PANES, useSplitViewStore} from "@/features/sessions/stores/split-view-store";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
 import {useInlineRename} from "@/hooks/use-inline-rename";
 import {useMountEffect} from "@/lib/use-mount-effect";
@@ -63,9 +61,6 @@ export default function SessionConversation(props: SessionConversationProps) {
 
   const markSessionVisited = useSessionVisitsStore((state) => state.markSessionVisited);
   const setWorkspaceTarget = useWorkspacePanelStore((state) => state.setTarget);
-  const panes = useSplitViewStore((state) => state.panes);
-  const openPane = useSplitViewStore((state) => state.openPane);
-  const [splitPickerOpen, setSplitPickerOpen] = useState(false);
   const renameSessionMutation = useRenameSessionMutation();
 
   // Opening a chat clears its unseen activity, and the routed chat is the one
@@ -146,11 +141,6 @@ export default function SessionConversation(props: SessionConversationProps) {
     setUndoneDrawerHeight((current) => (Math.abs(current - height) < 0.5 ? current : height));
   }, []);
 
-  const handleSplitSelect = (sessionId: string): void => {
-    openPane(sessionId);
-    setSplitPickerOpen(false);
-  };
-
   return (
     <>
       {primary && project && <SelectChatProject key={`${project.harnessId}:${project.id}`} harnessId={project.harnessId} projectId={project.id} />}
@@ -221,19 +211,6 @@ export default function SessionConversation(props: SessionConversationProps) {
               projectPath={session.projectPath}
               slashCommandActions={{...stream.slashCommandActions, redo: handleRedo, undo: handleUndo}}
               streamStatus={stream.streamStatus}
-              toolbarActions={
-                primary ? (
-                  <IconButton
-                    className="size-7"
-                    disabled={panes.length >= MAX_SPLIT_PANES}
-                    label="Open a chat beside this one"
-                    onClick={() => setSplitPickerOpen(true)}
-                    title={panes.length >= MAX_SPLIT_PANES ? "Three chats are already open side by side" : "Split: open another chat beside this one"}
-                  >
-                    <Icon name="columns" size="sm" />
-                  </IconButton>
-                ) : undefined
-              }
               toolbarControls={
                 <div className="flex min-w-0 items-center gap-3">
                   <SessionContextIndicator context={stream.liveContext ?? session.context} />
@@ -307,14 +284,6 @@ export default function SessionConversation(props: SessionConversationProps) {
         open={stream.checkpointConflict.open}
         reason={stream.checkpointConflict.reason}
       />
-      {primary && (
-        <SplitSessionPicker
-          excludedSessionIds={[session.id, ...panes.map((pane) => pane.sessionId)]}
-          onClose={() => setSplitPickerOpen(false)}
-          onSelect={handleSplitSelect}
-          open={splitPickerOpen}
-        />
-      )}
     </>
   );
 }

@@ -1,16 +1,13 @@
 import type {CSSProperties, PointerEvent} from "react";
 import {useRef, useState} from "react";
-import Button from "@/components/ui/button";
-import Icon from "@/components/ui/icon";
-import IconButton from "@/components/ui/icon-button";
 import type {AppEnvironment} from "@/lib/app-environment";
 import {cn} from "@/lib/cn";
 import WorkspaceBrowserView from "@/features/workspace/components/workspace-browser-view";
 import WorkspaceContextView from "@/features/workspace/components/workspace-context-view";
 import WorkspaceFilesView from "@/features/workspace/components/workspace-files-view";
+import WorkspacePanelHeader from "@/features/workspace/components/workspace-panel-header";
 import WorkspaceTerminalView from "@/features/workspace/components/workspace-terminal-view";
 import WorkspaceViewPicker from "@/features/workspace/components/workspace-view-picker";
-import {WORKSPACE_VIEW_DEFINITIONS} from "@/features/workspace/lib/workspace-view-definitions";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
 
 interface WorkspacePanelProps {
@@ -25,12 +22,9 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
   const pickerVisible = useWorkspacePanelStore((state) => state.pickerVisible);
   const visible = useWorkspacePanelStore((state) => state.visible);
   const width = useWorkspacePanelStore((state) => state.width);
-  const closePanel = useWorkspacePanelStore((state) => state.closePanel);
   const setWidth = useWorkspacePanelStore((state) => state.setWidth);
-  const showViewPicker = useWorkspacePanelStore((state) => state.showViewPicker);
   const panelRef = useRef<HTMLElement>(null);
   const [resizing, setResizing] = useState(false);
-  const viewDefinition = WORKSPACE_VIEW_DEFINITIONS.find((item) => item.value === view) ?? WORKSPACE_VIEW_DEFINITIONS[0];
 
   const handleResizePointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     const rightEdge = panelRef.current?.getBoundingClientRect().right;
@@ -65,7 +59,7 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
       aria-hidden={!visible}
       aria-label="Workspace panel"
       className={cn(
-        "absolute inset-y-0 right-0 z-30 shrink-0 overflow-hidden md:relative md:inset-auto md:z-auto",
+        "absolute inset-y-0 right-0 z-30 shrink-0 overflow-hidden will-change-[width] md:relative md:inset-auto md:z-auto",
         !resizing && "transition-[width] duration-250 ease-in-out motion-reduce:transition-none"
       )}
       inert={!visible}
@@ -80,25 +74,7 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
         style={{width: panelWidth}}
       >
         {visible && <div className="absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize" onPointerDown={handleResizePointerDown} />}
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-muted px-3">
-          {pickerVisible ? (
-            <span className="text-sm font-medium text-ink">Workspace</span>
-          ) : (
-            <Button
-              aria-label="Switch workspace view"
-              className="flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-ink hover:bg-overlay-hover"
-              onClick={showViewPicker}
-              variant="ghost"
-            >
-              <Icon className="text-ink-muted" name={viewDefinition.icon} size="sm" />
-              <span>{viewDefinition.label}</span>
-              <Icon className="text-ink-faint" name="chevron-down" size="xs" />
-            </Button>
-          )}
-          <IconButton className="ml-auto size-7" label="Close workspace panel" onClick={closePanel} title="Close workspace panel">
-            <Icon name="x" size="sm" />
-          </IconButton>
-        </header>
+        <WorkspacePanelHeader sessionId={target?.sessionId ?? null} />
 
         {pickerVisible && <WorkspaceViewPicker />}
         {!pickerVisible && view === "browser" && <WorkspaceBrowserView appEnvironment={appEnvironment} />}
@@ -112,11 +88,7 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
           ))}
         {!pickerVisible &&
           view === "files" &&
-          (target ? (
-            <WorkspaceFilesView projectPath={target.projectPath} sessionId={target.sessionId} />
-          ) : (
-            <p className="px-3 py-3 text-xs text-ink-faint">Open a chat to browse its project files.</p>
-          ))}
+          (target ? <WorkspaceFilesView projectPath={target.projectPath} /> : <p className="px-3 py-3 text-xs text-ink-faint">Open a chat to browse its project files.</p>)}
       </div>
     </aside>
   );

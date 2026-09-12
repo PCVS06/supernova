@@ -7,6 +7,7 @@ import IconButton from "@/components/ui/icon-button";
 import SidebarLayout from "@/features/sidebar/components/sidebar-layout";
 import Sidebar from "@/features/sidebar/components/sidebar";
 import SessionPane from "@/features/sessions/components/session-pane";
+import SplitViewControl from "@/features/sessions/components/split-view-control";
 import {useSplitViewStore} from "@/features/sessions/stores/split-view-store";
 import UpdateButton from "@/features/updates/components/update-button";
 import WorkspacePanel from "@/features/workspace/components/workspace-panel";
@@ -78,7 +79,12 @@ export default function HomePage(props: HomePageProps) {
       sidebarVisible={sidebarVisible}
       sidebarWidth={sidebarWidth}
       titlebarActions={titlebarActions}
-      trailingTitlebarActions={<WorkspacePanelToggle />}
+      trailingTitlebarActions={
+        <>
+          <SplitViewControl />
+          <WorkspacePanelToggle />
+        </>
+      }
     >
       <div className="relative flex h-full min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto">

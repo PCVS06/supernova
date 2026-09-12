@@ -33,17 +33,17 @@ export default function ComposerSendAction(props: ComposerSendActionProps) {
           Steer now
         </Button>
       )}
-      <Button
-        aria-label={sendLabel}
-        className="flex h-8 shrink-0 items-center gap-1.5 px-2.5 text-xs"
+      <IconButton
+        className="size-7 shrink-0 rounded-full"
         disabled={!canSend}
+        label={sendLabel}
         onClick={onSend}
+        size="none"
         title={sendLabel === "Queue message" ? "Queue message — runs after the current turn, in order" : sendLabel}
         variant="filled"
       >
         <Icon name={sendLabel === "Start goal" ? "gauge" : sendLabel === "Queue message" ? "new-chat" : "send"} size="sm" />
-        <span>{sendLabel === "Queue message" ? "Queue" : sendLabel === "Start goal" ? "Start goal" : "Send"}</span>
-      </Button>
+      </IconButton>
       {streaming && (
         <IconButton
           label={streamStatus === "stopping" ? "Stopping stream" : "Stop streaming"}

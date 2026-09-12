@@ -181,7 +181,8 @@ describe("sidebar rows", () => {
 
     expect(html).toContain(">Harness lead<");
     expect(html).not.toContain("Coordinates all labs");
-    expect(html).not.toContain("pi-orb");
+    expect(html).toContain("pi-orb");
+    expect(html).not.toContain("group-hover/ledger:opacity-0");
   });
 
   it("names the disclosure after its project and names its chat action when chats exist", () => {
@@ -211,7 +212,7 @@ describe("sidebar rows", () => {
     expect(html).not.toContain("Project instructions");
   });
 
-  it("names the harness group, hides its ring and keeps both group actions reachable", () => {
+  it("names the harness group, hides its own ring and keeps both group actions reachable", () => {
     const html = renderHarnessSection([project()], [configuredProject()]);
 
     expect(html).toContain("Science Pi");
@@ -220,7 +221,6 @@ describe("sidebar rows", () => {
     expect(html).toContain('aria-label="Harness settings for Science Pi"');
     expect(html).toContain(">1 project<");
     expect(html).not.toContain("bg-surface-sidebar");
-    // Rings identify projects, so the group header carries none.
     expect(html).not.toContain("pi-orb");
   });
 

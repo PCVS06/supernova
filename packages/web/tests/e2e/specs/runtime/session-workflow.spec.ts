@@ -22,6 +22,7 @@ async function openProject(page: Page): Promise<string> {
   const projectPath = realpathSync(directory);
   const id = projectId(projectPath);
   writeFileSync(join(projectPath, "PLAN.md"), "# Project plan\n\n- Check evidence\n- Verify the result\n");
+  writeFileSync(join(projectPath, "CONTEXT.md"), "# Project context\n\nKeep the file tabs understandable.\n");
 
   await page.addInitScript(
     ({id: storedProjectId, path}) => {
@@ -291,29 +292,48 @@ test("offers terminal and context beside readable project files", async ({page})
   await expect(page.getByRole("button", {name: "/goal", exact: true})).toHaveCount(0);
   await openWorkspaceView(page, "Terminal");
   const panel = page.getByRole("complementary", {name: "Workspace panel"});
+  const primarySidebar = page.getByRole("complementary", {name: "Primary sidebar"});
+  await expect
+    .poll(async () => {
+      const [primarySidebarBounds, panelBounds] = await Promise.all([primarySidebar.boundingBox(), panel.boundingBox()]);
+      if (!primarySidebarBounds || !panelBounds) return Number.POSITIVE_INFINITY;
+      return Math.abs(primarySidebarBounds.width - panelBounds.width);
+    })
+    .toBeLessThan(2);
   await expect(panel.getByText("Terminal transport required", {exact: true})).toBeVisible();
 
   await openWorkspaceView(page, "Context");
   await expect(panel).toBeVisible();
-  await expect(panel.getByRole("button", {name: "Instructions"})).toBeVisible();
-  await panel.getByRole("button", {name: "Runtime", exact: true}).click();
+  await expect(panel.locator("details").first()).toBeVisible();
+  await expect(panel.getByText("Harness", {exact: true})).toBeVisible();
+  await expect(panel.getByText("Project", {exact: true})).toBeVisible();
+  await expect(panel.locator("details[open]")).toHaveCount(0);
+  await panel.getByText("Runtime", {exact: true}).click();
   await expect(panel.getByText("Exact runtime system prompt", {exact: true})).toBeVisible();
 
   await openWorkspaceView(page, "Files");
   await panel.getByRole("button", {name: "PLAN.md", exact: true}).click();
   await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
-  await expect(panel.getByRole("list", {name: "Project files"})).toBeVisible();
-  const fileNavigation = panel.getByRole("complementary", {name: "Project file navigation"});
-  const [headingBounds, navigationBounds] = await Promise.all([panel.getByRole("heading", {name: "Project plan"}).boundingBox(), fileNavigation.boundingBox()]);
-  expect(headingBounds).not.toBeNull();
-  expect(navigationBounds).not.toBeNull();
-  expect(navigationBounds!.x).toBeGreaterThan(headingBounds!.x);
+  await expect(panel.getByRole("complementary", {name: "Project file navigation"})).toHaveCount(0);
+  await expect(panel.getByRole("navigation", {name: "Workspace tabs"})).toBeVisible();
+  await expect(panel.getByRole("button", {name: "Open file tab PLAN.md"})).toHaveAttribute("aria-current", "page");
   await panel.getByRole("button", {name: "Source", exact: true}).click();
   await expect(panel.getByText("# Project plan", {exact: true})).toBeVisible();
   await panel.getByRole("button", {name: "Add to chat", exact: true}).click();
   await expect(page.locator('[contenteditable="true"]').first()).toContainText("PLAN.md");
+
+  await openWorkspaceView(page, "Files");
+  await expect(panel.getByRole("button", {name: "Open file tab PLAN.md"})).toBeVisible();
+  await panel.getByRole("button", {name: "CONTEXT.md", exact: true}).click();
+  await expect(panel.getByRole("heading", {name: "Project context"})).toBeVisible();
+  await expect(panel.getByRole("button", {name: "Open file tab PLAN.md"})).toBeVisible();
+  await expect(panel.getByRole("button", {name: "Open file tab CONTEXT.md"})).toHaveAttribute("aria-current", "page");
+  await panel.getByRole("button", {name: "Open file tab PLAN.md"}).click();
+  await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
   await panel.getByRole("button", {name: "Close workspace panel"}).click();
   await expect(panel).not.toBeVisible();
+  await page.getByRole("button", {name: "Toggle workspace panel"}).click();
+  await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
 });
 
 test("queued messages survive reload, can be removed and run in FIFO order", async ({page}) => {
@@ -350,7 +370,14 @@ test("keeps workspace tools at the right edge while chats are split", async ({pa
   await page.getByRole("button", {name: "New chat in runtime-e2e", exact: true}).click();
   await sendMessage(page, "Second split chat");
   await expectResponse(page, "Second split chat");
-  await page.getByRole("button", {name: "Open a chat beside this one"}).click();
+  const splitButton = page.getByRole("button", {name: "Open a chat beside this one"});
+  const workspaceButton = page.getByRole("button", {name: "Toggle workspace panel"});
+  const [splitButtonBounds, workspaceButtonBounds] = await Promise.all([splitButton.boundingBox(), workspaceButton.boundingBox()]);
+  expect(splitButtonBounds).not.toBeNull();
+  expect(workspaceButtonBounds).not.toBeNull();
+  expect(splitButtonBounds!.x).toBeLessThan(workspaceButtonBounds!.x);
+  expect(Math.abs(splitButtonBounds!.y - workspaceButtonBounds!.y)).toBeLessThan(2);
+  await splitButton.click();
   await page
     .getByRole("dialog", {name: "Open a chat beside this one"})
     .getByRole("button", {name: /First split chat/})
