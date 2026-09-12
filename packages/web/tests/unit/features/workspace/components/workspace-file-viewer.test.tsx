@@ -36,6 +36,18 @@ describe("workspace file viewer", () => {
     expect(html).toMatch(/>2</);
   });
 
+  it("keeps source lines intact inside a horizontally scrollable viewer", () => {
+    state.file = file({content: `const evidence = "${"long-source-line-".repeat(20)}";`});
+
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="src/example.ts" projectPath="/workspace" />);
+
+    expect(html).toContain('aria-label="Source lines"');
+    expect(html).toContain("overflow-auto");
+    expect(html).toContain("whitespace-pre");
+    expect(html).not.toContain("overflow-x-hidden");
+    expect(html).not.toContain("wrap-anywhere");
+  });
+
   it("renders planning documents with headings and keeps a source view available", () => {
     state.file = file({content: "# Research plan\n\n- Validate assumptions\n- Check evidence"});
     const html = renderToStaticMarkup(<WorkspaceFileViewer path="PLAN.md" projectPath="/workspace" />);

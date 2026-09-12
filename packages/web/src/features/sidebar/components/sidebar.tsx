@@ -13,6 +13,7 @@ import HarnessSidebarSection from "@/features/harnesses/components/harness-sideb
 import {useHarnessLibrary, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import {sidebarSessionId} from "@/features/sidebar/lib/ledger-navigation";
+import {pinnedFirst} from "@/features/projects/lib/pinned-first";
 import {cn} from "@/lib/cn";
 
 /** Settings is one destination; harness-specific controls stay with their group. */
@@ -79,12 +80,16 @@ export default function Sidebar() {
           <span className="flex-1 text-left">Search chats</span>
         </Button>
       </div>
-      <nav aria-label="Harness workspaces" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-2 pb-4" data-testid="harness-sidebar-scroll">
+      <nav
+        aria-label="Harness workspaces"
+        className="workspace-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-2 pb-4"
+        data-testid="harness-sidebar-scroll"
+      >
         {library.data?.harnesses.map((harness) => (
           <HarnessSidebarSection
             key={harness.id}
             harness={harness}
-            projects={projects.filter((project) => project.harnessId === harness.id)}
+            projects={pinnedFirst(projects.filter((project) => project.harnessId === harness.id))}
             configuredProjects={library.data.projects.filter((project) => project.harnessId === harness.id)}
             activeSessionId={activeSessionId}
             expandedProjectIds={expandedProjects}

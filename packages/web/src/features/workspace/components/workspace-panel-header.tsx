@@ -16,7 +16,7 @@ export default function WorkspacePanelHeader() {
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border-muted px-2">
-      <nav aria-label="Workspace tabs" className="scroll-fade-x flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <nav aria-label="Workspace tabs" className="workspace-tabs scroll-fade-x flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {tabs.length === 0 && <span className="px-1 text-sm font-medium text-ink">Workspace</span>}
         {tabs.map((view) => {
           const definition = WORKSPACE_VIEW_DEFINITIONS.find((item) => item.value === view) ?? WORKSPACE_VIEW_DEFINITIONS[0];
@@ -30,7 +30,7 @@ export default function WorkspacePanelHeader() {
               <Button
                 aria-current={active ? "page" : undefined}
                 aria-label={`Open ${definition.label} tab`}
-                className="flex h-8 min-w-0 items-center gap-1.5 rounded-l-lg px-2 text-xs text-ink-muted hover:text-ink"
+                className="flex h-8 min-w-0 items-center gap-1.5 rounded-l-lg px-2 text-xs text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-strong"
                 onClick={() => openView(view)}
                 variant="ghost"
               >
@@ -38,7 +38,7 @@ export default function WorkspacePanelHeader() {
                 <span>{definition.label}</span>
               </Button>
               <IconButton
-                className="mr-1 size-6 shrink-0 rounded-md"
+                className="mr-1 size-6 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-strong"
                 label={`Close ${definition.label} tab`}
                 onClick={() => closeView(view)}
                 title={`Close ${definition.label} tab`}

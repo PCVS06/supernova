@@ -22,6 +22,7 @@ async function openProject(page: Page): Promise<string> {
   const projectPath = realpathSync(directory);
   const id = projectId(projectPath);
   writeFileSync(join(projectPath, "PLAN.md"), "# Project plan\n\n- Check evidence\n- Verify the result\n");
+  writeFileSync(join(projectPath, "GOAL.md"), "# Project goal\n\nShip a calm, reliable workspace.\n");
   writeFileSync(join(projectPath, "CONTEXT.md"), "# Project context\n\nKeep the file tabs understandable.\n");
 
   await page.addInitScript(
@@ -311,7 +312,11 @@ test("offers terminal and context beside readable project files", async ({page})
   await expect(panel.locator("details").first()).toBeVisible();
   await expect(panel.getByText("Harness", {exact: true})).toBeVisible();
   await expect(panel.getByText("Project", {exact: true})).toBeVisible();
+  await expect(panel.getByText("Project files", {exact: true})).toBeVisible();
   await expect(panel.locator("details[open]")).toHaveCount(0);
+  await panel.getByText("Project files", {exact: true}).click();
+  await expect(panel.getByRole("button", {name: "Open GOAL.md in Files"})).toBeVisible();
+  await panel.getByText("Project files", {exact: true}).click();
   await panel.getByText("Runtime", {exact: true}).click();
   await expect(panel.getByText("Exact runtime system prompt", {exact: true})).toBeVisible();
 
@@ -319,7 +324,13 @@ test("offers terminal and context beside readable project files", async ({page})
   await expect(panel.getByRole("button", {name: "Open Files tab"})).toHaveAttribute("aria-current", "page");
   await panel.getByRole("button", {name: "PLAN.md", exact: true}).click();
   await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
-  await expect(panel.getByRole("complementary", {name: "Project file navigation"})).toBeVisible();
+  const fileNavigation = panel.getByRole("complementary", {name: "Project file navigation"});
+  const fileListResize = panel.getByRole("separator", {name: "Resize file list"});
+  await expect(fileNavigation).toBeVisible();
+  await expect(fileListResize).toBeVisible();
+  const fileListWidth = await fileNavigation.evaluate((element) => element.getBoundingClientRect().width);
+  await fileListResize.press("ArrowRight");
+  await expect.poll(() => fileNavigation.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThan(fileListWidth);
   await expect(panel.getByRole("navigation", {name: "Workspace tabs"})).toBeVisible();
   await expect.poll(async () => (await panel.boundingBox())?.width ?? 0).toBeGreaterThan(700);
   await panel.getByRole("button", {name: "Source", exact: true}).click();

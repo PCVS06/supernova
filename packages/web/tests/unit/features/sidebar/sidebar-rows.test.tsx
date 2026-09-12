@@ -242,7 +242,7 @@ describe("sidebar rows", () => {
     expect(html).toContain('aria-label="New project in Science Pi"');
   });
 
-  it("gives the chat its own navigation target, timestamp and separate actions", () => {
+  it("gives the chat stable, always-visible actions without completion metadata", () => {
     const html = renderToStaticMarkup(
       <ProjectSessionListItem
         onOpen={() => undefined}
@@ -250,7 +250,7 @@ describe("sidebar rows", () => {
         onTogglePinned={() => undefined}
         projectPath="/work/lab"
         selected
-        session={{id: "c1", pinned: false, title: "Launch review", updatedAt: "3h"}}
+        session={{id: "c1", pinned: false, title: "Launch review"}}
         streaming={false}
         unseen={false}
       />
@@ -263,7 +263,10 @@ describe("sidebar rows", () => {
     // Pinning has its own button after the navigation button, never inside it.
     const primaryButton = html.slice(html.indexOf("<button"), html.indexOf("</button>"));
     expect(primaryButton).not.toContain('aria-label="Pin chat"');
-    expect(html).toContain(">3h<");
+    expect(html).not.toContain(">3h<");
+    expect(html).not.toContain("group-hover/ledger:opacity-100");
+    expect(html).not.toContain("group-hover/ledger:scale-110");
+    expect(html).not.toContain("group-hover/ledger:-rotate-6");
     expect(html).toContain("bg-overlay-pressed");
     // A selected chat reads as a filled row, not as a bordered one.
     expect(html).not.toContain("border-l-2");
@@ -285,7 +288,7 @@ describe("sidebar rows", () => {
     ["streaming", "Working"],
     ["compacting", "Compacting"],
     ["stopping", "Stopping"],
-  ] as const)("shows the actual %s state instead of a generic busy animation", (status, label) => {
+  ] as const)("keeps the actual %s state available without extra row text", (status, label) => {
     const html = renderToStaticMarkup(
       <ProjectSessionListItem
         onOpen={() => undefined}
@@ -293,13 +296,13 @@ describe("sidebar rows", () => {
         onTogglePinned={() => undefined}
         projectPath="/work/lab"
         selected={false}
-        session={{id: "c1", title: "Review", pinned: true, updatedAt: "3h"}}
+        session={{id: "c1", title: "Review", pinned: true}}
         streaming
         status={status}
         unseen={false}
       />
     );
-    expect(html).toContain(`>${label}<`);
+    expect(html).toContain(`aria-label="${label}"`);
     expect(html).not.toContain(">3h<");
   });
 
@@ -322,7 +325,7 @@ describe("sidebar rows", () => {
         projectPath="/work/lab"
         selected
         current={false}
-        session={{id: "c1", title: "Owner chat", pinned: false, updatedAt: "1h"}}
+        session={{id: "c1", title: "Owner chat", pinned: false}}
         streaming={false}
         unseen={false}
       />

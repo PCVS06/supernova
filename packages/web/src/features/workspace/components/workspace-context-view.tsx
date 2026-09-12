@@ -1,10 +1,45 @@
 import {Link} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
-import InstructionReceipt from "@/features/harnesses/components/instruction-receipt";
+import InstructionReceipt, {ContextDisclosure} from "@/features/harnesses/components/instruction-receipt";
 import {useChatHarness} from "@/features/harnesses/hooks/api/use-harness-runs";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
+import {useFolderEntries} from "@/features/workspace/hooks/api/use-folder-entries";
+import {pathFileName} from "@/features/workspace/lib/workspace-paths";
+import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
+
+const PROJECT_DOCUMENT_PATTERN = /^(?:context|goal|goals|plan|roadmap|todo)\.md$/i;
+
+interface WorkspaceProjectFilesProps {
+  readonly paths: readonly string[];
+}
+
+function WorkspaceProjectFiles(props: WorkspaceProjectFilesProps) {
+  const {paths} = props;
+  const openFile = useWorkspacePanelStore((state) => state.openFile);
+  if (paths.length === 0) return null;
+
+  return (
+    <ContextDisclosure count={paths.length} label="Project files">
+      <ul className="space-y-0.5">
+        {paths.map((path) => (
+          <li key={path}>
+            <Button
+              aria-label={`Open ${path} in Files`}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-ink-muted hover:bg-overlay-hover hover:text-ink"
+              onClick={() => openFile(path)}
+              variant="bare"
+            >
+              <Icon className="text-ink-faint" name="file" size="xs" />
+              <span className="min-w-0 flex-1 truncate">{pathFileName(path)}</span>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </ContextDisclosure>
+  );
+}
 
 interface WorkspaceContextViewProps {
   readonly active: boolean;
@@ -22,22 +57,28 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
   const harnessId = snapshot?.harness.id ?? project?.harnessId;
   const projectId = snapshot?.project.id ?? project?.id;
   const projectName = snapshot?.project.name ?? project?.name;
+  const rootEntries = useFolderEntries({enabled: active, path: "", projectPath});
+  const projectDocuments = [
+    ...new Set([
+      ...(snapshot?.project.planningDocuments ?? []),
+      ...(project?.planningDocuments ?? []),
+      ...(rootEntries.data?.entries ?? []).filter((entry) => entry.kind === "file" && PROJECT_DOCUMENT_PATTERN.test(entry.name)).map((entry) => entry.path),
+    ]),
+  ].toSorted((left, right) => left.localeCompare(right));
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border-muted py-3 text-xs text-ink-muted">
-        <p className="min-w-0 truncate">
-          {projectName ? agentLabel(projectName) : "This chat"}
-          {snapshot && <span className="text-ink-faint"> · Revision {snapshot.revision}</span>}
-        </p>
+        <p className="min-w-0 truncate">{projectName ? agentLabel(projectName) : "This chat"}</p>
         {harnessId && projectId && (
           <Link
-            className="flex shrink-0 items-center gap-1 text-ink-muted hover:text-ink"
+            aria-label="Project settings"
+            className="grid size-7 shrink-0 place-items-center rounded-md text-ink-faint hover:bg-overlay-hover hover:text-ink"
             params={{harnessId}}
             search={{projectId, section: "projects"}}
             to="/settings/harness/$harnessId"
           >
-            Settings <Icon name="arrow-right" size="xs" />
+            <Icon name="settings" size="xs" />
           </Link>
         )}
       </div>
@@ -54,7 +95,12 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
           </Button>
         </div>
       )}
-      {context.data && <InstructionReceipt captured={context.data.captured} layers={context.data.instructions} runtime={context.data.runtime} />}
+      {context.data && (
+        <div className="workspace-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto py-3">
+          <WorkspaceProjectFiles paths={projectDocuments} />
+          <InstructionReceipt captured={context.data.captured} layers={context.data.instructions} runtime={context.data.runtime} />
+        </div>
+      )}
     </div>
   );
 }

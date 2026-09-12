@@ -222,7 +222,7 @@ describe("chat organization", () => {
   });
   it("does not present configuration as an observed runtime prompt", () => {
     const html = renderToStaticMarkup(<InstructionReceipt layers={[{kind: "shared", owner: "Science Space", label: "Shared manual", content: "Scientific rules"}]} />);
-    expect(html).toContain("No runtime receipt yet");
+    expect(html).toContain("Not recorded.");
     expect(html).toContain("Scientific rules");
     expect(html).not.toContain("Exact runtime system prompt");
   });

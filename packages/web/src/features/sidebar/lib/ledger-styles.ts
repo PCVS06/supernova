@@ -6,5 +6,4 @@ export const ledgerRowClassName =
 export const ledgerPrimaryClassName = "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-border-strong";
 
 /** Action space is reserved so hovering never moves or covers the title. */
-export const ledgerActionsClassName =
-  "col-start-1 row-start-1 flex items-center justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover/ledger:opacity-100 group-focus-within/ledger:opacity-100 group-has-[[data-popup-open]]/ledger:opacity-100 motion-reduce:transition-none";
+export const ledgerActionsClassName = "flex items-center justify-end gap-0.5 text-ink-faint";

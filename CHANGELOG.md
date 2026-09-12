@@ -12,6 +12,8 @@ All notable changes to Supernova are documented in this file.
 - Changed the right workspace access to one hide/show control and closeable browser-style tabs for Files, Browser, Terminal and Context, with a plus button for opening another tool. Its default width now matches the main sidebar.
 - Changed project files to open in a wide reader beside a persistent project tree, with rendered Markdown, source view and a compact Add to chat action.
 - Changed chat context into independently collapsible Harness, Project, Role, Context, Resources and Runtime sections with one continuous scroll area.
+- Changed project files to use a compact resizable tree and horizontally scrollable source lines, with clearer scrollbars throughout the workspace.
+- Changed sidebar rows to keep muted actions visible in fixed positions and removed chat timestamps and other secondary row metadata.
 - Changed harness project rows to keep their colored π mark visible beside a separate disclosure chevron.
 - Changed the active-turn composer so Enter steers immediately, while Queue remains an explicit secondary action for messages that should run later.
 - Reworked the harness settings: every agent page has Settings, Instructions, Skills and Memory tabs; Resources is harness-wide only; the Projects tab is a per-project planning tool with Plan, Instructions and Setup; Workflows shows Workflows and Limits.
@@ -29,6 +31,9 @@ All notable changes to Supernova are documented in this file.
 
 ### Fixed
 
+- Fixed workspace tabs so their focus treatment and hidden tab-strip scrollbar no longer distort or overlap the tab row.
+- Fixed project and chat pinning so pinned items move to the top without moving the pin control on hover.
+- Fixed chat context to include configured and conventional project documents such as `GOAL.md`, without revision or capture-time noise.
 - Fixed workspace-tab close buttons so they remove their tab and close the panel when the final tab is removed; the title-bar control still hides and restores the whole panel.
 - Fixed `/goal` cancellation so typed goal commands return to a normal message draft, and removed unavailable steering actions from paused queues.
 - A project whose folder disappeared from disk no longer fails new chats with a generic "Please try again"; the sidebar and settings mark it as missing, the toast names the folder, and its plan and instructions stay editable.

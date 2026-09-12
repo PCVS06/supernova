@@ -15,7 +15,7 @@ import {useProjectsStore} from "@/features/projects/stores/projects-store";
 import {sessionQueryOptions} from "@/features/sessions/hooks/api/use-session";
 import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store";
 import {hasUnseenActivity, useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
-import {formatUpdatedAt} from "@/features/projects/utils/format-updated-at";
+import {pinnedFirst} from "@/features/projects/lib/pinned-first";
 import {cn} from "@/lib/cn";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
@@ -67,16 +67,18 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   } = useInlineRename({initialValue: project.name, onSave: (name) => renameProject(project.id, name)});
   const sessionsQuery = useListProjectSessions({projectPath: project.path});
 
-  const sessions =
-    sessionsQuery.data?.sessions
-      .map((session) => ({
-        id: session.id,
-        pinned: project.pinnedSessionIds.includes(session.id),
-        title: session.title,
-        timestamp: Date.parse(session.updatedAt),
-        updatedAt: formatUpdatedAt(session.updatedAt),
-      }))
-      .toSorted((left, right) => Number(right.pinned) - Number(left.pinned) || right.timestamp - left.timestamp) ?? [];
+  const sessions = sessionsQuery.data
+    ? pinnedFirst(
+        sessionsQuery.data.sessions
+          .map((session) => ({
+            id: session.id,
+            pinned: project.pinnedSessionIds.includes(session.id),
+            title: session.title,
+            timestamp: Date.parse(session.updatedAt),
+          }))
+          .toSorted((left, right) => right.timestamp - left.timestamp)
+      )
+    : [];
 
   const activeSession = sessions.find((session) => session.id === activeSessionId);
   const workingSessions = sessions.filter((session) => {
@@ -227,11 +229,10 @@ export default function ProjectListItem(props: ProjectListItemProps) {
           </Button>
         )}
         <LedgerRowEnd
-          menuOpen={actionsMenuOpen}
           actions={
             <>
               <IconButton
-                className="size-6 rounded-md text-ink-muted hover:bg-overlay-pressed hover:text-ink"
+                className="size-6 rounded-md text-ink-faint hover:bg-overlay-pressed hover:text-ink"
                 disabled={folderMissing}
                 label={`New chat in ${projectLabel}`}
                 onClick={handleNewSession}
@@ -243,7 +244,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
                 onOpenChange={setActionsMenuOpen}
                 open={actionsMenuOpen}
                 trigger={(triggerProps) => (
-                  <Button {...triggerProps} className="size-6 rounded-md text-ink-muted hover:bg-overlay-pressed hover:text-ink" shape="icon" size="md" variant="ghost">
+                  <Button {...triggerProps} className="size-6 rounded-md text-ink-faint hover:bg-overlay-pressed hover:text-ink" shape="icon" size="md" variant="ghost">
                     <Icon name="more-horizontal" size="xs" />
                   </Button>
                 )}
@@ -291,10 +292,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
               </Menu>
             </>
           }
-        >
-          {project.pinned && <Icon name="pin" size="xs" />}
-          {hasSessions && <span aria-label={`${sessions.length} chats`}>{sessions.length}</span>}
-        </LedgerRowEnd>
+        />
       </div>
 
       <div className={cn("overflow-hidden", sessionsExpanded && "pb-0.5")} onPointerDown={(event) => event.stopPropagation()}>

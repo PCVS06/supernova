@@ -52,7 +52,7 @@ export default function WorkspaceFileViewer(props: WorkspaceFileViewerProps) {
         </div>
       )}
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+      <div className="workspace-scrollbar min-h-0 min-w-0 flex-1 overflow-auto">
         {fileQuery.error && (
           <p className="px-3 py-2 text-sm text-danger-ink" role="alert">
             This file could not be read.
@@ -77,11 +77,11 @@ export default function WorkspaceFileViewer(props: WorkspaceFileViewerProps) {
             {markdown && !source ? (
               <AssistantMessageContent className="px-4 py-5 text-xs leading-relaxed">{file.content}</AssistantMessageContent>
             ) : (
-              <ol className="min-w-0 overflow-x-hidden py-2 font-mono text-xs leading-5 text-ink">
+              <ol aria-label="Source lines" className="w-max min-w-full py-2 font-mono text-xs leading-5 text-ink">
                 {lines.map((line, index) => (
-                  <li className="flex min-w-0 gap-3 px-3 hover:bg-overlay-hover" key={`${index}:${line}`}>
+                  <li className="flex min-w-max gap-3 px-3 hover:bg-overlay-hover" key={`${index}:${line}`}>
                     <span className="w-8 shrink-0 select-none text-right text-ink-faint tabular-nums">{index + 1}</span>
-                    <span className="min-w-0 whitespace-pre wrap-anywhere">{line}</span>
+                    <span className="whitespace-pre">{line}</span>
                   </li>
                 ))}
               </ol>

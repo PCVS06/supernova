@@ -4,10 +4,7 @@ import InstructionReceipt from "@/features/harnesses/components/instruction-rece
 import SessionLayout from "@/features/sessions/components/session-layout";
 
 describe("context inspection", () => {
-  it.each([
-    {captured: true, notice: "Captured for this chat. Changes in Settings apply to new chats."},
-    {captured: false, notice: "No saved configuration snapshot. These are current project defaults, not verified historical instructions."},
-  ])("keeps instruction provenance explicit when captured=$captured", ({captured, notice}) => {
+  it.each([true, false])("keeps instruction context concise when captured=%s", (captured) => {
     const html = renderToStaticMarkup(
       <InstructionReceipt
         captured={captured}
@@ -17,14 +14,15 @@ describe("context inspection", () => {
         ]}
       />
     );
-    expect(html).toContain(notice);
+    expect(html).not.toContain("Captured for this chat");
+    expect(html).not.toContain("No saved configuration snapshot");
     expect(html).toContain("Always cite primary evidence.");
     expect(html).toContain("Retain falsification criteria.");
     expect(html).toContain("<details");
     expect(html).not.toContain('open=""');
     expect(html).toContain(">Harness<");
     expect(html).toContain(">Project<");
-    expect(html).toContain("No runtime receipt yet");
+    expect(html).not.toContain("No runtime receipt yet");
     expect(html).toContain(">Resources<");
     expect(html).toContain(">Runtime<");
   });

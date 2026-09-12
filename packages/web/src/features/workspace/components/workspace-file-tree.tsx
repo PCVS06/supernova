@@ -30,7 +30,7 @@ function WorkspaceFileTreeRow(props: WorkspaceFileTreeRowProps) {
     <Button
       aria-expanded={directory ? expanded : undefined}
       className={cn(
-        "flex w-full min-w-0 items-center gap-1.5 rounded-lg corner-superellipse/1.3 py-1 pr-2 text-left text-sm leading-5 hover:bg-overlay-hover",
+        "flex w-full min-w-0 items-center gap-1.5 rounded-lg corner-superellipse/1.3 py-0.5 pr-2 text-left text-xs leading-5 hover:bg-overlay-hover",
         selected && "bg-overlay-pressed text-ink-strong",
         entry.ignored && "text-ink-faint"
       )}

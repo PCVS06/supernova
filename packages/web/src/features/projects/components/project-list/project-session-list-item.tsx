@@ -13,7 +13,7 @@ import {ledgerPrimaryClassName, ledgerRowClassName} from "@/features/sidebar/lib
 import LedgerRowEnd from "@/features/sidebar/components/ledger-row-end";
 
 interface ProjectSessionListItemProps {
-  session: {id: string; title: string; pinned: boolean; updatedAt: string};
+  session: {id: string; title: string; pinned: boolean};
   projectPath: string;
   color?: string;
   managed?: boolean;
@@ -37,7 +37,7 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
     onSave: (title) => renameSession.mutate({sessionId: session.id, title}),
   });
 
-  const activityLabel = status === "stopping" ? "Stopping" : status === "compacting" ? "Compacting" : streaming ? "Working" : unseen ? "Unread" : session.updatedAt;
+  const activityLabel = status === "stopping" ? "Stopping" : status === "compacting" ? "Compacting" : streaming ? "Working" : unseen ? "Unread chat" : "Chat";
 
   return (
     <li onFocusCapture={onPrefetch} onPointerDown={onPrefetch} onPointerEnter={onPrefetch}>
@@ -67,18 +67,15 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
           actions={
             <>
               <IconButton
-                className="group/pin-toggle size-6 rounded-md text-ink-faint hover:bg-overlay-pressed hover:text-ink"
+                aria-pressed={session.pinned}
+                className={cn("size-6 rounded-md text-ink-faint hover:bg-overlay-pressed hover:text-ink", session.pinned && "text-ink-muted")}
                 label={session.pinned ? "Unpin chat" : "Pin chat"}
                 onClick={(event) => {
                   event.stopPropagation();
                   onTogglePinned();
                 }}
               >
-                <Icon
-                  className="origin-center transition-transform duration-250 ease-[cubic-bezier(0.2,0.9,0.2,1.15)] group-active/pin-toggle:scale-85 group-active/pin-toggle:-rotate-8 motion-reduce:transition-none"
-                  name="pin"
-                  size="xs"
-                />
+                <Icon name="pin" size="xs" />
               </IconButton>
               <SessionActionsMenu
                 onRename={startRenaming}
@@ -89,15 +86,7 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
               />
             </>
           }
-        >
-          {session.pinned && !streaming && !unseen ? (
-            <Icon name="pin" size="xs" />
-          ) : (
-            <span className={cn(streaming && "text-ink-muted")} title={status === "compacting" ? "Compacting context" : activityLabel}>
-              {activityLabel}
-            </span>
-          )}
-        </LedgerRowEnd>
+        />
       </div>
       {managed && <ChatRunList sessionId={session.id} live={selected || streaming} />}
     </li>
