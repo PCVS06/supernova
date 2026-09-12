@@ -168,17 +168,25 @@ export async function buildEvidenceIndex(input: {
   return {runs, steers, records, documents, instructions};
 }
 
-/** The cited refs that do not resolve, so the curator is told which citation is not evidence. */
+/** Whitespace-insensitive comparison, so a quote survives line wrapping without letting a paraphrase through. */
+function squash(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** The citations that are not evidence, each with the reason, so the curator can correct the citation rather than guess. */
 export function unresolvedEvidence(index: EvidenceIndex, evidence: readonly CurationEvidence[]): string[] {
   const pools: Record<CurationEvidence["kind"], ReadonlySet<string>> = {run: index.runs, steer: index.steers, record: index.records, document: index.documents};
-  return evidence
-    .filter((item) => {
-      if (item.kind === "document" && item.ref.startsWith("instructions:")) {
-        const text = index.instructions.get(item.ref);
-        // Quoting instruction text is evidence of a duplicate or a contradiction only when the quote is really there.
-        return text === undefined || !item.quote.trim() || !text.includes(item.quote.trim());
-      }
-      return !pools[item.kind].has(item.ref);
-    })
-    .map((item) => `${item.kind} ${item.ref}`);
+  const failures: string[] = [];
+  for (const item of evidence) {
+    if (item.ref.startsWith("instructions:")) {
+      const text = index.instructions.get(item.ref);
+      // Quoting instruction text is evidence of a duplicate or a contradiction only when the quote is really there.
+      if (item.kind !== "document") failures.push(`${item.kind} ${item.ref} (cite instruction text with kind document)`);
+      else if (text === undefined) failures.push(`${item.kind} ${item.ref} (no such instruction piece)`);
+      else if (!squash(item.quote) || !squash(text).includes(squash(item.quote))) failures.push(`${item.kind} ${item.ref} (quote not found in that text; quote it exactly)`);
+      continue;
+    }
+    if (!pools[item.kind].has(item.ref)) failures.push(`${item.kind} ${item.ref} (unknown id)`);
+  }
+  return failures;
 }

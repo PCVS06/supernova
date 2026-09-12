@@ -89,13 +89,23 @@ describe("curator tools", () => {
     const cite = (quote: string) => [{kind: "document" as const, ref: "instructions:harness", quote}];
     expect(
       await call(tool("propose_change"), {target: {kind: "harness"}, find: "Always cite the source.", replace: "", rationale: "Duplicated.", evidence: cite("never in the text")})
-    ).toContain("do not resolve");
+    ).toContain("quote not found");
+    expect(
+      await call(tool("propose_change"), {
+        target: {kind: "harness"},
+        find: "Always cite the source.",
+        replace: "",
+        rationale: "Duplicated.",
+        evidence: [{kind: "run" as const, ref: "instructions:harness", quote: "Always cite the source."}],
+      })
+    ).toContain("kind document");
+    // Line wrapping and spacing in the quote do not matter; the words do.
     const filed = await call(tool("propose_change"), {
       target: {kind: "harness"},
       find: "Always cite the source.",
       replace: "",
       rationale: "Duplicated below.",
-      evidence: cite("Always cite the source."),
+      evidence: cite("Always   cite\nthe source."),
     });
     expect(filed).not.toContain("do not resolve");
     expect(tally.proposals).toBe(1);
