@@ -8,6 +8,16 @@ All notable changes to Supernova are documented in this file.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [0.2.0]
+
+### Added
+
 - Added named workflows with typed handoffs: each step references an existing agent, reads only the outputs it declares, and returns output that is validated against its contract on every provider. Runs are saved and resume from the failed step without re-running completed work or repeating an external action; a run page beneath the chat shows every step's inputs, outputs, failures, spend and the exact resume instruction.
 - Added a workspace panel with a project file tree, a file viewer that can add a file reference to the chat, and a browser view.
 - Added split view: open up to three chats from any projects side by side, each with its own draft and live stream.
