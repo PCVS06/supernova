@@ -3,6 +3,18 @@ export const quickPlanningDocuments = ["PLAN.md", "GOALS.md", "ROADMAP.md"] as c
 
 const conflictPattern = /conflict|changed|modified|stale|newer/i;
 
+const templates: Record<string, string> = {
+  PLAN: "# Plan\n\n## Where this project is going\n\n## Current phase\n\n## Next steps\n\n## Open decisions\n",
+  GOALS: "# Goals\n\n## Outcome\n\n## Success criteria\n\n## Out of scope\n",
+  ROADMAP: "# Roadmap\n\n## Now\n\n## Next\n\n## Later\n",
+};
+
+/** Starting text for a document that does not exist on disk yet, so the first save creates something agents can use. */
+export function planningDocumentTemplate(path: string): string {
+  const name = (path.split("/").pop() ?? path).replace(/\.md$/i, "");
+  return templates[name.toUpperCase()] ?? `# ${name}\n\n`;
+}
+
 interface PlanningDocumentWriteInput {
   projectPath: string;
   path: string;

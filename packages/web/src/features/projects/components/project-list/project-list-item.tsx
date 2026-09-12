@@ -20,6 +20,8 @@ import {cn} from "@/lib/cn";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
+import {useHarnessLibrary, useRemoveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
+import {showToast} from "@/components/ui/toast-manager";
 
 const INITIAL_SESSION_LIMIT = 5;
 const SESSION_LIMIT_INCREMENT = 5;
@@ -107,6 +109,18 @@ export default function ProjectListItem(props: ProjectListItemProps) {
 
   const handleRemoveProject = (): void => {
     removeProject(project.id);
+  };
+
+  const library = useHarnessLibrary();
+  const removeHarnessProject = useRemoveHarnessProject();
+  const handleRemoveFromHarness = (): void => {
+    const revision = library.data?.revision;
+    if (!project.harnessProjectId || revision === undefined) return;
+    if (!window.confirm(`Remove ${projectLabel} from its harness? The folder and its files stay on disk.`)) return;
+    removeHarnessProject.mutate(
+      {projectId: project.harnessProjectId, expectedRevision: revision},
+      {onError: (error) => showToast("Could not remove the project", error instanceof Error ? error.message : "Please try again.")}
+    );
   };
 
   const handleToggleProjectPinned = (): void => {
@@ -269,6 +283,11 @@ export default function ProjectListItem(props: ProjectListItemProps) {
               {!project.harnessProjectId && (
                 <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
                   Remove
+                </MenuItem>
+              )}
+              {project.harnessProjectId && (
+                <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveFromHarness}>
+                  Remove from harness
                 </MenuItem>
               )}
             </Menu>

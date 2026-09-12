@@ -34,6 +34,23 @@ describe("harness persistence and isolation", () => {
     await expect(store.saveProject({...project, id: "project-b", path: join(root, "elsewhere")}, 3)).rejects.toThrow();
   });
 
+  it("unlinks a project but keeps a coordinator until its labs are gone", async () => {
+    await store.save(createDefaultHarness(), 0);
+    await mkdir(join(root, "lab"));
+    const base = {harnessId: "coding", systemPrompt: "", contextInstructions: "", agents: []};
+    await store.saveProject({...base, id: "head", name: "Head", path: join(root, "project")}, 1);
+    await store.saveProject({...base, id: "lab", name: "Lab", path: join(root, "lab")}, 2);
+    await store.save({...createDefaultHarness(), coordinatorProjectId: "head"}, 3);
+    await expect(store.removeProject("head", 4)).rejects.toThrow("Remove the labs first");
+    await expect(store.removeProject("missing", 4)).rejects.toThrow("not found");
+    expect((await store.removeProject("lab", 4)).projects.map((project) => project.id)).toEqual(["head"]);
+    const library = await store.removeProject("head", 5);
+    expect(library.projects).toEqual([]);
+    expect(library.harnesses[0]?.coordinatorProjectId).toBeUndefined();
+    // The folder is never touched by unlinking.
+    expect((await readFile(join(root, "config", "harnesses.json"), "utf8")).includes('"lab"')).toBe(false);
+  });
+
   it("rejects lost updates and retains a valid atomic configuration", async () => {
     await store.save({...createDefaultHarness(), systemPrompt: "First"}, 0);
     await expect(store.save({...createDefaultHarness(), systemPrompt: "Stale"}, 0)).rejects.toThrow("changed elsewhere");

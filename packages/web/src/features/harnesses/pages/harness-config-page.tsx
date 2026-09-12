@@ -11,7 +11,7 @@ import ProjectConfigEditor from "@/features/harnesses/components/project-config-
 import ResourcesEditor from "@/features/harnesses/components/resources-editor";
 import RunLimitsEditor from "@/features/harnesses/components/run-limits-editor";
 import WorkflowsEditor from "@/features/harnesses/components/workflows-editor";
-import {useHarnessLibrary, useSaveHarness, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
+import {useHarnessLibrary, useRemoveHarnessProject, useSaveHarness, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
 import type {HarnessSectionId} from "@/features/harnesses/lib/harness-sections";
 import {harnessTabs, resolveHarnessSection} from "@/features/harnesses/lib/harness-sections";
@@ -37,6 +37,7 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
   const [base, setBase] = useState({harness, project, revision: library.revision});
   const saveHarness = useSaveHarness();
   const saveProject = useSaveHarnessProject();
+  const removeProject = useRemoveHarnessProject();
   const navigate = useNavigate();
   const selectProject = useHarnessNavigationStore((state) => state.selectProject);
   const tab = harnessTabs.find((item) => item.sections.some((candidate) => candidate.id === section))!;
@@ -75,6 +76,22 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
       params: {harnessId: harness.id},
       search: {projectId, section: nextSection ?? section, agentName: name},
     });
+  };
+
+  // The plan is an inventory of files, not prompt text, so it saves as soon as it changes and the draft follows.
+  const persistPlanningDocuments = async (planningDocuments: readonly string[]): Promise<void> => {
+    if (!base.project) return;
+    saveProject.reset();
+    const next = await saveProject.mutateAsync({project: {...base.project, planningDocuments}, expectedRevision: base.revision});
+    const saved = next.projects.find((item) => item.id === base.project?.id);
+    setBase((current) => ({...current, project: saved ?? current.project, revision: next.revision}));
+    setProjectDraft((current) => (current ? {...current, planningDocuments: saved?.planningDocuments ?? planningDocuments} : current));
+  };
+
+  const handleRemoveProject = async (): Promise<void> => {
+    if (!project) return;
+    await removeProject.mutateAsync({projectId: project.id, expectedRevision: base.revision});
+    changeScope(undefined, "projects");
   };
 
   const handleSave = (): void => {
@@ -200,6 +217,8 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
           onChangeProject={patchProject}
           onSelect={(projectId) => changeScope(projectId, "projects")}
           onOpenSpecialists={() => changeScope(project?.id, "specialists")}
+          onPersistPlanningDocuments={persistPlanningDocuments}
+          onRemoveProject={handleRemoveProject}
         />
       )}
     </>

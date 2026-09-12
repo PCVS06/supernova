@@ -68,6 +68,8 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
         }),
       getHarnessSkills: ({harnessId}) => configurationEffect(async () => (await harnessStore.listSkills(harnessId)).map(({name, description}) => ({name, description}))),
       saveHarness: ({harness, expectedRevision}) => configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.save(harness, expectedRevision))),
+      removeHarnessProject: ({projectId, expectedRevision}) =>
+        configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.removeProject(projectId, expectedRevision))),
       saveHarnessProject: ({project, expectedRevision}) =>
         configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.saveProject(project, expectedRevision))),
       importScienceHarness: ({packagePath, rootPath, expectedRevision}) =>

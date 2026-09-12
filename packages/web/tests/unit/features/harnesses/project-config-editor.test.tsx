@@ -34,20 +34,31 @@ const head: HarnessProject = {
 const lab: HarnessProject = {...head, id: "lab", name: "Robot Lab", path: "/robot", color: "#7dd3fc", order: 1, parentProjectId: "head", planningDocuments: ["PLAN.md"]};
 
 const render = (project: HarnessProject | undefined, projects: readonly HarnessProject[] = [lab, head]) =>
-  renderToStaticMarkup(<ProjectConfigEditor harness={harness} project={project} projects={projects} onChangeProject={vi.fn()} onSelect={vi.fn()} onOpenSpecialists={vi.fn()} />);
+  renderToStaticMarkup(
+    <ProjectConfigEditor
+      harness={harness}
+      project={project}
+      projects={projects}
+      onChangeProject={vi.fn()}
+      onSelect={vi.fn()}
+      onOpenSpecialists={vi.fn()}
+      onPersistPlanningDocuments={vi.fn(async () => undefined)}
+      onRemoveProject={vi.fn(async () => undefined)}
+    />
+  );
 
 describe("project planning workspace", () => {
   beforeEach(() => {
     vi.stubGlobal("window", {});
   });
 
-  it("opens the plan of the selected project behind a plain project header", () => {
+  it("opens the plan of the selected project under the page header, without repeating the name", () => {
     const html = render(lab);
-    expect(html).toContain("Robot Lab");
-    expect(html).toContain("/robot");
-    expect(html).toContain("Folder found");
-    expect(html).toContain("1 planning document");
+    expect(html).toContain('aria-label="Open Robot Lab"');
+    expect(html).toContain('title="/robot"');
     expect(html).toContain('aria-label="Project editor tabs"');
+    expect(html).toContain('data-testid="planning-workspace"');
+    expect(html).not.toContain("<h2");
     expect(html).toContain('aria-label="Plan" aria-pressed="true"');
     expect(html).toContain('aria-label="Instructions" aria-pressed="false"');
     expect(html).toContain('aria-label="Setup" aria-pressed="false"');
@@ -63,7 +74,6 @@ describe("project planning workspace", () => {
     const html = render(missing, [lab, missing]);
     expect(html.indexOf('aria-label="Open Science Space"')).toBeLessThan(html.indexOf('aria-label="Open Robot Lab"'));
     expect(html).toContain("Folder missing");
-    expect(html).toContain("chats cannot start until it is restored or the project is re-linked");
     expect(html).toContain("folder is missing, so its documents cannot be read or saved.");
   });
 

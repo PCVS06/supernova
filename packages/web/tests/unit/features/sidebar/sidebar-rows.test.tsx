@@ -39,6 +39,10 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => () => undefined,
 }));
 vi.mock("@tanstack/react-query", () => ({useQueryClient: () => ({prefetchQuery: () => undefined})}));
+vi.mock("@/features/harnesses/hooks/api/use-harnesses", () => ({
+  useHarnessLibrary: () => ({data: {revision: 1, harnesses: [], projects: []}}),
+  useRemoveHarnessProject: () => ({mutate: () => undefined}),
+}));
 vi.mock("@/components/ui/menu", () => ({
   default: (props: {children: ReactNode; trigger: (triggerProps: {readonly "aria-label": string}) => ReactNode; triggerLabel: string}) => (
     <>

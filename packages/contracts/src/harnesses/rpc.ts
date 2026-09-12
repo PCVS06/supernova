@@ -8,6 +8,7 @@ import {
   GetHarnessSkillsResult,
   HarnessConfigurationError,
   ImportScienceHarnessPayload,
+  RemoveHarnessProjectPayload,
   SaveHarnessPayload,
   SaveHarnessProjectPayload,
   ChatHarnessPayload,
@@ -43,6 +44,7 @@ export const HarnessRpcs = [
   Rpc.make("getHarnessSkills", {payload: GetHarnessSkillsPayload, success: GetHarnessSkillsResult, error: HarnessConfigurationError}),
   Rpc.make("saveHarness", {payload: SaveHarnessPayload, success: GetHarnessLibraryResult, error: HarnessConfigurationError}),
   Rpc.make("saveHarnessProject", {payload: SaveHarnessProjectPayload, success: GetHarnessLibraryResult, error: HarnessConfigurationError}),
+  Rpc.make("removeHarnessProject", {payload: RemoveHarnessProjectPayload, success: GetHarnessLibraryResult, error: HarnessConfigurationError}),
   Rpc.make("importScienceHarness", {payload: ImportScienceHarnessPayload, success: GetHarnessLibraryResult, error: HarnessConfigurationError}),
   Rpc.make("createHarnessSession", {payload: CreateHarnessSessionPayload, success: CreateHarnessSessionResult, error: HarnessConfigurationError}),
 ] as const;

@@ -18,6 +18,8 @@ export const GetHarnessSkillsResult = Schema.Array(Schema.Struct({name: Schema.S
 export const SaveHarnessPayload = Schema.Struct({harness: HarnessConfig, expectedRevision: Schema.Number});
 export const SaveHarnessProjectPayload = Schema.Struct({project: HarnessProject, expectedRevision: Schema.Number});
 export const UpdateHarnessViewPayload = Schema.Struct({projectId: Schema.String, beforeProjectId: Schema.String, expectedRevision: Schema.Number});
+/** Unlinks a project from its harness. The folder stays untouched and existing chats keep their pinned snapshots. */
+export const RemoveHarnessProjectPayload = Schema.Struct({projectId: Schema.String, expectedRevision: Schema.Number});
 export const ImportScienceHarnessPayload = Schema.Struct({packagePath: Schema.String, rootPath: Schema.String, expectedRevision: Schema.Number});
 export const CreateHarnessSessionPayload = Schema.Struct({projectId: Schema.String});
 export const CreateHarnessSessionResult = Session;

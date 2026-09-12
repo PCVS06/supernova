@@ -125,6 +125,20 @@ export class HarnessStore {
     });
   }
 
+  /** Unlinks a project. Its folder and files stay on disk; chats already bound to it keep their pinned snapshot. */
+  public removeProject(projectId: string, expectedRevision: number): Promise<HarnessLibrary> {
+    return this.update(expectedRevision, async (library) => {
+      if (!library.projects.some((item) => item.id === projectId)) throw new Error("Harness project not found.");
+      const labs = library.projects.filter((item) => item.parentProjectId === projectId).length;
+      if (labs) throw new Error(`This project coordinates ${labs === 1 ? "one lab" : `${labs} labs`}. Remove the labs first.`);
+      return {
+        ...library,
+        harnesses: library.harnesses.map((harness) => (harness.coordinatorProjectId === projectId ? {...harness, coordinatorProjectId: undefined} : harness)),
+        projects: library.projects.filter((item) => item.id !== projectId),
+      };
+    });
+  }
+
   /** Grants the head access to its known labs; project leads can change only their own presentation. */
   public updateView(
     actor: HarnessSnapshot,

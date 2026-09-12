@@ -23,6 +23,8 @@ export function useProjectDocument(projectPath: string, path: string) {
       enabled: projectPath.length > 0 && path.length > 0,
       queryKey: projectDocumentQueryKey(projectPath, path),
       refetchOnWindowFocus: false,
+      // A file that is not on disk yet is a normal state, not a transient failure: report it at once.
+      retry: false,
       staleTime: 5_000,
       queryFn: () => Effect.flatMap(Effect.service(RpcProtocolClientService), (rpc) => rpc.readFolderFile({path, projectPath})),
     })
