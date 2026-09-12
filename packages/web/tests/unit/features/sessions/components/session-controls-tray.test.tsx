@@ -92,4 +92,10 @@ describe("authoritative goal and queue tray", () => {
     if (problem === "uncertain") expect(html).toContain("Inspect the chat");
     if (problem === "storage") expect(html).toContain("restart the server");
   });
+
+  it("does not show a disabled steering action when no turn is running", () => {
+    const html = renderToStaticMarkup(<SessionControlsTray state={base} pending={false} working={false} onAction={vi.fn()} onRefresh={vi.fn()} />);
+
+    expect(html).not.toContain("Steer now");
+  });
 });

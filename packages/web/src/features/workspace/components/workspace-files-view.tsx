@@ -4,6 +4,7 @@ import SearchField from "@/components/ui/search-field";
 import {useFolderFiles} from "@/features/workspace/hooks/api/use-folder-files";
 import WorkspaceFileTree from "@/features/workspace/components/workspace-file-tree";
 import WorkspaceFileViewer from "@/features/workspace/components/workspace-file-viewer";
+import {insertComposerFileReference} from "@/features/workspace/lib/composer-file-reference";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
 import {pathFileName} from "@/features/workspace/lib/workspace-paths";
 
@@ -52,14 +53,17 @@ function WorkspaceFilterResults(props: WorkspaceFilterResultsProps) {
 
 interface WorkspaceFilesViewProps {
   readonly projectPath: string;
+  readonly sessionId: string;
 }
 
 interface WorkspaceFileNavigatorProps {
+  readonly compact?: boolean;
   readonly projectPath: string;
 }
 
 function WorkspaceFileNavigator(props: WorkspaceFileNavigatorProps) {
-  const {projectPath} = props;
+  const {compact = false, projectPath} = props;
+  const activeFilePath = useWorkspacePanelStore((state) => state.activeFilePath);
   const expandedPaths = useWorkspacePanelStore((state) => state.expandedPaths);
   const filter = useWorkspacePanelStore((state) => state.filter);
   const openFile = useWorkspacePanelStore((state) => state.openFile);
@@ -67,7 +71,10 @@ function WorkspaceFileNavigator(props: WorkspaceFileNavigatorProps) {
   const toggleDirectory = useWorkspacePanelStore((state) => state.toggleDirectory);
 
   return (
-    <aside aria-label="Project file navigation" className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-sidebar">
+    <aside
+      aria-label="Project file navigation"
+      className={compact ? "flex min-h-0 w-72 shrink-0 flex-col border-l border-border-muted bg-surface-sidebar" : "flex min-h-0 min-w-0 flex-1 flex-col bg-surface-sidebar"}
+    >
       <p className="shrink-0 truncate px-3 pb-1 pt-3 text-xs text-ink-faint" title={projectPath}>
         {pathFileName(projectPath)} /
       </p>
@@ -76,7 +83,14 @@ function WorkspaceFileNavigator(props: WorkspaceFileNavigatorProps) {
         {filter.trim().length > 0 ? (
           <WorkspaceFilterResults filter={filter} projectPath={projectPath} />
         ) : (
-          <WorkspaceFileTree expandedPaths={expandedPaths} onOpenFile={openFile} onToggleDirectory={toggleDirectory} openFilePath={null} path="" projectPath={projectPath} />
+          <WorkspaceFileTree
+            expandedPaths={expandedPaths}
+            onOpenFile={openFile}
+            onToggleDirectory={toggleDirectory}
+            openFilePath={activeFilePath}
+            path=""
+            projectPath={projectPath}
+          />
         )}
       </div>
     </aside>
@@ -85,13 +99,21 @@ function WorkspaceFileNavigator(props: WorkspaceFileNavigatorProps) {
 
 /** Browses project files beside the open document, matching the app's wider document workspace. */
 export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
-  const {projectPath} = props;
+  const {projectPath, sessionId} = props;
   const activeFilePath = useWorkspacePanelStore((state) => state.activeFilePath);
+
+  const handleInsertReference = (): void => {
+    if (!activeFilePath) return;
+    insertComposerFileReference({path: activeFilePath, sessionId});
+  };
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
       {activeFilePath ? (
-        <WorkspaceFileViewer key={`${projectPath}:${activeFilePath}`} path={activeFilePath} projectPath={projectPath} />
+        <>
+          <WorkspaceFileViewer key={`${projectPath}:${activeFilePath}`} onAddToChat={handleInsertReference} path={activeFilePath} projectPath={projectPath} />
+          <WorkspaceFileNavigator compact projectPath={projectPath} />
+        </>
       ) : (
         <WorkspaceFileNavigator projectPath={projectPath} />
       )}

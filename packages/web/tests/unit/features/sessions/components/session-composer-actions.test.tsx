@@ -48,21 +48,30 @@ describe("session composer primary action", () => {
     expect(html).not.toContain(">/goal<");
   });
 
-  it("queues by default while a turn is streaming and keeps explicit steering and stop", () => {
+  it("offers working dictation while the composer is empty", () => {
+    const html = composerMarkup({streamStatus: "idle"});
+
+    expect(html).toContain('aria-label="Start dictation"');
+    expect(html).not.toContain('aria-label="Send message"');
+  });
+
+  it("steers by default while a turn is streaming and keeps queue and stop explicit", () => {
     const html = composerMarkup({contentParts: [{text: "Use the other file", type: "text"}], streamStatus: "streaming"});
 
     expect(html).toContain('aria-label="Steer now"');
     expect(html).toContain('aria-label="Queue message"');
     expect(html).toContain('aria-label="Stop streaming"');
+    expect(html).toContain(">Queue<");
+    expect(html).not.toContain(">Steer now<");
     expect(html).not.toContain('aria-label="Send message"');
-    expect(html).not.toContain("Enter queues");
   });
 
-  it("keeps steering unavailable until the user has written something", () => {
+  it("offers dictation instead of a disabled steering action until text exists", () => {
     const empty = composerMarkup({streamStatus: "streaming"});
     const written = composerMarkup({contentParts: [{text: "Stop editing tests", type: "text"}], streamStatus: "streaming"});
 
-    expect(empty).toMatch(/aria-label="Steer now"[^>]*disabled/);
+    expect(empty).toContain('aria-label="Start dictation"');
+    expect(empty).not.toContain('aria-label="Steer now"');
     expect(written).not.toMatch(/aria-label="Steer now"[^>]*disabled/);
   });
 
@@ -70,19 +79,21 @@ describe("session composer primary action", () => {
     const html = composerMarkup({contentParts: [{text: "Never mind", type: "text"}], streamStatus: "stopping"});
 
     expect(html).toContain('aria-label="Stopping stream"');
-    expect(html).toMatch(/aria-label="Steer now"[^>]*disabled/);
+    expect(html).not.toContain('aria-label="Steer now"');
   });
 
   it("recognizes a typed goal without offering to steer the slash command", () => {
     const html = composerMarkup({contentParts: [{text: "/goal Fix the parser", type: "text"}], streamStatus: "streaming"});
     expect(html).toContain('aria-label="Start goal"');
     expect(html).not.toContain('aria-label="Steer now"');
+    expect(html).toContain('aria-label="Goal draft"');
+    expect(html).not.toContain("Pi+ continues in bounded passes");
   });
 
   it("allows queueing during compaction while steering is unavailable", () => {
     const html = composerMarkup({contentParts: [{text: "Check the logs next", type: "text"}], streamStatus: "compacting"});
     expect(html).toContain('aria-label="Queue message"');
     expect(html).not.toMatch(/aria-label="Queue message"[^>]*disabled/);
-    expect(html).toMatch(/aria-label="Steer now"[^>]*disabled/);
+    expect(html).not.toContain('aria-label="Steer now"');
   });
 });

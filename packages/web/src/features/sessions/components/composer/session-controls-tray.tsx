@@ -102,15 +102,17 @@ function QueuedMessageRow(props: QueuedMessageRowProps) {
         {uncertain && <p className="mt-1 text-xs text-danger-ink">Delivery is uncertain. Inspect the chat before removing or sending this message again.</p>}
       </details>
       {uncertain && <span className="shrink-0 text-xs text-danger-ink">Check delivery</span>}
-      <Button
-        className="shrink-0 text-xs"
-        disabled={pending || !canSteer}
-        onClick={() => void onAction({type: "steer_queued", id: message.id})}
-        title={canSteer ? "Give this complete message to the running agent now" : "Steering requires a running turn and confirmed delivery state"}
-        variant="ghost"
-      >
-        Steer now
-      </Button>
+      {working && (
+        <Button
+          className="shrink-0 text-xs"
+          disabled={pending || !canSteer}
+          onClick={() => void onAction({type: "steer_queued", id: message.id})}
+          title={canSteer ? "Give this complete message to the running agent now" : "Steering requires confirmed delivery state"}
+          variant="ghost"
+        >
+          Steer now
+        </Button>
+      )}
       <IconButton
         label={`Remove queued message ${index + 1}`}
         title="Remove from queue"

@@ -8,7 +8,6 @@ import Text from "@tiptap/extension-text";
 import {ReactNodeViewRenderer, useEditor} from "@tiptap/react";
 import type {ChangeEvent, ClipboardEvent, ReactNode} from "react";
 import {useRef, useState} from "react";
-import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import ComposerAttachmentPreview from "@/features/sessions/components/attachments/composer-attachment-preview";
@@ -19,6 +18,7 @@ import {goalCommandObjective} from "@/features/sessions/components/composer/goal
 import ComposerEditor from "@/features/sessions/components/composer/editor/composer-editor";
 import ComposerReference from "@/features/sessions/components/composer/editor/composer-reference";
 import type {ComposerAttachmentsController} from "@/features/sessions/hooks/use-composer-attachments";
+import {useComposerDictation} from "@/features/sessions/hooks/use-composer-dictation";
 import {SESSION_ATTACHMENT_ACCEPT} from "@/features/sessions/lib/attachments/session-attachments";
 import type {ClientSlashCommandActions} from "@/features/sessions/lib/composer/client-slash-commands";
 import {contentPartsToEditorContent, editorToContentParts, textFromComposerContentParts, trimComposerContentParts} from "@/features/sessions/lib/composer/composer-content-parts";
@@ -303,6 +303,14 @@ export default function SessionComposer(props: SessionComposerProps) {
     []
   );
 
+  const handleDictationText = (text: string): void => {
+    if (!editor || editor.isDestroyed) return;
+    const separator = editor.getText().trim().length > 0 ? " " : "";
+    editor.chain().focus().insertContent(`${separator}${text}`).run();
+  };
+
+  const dictation = useComposerDictation({onError: setSubmissionError, onText: handleDictationText});
+
   const openGoalInput = (): void => {
     if (pending || inputDisabled) return;
     setGoalInput(true);
@@ -312,6 +320,19 @@ export default function SessionComposer(props: SessionComposerProps) {
       setDraftText("");
       draft.setEditableContentParts?.([]);
     }
+    editor?.commands.focus();
+  };
+
+  const cancelGoalInput = (): void => {
+    const text = editor?.getText() ?? draftText;
+    const objective = goalCommandObjective(text);
+    setGoalInput(false);
+    setSubmissionError(null);
+    if (objective === null) return;
+
+    editor?.commands.setContent(objective);
+    setDraftText(objective);
+    draft.setEditableContentParts?.(objective ? [{type: "text", text: objective}] : []);
     editor?.commands.focus();
   };
 
@@ -380,19 +401,6 @@ export default function SessionComposer(props: SessionComposerProps) {
           </div>
         )}
         {controlTray}
-        {goalInput && (
-          <div className="flex items-start gap-2 rounded-t-2xl border border-b-0 border-border bg-surface-drawer px-3 py-2.5 text-sm">
-            <Icon name="gauge" className="mt-0.5 text-ink-muted" size="sm" />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-ink">New goal</p>
-              <p className="text-xs text-ink-muted">Describe the outcome below. Pi+ continues in bounded passes; you can pause at any time.</p>
-              {attachments.attachments.length > 0 && <p className="mt-1 text-xs text-ink-muted">Attachments stay in your draft; send them as a message for the agent to read.</p>}
-            </div>
-            <Button disabled={pending} onClick={() => setGoalInput(false)} variant="ghost">
-              Cancel
-            </Button>
-          </div>
-        )}
         <div
           className={cn(
             "@container relative z-10 rounded-2xl border border-border bg-surface-control px-3 py-2.5 transition-colors focus-within:border-ink-faint",
@@ -400,6 +408,16 @@ export default function SessionComposer(props: SessionComposerProps) {
           )}
           data-stream-status={streamStatus}
         >
+          {goalMode && (
+            <div aria-label="Goal draft" className="mb-1 flex items-center gap-1.5 px-1 text-xs text-ink-muted">
+              <Icon name="gauge" size="xs" />
+              <span className="font-medium text-ink">Goal</span>
+              <span className="min-w-0 flex-1 truncate">bounded continuation</span>
+              <IconButton className="size-6" disabled={pending} label="Cancel goal mode" onClick={cancelGoalInput} title="Send this as a normal message instead">
+                <Icon name="x" size="xs" />
+              </IconButton>
+            </div>
+          )}
           <SessionComposerAttachments
             attachments={{
               ...attachments,
@@ -412,7 +430,7 @@ export default function SessionComposer(props: SessionComposerProps) {
             attachmentDisabled={attachmentDisabled}
             attachments={attachments}
             input={{draftText, editable: !inputDisabled && !pending, editor, onSuggestionMatchChange: setSuggestionMatch, suggestionMatch}}
-            onSubmit={() => void deliver()}
+            onSubmit={() => void deliver(canSteer)}
             onGoal={openGoalInput}
             placeholder={goalInput ? "What should this chat accomplish?" : placeholder}
             projectPath={projectPath}
@@ -434,9 +452,12 @@ export default function SessionComposer(props: SessionComposerProps) {
                 canInterrupt={canInterrupt}
                 canSend={canSubmit}
                 canSteer={canSteer}
+                dictating={dictation.listening}
+                dictationSupported={dictation.supported}
                 onInterrupt={handleInterrupt}
                 onSend={() => void deliver()}
                 onSteer={() => void deliver(true)}
+                onToggleDictation={dictation.toggle}
                 sendLabel={goalMode ? "Start goal" : queueMode ? "Queue message" : "Send message"}
                 streamStatus={streamStatus}
               />

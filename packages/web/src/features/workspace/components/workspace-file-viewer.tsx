@@ -1,21 +1,24 @@
 import {useState} from "react";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
+import IconButton from "@/components/ui/icon-button";
 import {Marker, MarkerContent, MarkerIcon} from "@/components/ui/marker";
 import {formatAttachmentSize} from "@/features/sessions/lib/attachments/session-attachments";
 import {useFolderFile} from "@/features/workspace/hooks/api/use-folder-file";
 import AssistantMessageContent from "@/features/sessions/components/timeline/items/assistant/assistant-message-content";
+import {pathFileName} from "@/features/workspace/lib/workspace-paths";
 import {cn} from "@/lib/cn";
 
 interface WorkspaceFileViewerProps {
   /** Project-relative file to show. */
+  readonly onAddToChat?: () => void;
   readonly path: string;
   readonly projectPath: string;
 }
 
 /** Shows one project file with line numbers, its read limits, and a way to hand it to the chat. */
 export default function WorkspaceFileViewer(props: WorkspaceFileViewerProps) {
-  const {path, projectPath} = props;
+  const {onAddToChat, path, projectPath} = props;
   const fileQuery = useFolderFile({path, projectPath});
   const file = fileQuery.data;
   const markdown = /\.(md|markdown)$/i.test(path);
@@ -24,6 +27,16 @@ export default function WorkspaceFileViewer(props: WorkspaceFileViewerProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-muted px-3">
+        <span className="min-w-0 flex-1 truncate text-xs text-ink-muted" title={path}>
+          {pathFileName(projectPath)} / <span className="text-ink">{path}</span>
+        </span>
+        {onAddToChat && (
+          <IconButton className="size-7 rounded-full" label="Add to chat" onClick={onAddToChat} title={`Add ${pathFileName(path)} to chat`}>
+            <Icon name="corner-left-up" size="sm" />
+          </IconButton>
+        )}
+      </div>
       {markdown && file && !file.binary && (
         <div aria-label="File display" className="flex shrink-0 gap-1 border-b border-border-muted px-2 py-1">
           {([false, true] as const).map((showSource) => (

@@ -61,7 +61,7 @@ async function sendMessage(page: Page, prompt: string): Promise<void> {
 
 async function expectResponse(page: Page, prompt: string): Promise<void> {
   await expect(sessionTimeline(page).getByText(`Runtime response: ${prompt}`, {exact: true})).toBeVisible();
-  await expect(page.getByRole("button", {name: "Send message"})).toBeVisible();
+  await expect(page.getByRole("button", {name: "Start dictation"})).toBeVisible();
 }
 
 async function openWorkspaceView(page: Page, view: "Browser" | "Context" | "Files" | "Terminal"): Promise<void> {
@@ -72,7 +72,7 @@ async function openWorkspaceView(page: Page, view: "Browser" | "Context" | "File
   }
   const switcher = panel.getByRole("navigation", {name: "Workspace view switcher"});
   if (!(await switcher.isVisible())) {
-    await panel.getByRole("button", {name: "Switch workspace view"}).click();
+    await panel.getByRole("button", {name: "Add workspace tab"}).click();
     await expect(switcher).toBeVisible();
   }
   await switcher.getByRole("button", {name: `Open ${view} workspace`}).click();
@@ -164,7 +164,7 @@ test("stopping a response leaves the session able to send another message", asyn
 
   await test.step("Stop the active response", async () => {
     await page.getByRole("button", {name: "Stop streaming"}).click();
-    await expect(page.getByRole("button", {name: "Send message"})).toBeVisible();
+    await expect(page.getByRole("button", {name: "Start dictation"})).toBeVisible();
   });
 
   await test.step("Send and receive another response in the same session", async () => {
@@ -205,7 +205,7 @@ test("a provider failure is shown and the session accepts another message", asyn
     await openProject(page);
     await sendMessage(page, failedPrompt);
     await expect(sessionTimeline(page).getByText("Synthetic provider failure.", {exact: true})).toBeVisible();
-    await expect(page.getByRole("button", {name: "Send message"})).toBeVisible();
+    await expect(page.getByRole("button", {name: "Start dictation"})).toBeVisible();
   });
 
   await test.step("Send a successful message after the failure", async () => {
@@ -301,9 +301,13 @@ test("offers terminal and context beside readable project files", async ({page})
     })
     .toBeLessThan(2);
   await expect(panel.getByText("Terminal transport required", {exact: true})).toBeVisible();
+  await expect(panel.getByRole("button", {name: "Open Terminal tab"})).toHaveAttribute("aria-current", "page");
+  await expect(panel.locator("kbd")).toHaveCount(0);
 
   await openWorkspaceView(page, "Context");
   await expect(panel).toBeVisible();
+  await expect(panel.getByRole("button", {name: "Open Terminal tab"})).toBeVisible();
+  await expect(panel.getByRole("button", {name: "Open Context tab"})).toHaveAttribute("aria-current", "page");
   await expect(panel.locator("details").first()).toBeVisible();
   await expect(panel.getByText("Harness", {exact: true})).toBeVisible();
   await expect(panel.getByText("Project", {exact: true})).toBeVisible();
@@ -312,28 +316,30 @@ test("offers terminal and context beside readable project files", async ({page})
   await expect(panel.getByText("Exact runtime system prompt", {exact: true})).toBeVisible();
 
   await openWorkspaceView(page, "Files");
+  await expect(panel.getByRole("button", {name: "Open Files tab"})).toHaveAttribute("aria-current", "page");
   await panel.getByRole("button", {name: "PLAN.md", exact: true}).click();
   await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
-  await expect(panel.getByRole("complementary", {name: "Project file navigation"})).toHaveCount(0);
+  await expect(panel.getByRole("complementary", {name: "Project file navigation"})).toBeVisible();
   await expect(panel.getByRole("navigation", {name: "Workspace tabs"})).toBeVisible();
-  await expect(panel.getByRole("button", {name: "Open file tab PLAN.md"})).toHaveAttribute("aria-current", "page");
+  await expect.poll(async () => (await panel.boundingBox())?.width ?? 0).toBeGreaterThan(700);
   await panel.getByRole("button", {name: "Source", exact: true}).click();
   await expect(panel.getByText("# Project plan", {exact: true})).toBeVisible();
   await panel.getByRole("button", {name: "Add to chat", exact: true}).click();
   await expect(page.locator('[contenteditable="true"]').first()).toContainText("PLAN.md");
 
-  await openWorkspaceView(page, "Files");
-  await expect(panel.getByRole("button", {name: "Open file tab PLAN.md"})).toBeVisible();
   await panel.getByRole("button", {name: "CONTEXT.md", exact: true}).click();
   await expect(panel.getByRole("heading", {name: "Project context"})).toBeVisible();
-  await expect(panel.getByRole("button", {name: "Open file tab PLAN.md"})).toBeVisible();
-  await expect(panel.getByRole("button", {name: "Open file tab CONTEXT.md"})).toHaveAttribute("aria-current", "page");
-  await panel.getByRole("button", {name: "Open file tab PLAN.md"}).click();
+  await panel.getByRole("button", {name: "PLAN.md", exact: true}).click();
   await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
-  await panel.getByRole("button", {name: "Close workspace panel"}).click();
+
+  await panel.getByRole("button", {name: "Close Context tab"}).click();
+  await expect(panel.getByRole("button", {name: "Open Context tab"})).toHaveCount(0);
+  await panel.getByRole("button", {name: "Close Files tab"}).click();
+  await expect(panel.getByText("Terminal transport required", {exact: true})).toBeVisible();
+  await panel.getByRole("button", {name: "Close Terminal tab"}).click();
   await expect(panel).not.toBeVisible();
   await page.getByRole("button", {name: "Toggle workspace panel"}).click();
-  await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
+  await expect(panel.getByRole("navigation", {name: "Workspace view switcher"})).toBeVisible();
 });
 
 test("queued messages survive reload, can be removed and run in FIFO order", async ({page}) => {
@@ -341,13 +347,13 @@ test("queued messages survive reload, can be removed and run in FIFO order", asy
   resetControl("queue-acceptance");
   await sendMessage(page, "Queue acceptance message");
   await expect.poll(() => existsSync(controlPath("started-queue-acceptance"))).toBe(true);
-  const editor = page.locator('[contenteditable="true"]').first();
-  for (const message of ["First follow-up", "Remove this follow-up", "Last follow-up"]) {
-    await editor.fill(message);
-    await editor.press("Enter");
-    await expect(editor).toHaveText("");
-  }
   const tray = page.getByRole("region", {name: "Goal and queued messages"});
+  for (const [index, message] of ["First follow-up", "Remove this follow-up", "Last follow-up"].entries()) {
+    const editor = page.locator('[contenteditable="true"]').first();
+    await editor.fill(message);
+    await page.getByRole("button", {name: "Queue message", exact: true}).click();
+    await expect(tray.locator("li")).toHaveCount(index + 1);
+  }
   await expect(tray.locator("li")).toHaveCount(3);
   await tray.getByRole("button", {name: "Remove queued message 2", exact: true}).click();
   await expect(tray.locator("li")).toHaveCount(2);
@@ -409,7 +415,8 @@ test("steering is applied to the active run and the accepted draft clears", asyn
   await expect.poll(() => existsSync(controlPath("started-steering-acceptance"))).toBe(true);
   const editor = page.locator('[contenteditable="true"]').first();
   await editor.fill("Focus on the acceptance criteria");
-  await page.getByRole("button", {name: "Steer now", exact: true}).click();
+  await expect(page.getByRole("button", {name: "Queue message", exact: true})).toBeVisible();
+  await editor.press("Enter");
   await expect(editor).toHaveText("");
   writeFileSync(controlPath("release-steering-acceptance"), "");
   await expectResponse(page, "Focus on the acceptance criteria");
@@ -421,6 +428,12 @@ test("a first-message goal pauses, survives reload and stops at its pass limit",
   await openProject(page);
   resetControl("goal-acceptance");
   const editor = page.locator('[contenteditable="true"]').first();
+  await editor.fill("/goal Send this normally");
+  await expect(page.getByLabel("Goal draft")).toBeVisible();
+  await page.getByRole("button", {name: "Cancel goal mode"}).click();
+  await expect(editor).toHaveText("Send this normally");
+  await expect(page.getByRole("button", {name: "Send message"})).toBeVisible();
+  await expect(page.getByLabel("Goal draft")).toHaveCount(0);
   await editor.fill("/goal Validate the workspace controls");
   await editor.press("Enter");
   await expect.poll(() => existsSync(controlPath("started-goal-acceptance"))).toBe(true);
@@ -431,9 +444,45 @@ test("a first-message goal pauses, survives reload and stops at its pass limit",
   await page.reload();
   await expect(tray.getByText(/Paused goal/)).toBeVisible();
   writeFileSync(controlPath("release-goal-acceptance"), "");
-  await expect(page.getByRole("button", {name: "Send message", exact: true})).toBeVisible();
+  await expect(page.getByRole("button", {name: "Start dictation", exact: true})).toBeVisible();
   await expect(tray.getByText(/1 of 10 passes/, {exact: false}).first()).toBeVisible();
   await tray.getByRole("button", {name: "Resume", exact: true}).click();
   await expect(tray.getByText(/Paused goal · 10 of 10 passes/)).toBeVisible({timeout: 30_000});
   await expect(tray.getByRole("button", {name: "Resume", exact: true})).toHaveCount(0);
+});
+
+test("dictation writes recognized speech into the composer", async ({page}) => {
+  await page.addInitScript(() => {
+    class FakeSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onend: (() => void) | null = null;
+      onerror: ((event: {error: string}) => void) | null = null;
+      onresult: ((event: {resultIndex: number; results: ArrayLike<{isFinal: boolean; 0: {transcript: string}}>}) => void) | null = null;
+
+      start(): void {
+        queueMicrotask(() => {
+          this.onresult?.({resultIndex: 0, results: [{0: {transcript: "Dictated acceptance message"}, isFinal: true}]});
+          this.onend?.();
+        });
+      }
+
+      stop(): void {
+        this.onend?.();
+      }
+
+      abort(): void {
+        this.onend?.();
+      }
+    }
+
+    Object.defineProperty(window, "SpeechRecognition", {configurable: true, value: FakeSpeechRecognition});
+  });
+  await openProject(page);
+
+  await page.getByRole("button", {name: "Start dictation"}).click();
+  const editor = page.locator('[contenteditable="true"]').first();
+  await expect(editor).toHaveText("Dictated acceptance message");
+  await expect(page.getByRole("button", {name: "Send message"})).toBeVisible();
 });

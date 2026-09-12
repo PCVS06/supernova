@@ -6,7 +6,7 @@ import {cn} from "@/lib/cn";
 
 /** Lets users choose the right-hand workspace from inside the panel itself. */
 export default function WorkspaceViewPicker() {
-  const view = useWorkspacePanelStore((state) => state.view);
+  const activeView = useWorkspacePanelStore((state) => state.activeView);
   const openView = useWorkspacePanelStore((state) => state.openView);
 
   return (
@@ -14,11 +14,11 @@ export default function WorkspaceViewPicker() {
       <div className="w-full max-w-72 space-y-1.5">
         {WORKSPACE_VIEW_DEFINITIONS.map((item) => (
           <Button
-            aria-current={view === item.value ? "page" : undefined}
+            aria-current={activeView === item.value ? "page" : undefined}
             aria-label={`Open ${item.label} workspace`}
             className={cn(
               "flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-ink-muted hover:bg-overlay-hover hover:text-ink-strong",
-              view === item.value && "bg-overlay-hover text-ink-strong"
+              activeView === item.value && "bg-overlay-hover text-ink-strong"
             )}
             key={item.value}
             onClick={() => openView(item.value)}
@@ -26,7 +26,6 @@ export default function WorkspaceViewPicker() {
           >
             <Icon name={item.icon} size="sm" />
             <span>{item.label}</span>
-            {item.shortcut && <kbd className="ml-auto rounded-md bg-overlay-hover px-2 py-0.5 text-xs font-normal text-ink-faint">{item.shortcut}</kbd>}
           </Button>
         ))}
       </div>

@@ -68,14 +68,16 @@ describe("composer delivery actions", () => {
 
   it.each([
     {status: "idle", action: "enter", text: "Review this", receiver: "onSubmit", includesAttachment: true},
-    {status: "streaming", action: "enter", text: "Review this", receiver: "onQueue", includesAttachment: true},
+    {status: "streaming", action: "enter", text: "Review this", receiver: "onSteer", includesAttachment: false},
     {status: "compacting", action: "enter", text: "Review this", receiver: "onQueue", includesAttachment: true},
+    {status: "streaming", action: "queue", text: "Review this", receiver: "onQueue", includesAttachment: true},
     {status: "streaming", action: "steer", text: "Review this", receiver: "onSteer", includesAttachment: false},
     {status: "idle", action: "enter", text: "/goal Review this", receiver: "onStartGoal", includesAttachment: false},
     {status: "streaming", action: "enter", text: "/goal Review this", receiver: "onStartGoal", includesAttachment: false},
   ] as const)("$action in $status delivers through $receiver", async ({status, action, text, receiver, includesAttachment}) => {
     const state = mountComposer({status, text});
     if (action === "steer") controls.actions!.onSteer?.();
+    else if (action === "queue") controls.actions!.onSend();
     else controls.input!.onSubmit();
     await vi.waitFor(() => expect(state.onAccepted).toHaveBeenCalledOnce());
     expect(state[receiver]).toHaveBeenCalledWith(includesAttachment ? [{type: "text", text}, attachment] : "Review this");
@@ -104,8 +106,8 @@ describe("composer delivery actions", () => {
     controls.input!.onSubmit();
     controls.input!.onSubmit();
     controls.actions!.onSteer?.();
-    expect(state.onQueue).toHaveBeenCalledOnce();
-    expect(state.onSteer).not.toHaveBeenCalled();
+    expect(state.onSteer).toHaveBeenCalledOnce();
+    expect(state.onQueue).not.toHaveBeenCalled();
     expect(state.draft.setEditableContentParts).not.toHaveBeenCalled();
     expect(state.attachments.remove).not.toHaveBeenCalled();
     acknowledge(accepted);
@@ -113,7 +115,7 @@ describe("composer delivery actions", () => {
     // Wait on the delivery's microtask chain rather than guessing runtime latency.
     if (accepted) await vi.waitFor(() => expect(state.onAccepted).toHaveBeenCalledOnce());
     expect(state.draft.setEditableContentParts).toHaveBeenCalledTimes(accepted ? 1 : 0);
-    expect(state.attachments.remove).toHaveBeenCalledTimes(accepted ? 1 : 0);
+    expect(state.attachments.remove).not.toHaveBeenCalled();
     expect(state.onAccepted).toHaveBeenCalledTimes(accepted ? 1 : 0);
   });
 });

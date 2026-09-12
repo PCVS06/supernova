@@ -18,7 +18,7 @@ interface WorkspacePanelProps {
 export default function WorkspacePanel(props: WorkspacePanelProps) {
   const {appEnvironment} = props;
   const target = useWorkspacePanelStore((state) => state.target);
-  const view = useWorkspacePanelStore((state) => state.view);
+  const activeView = useWorkspacePanelStore((state) => state.activeView);
   const pickerVisible = useWorkspacePanelStore((state) => state.pickerVisible);
   const visible = useWorkspacePanelStore((state) => state.visible);
   const width = useWorkspacePanelStore((state) => state.width);
@@ -74,21 +74,25 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
         style={{width: panelWidth}}
       >
         {visible && <div className="absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize" onPointerDown={handleResizePointerDown} />}
-        <WorkspacePanelHeader sessionId={target?.sessionId ?? null} />
+        <WorkspacePanelHeader />
 
         {pickerVisible && <WorkspaceViewPicker />}
-        {!pickerVisible && view === "browser" && <WorkspaceBrowserView appEnvironment={appEnvironment} />}
-        {!pickerVisible && view === "terminal" && <WorkspaceTerminalView />}
+        {!pickerVisible && activeView === "browser" && <WorkspaceBrowserView appEnvironment={appEnvironment} />}
+        {!pickerVisible && activeView === "terminal" && <WorkspaceTerminalView />}
         {!pickerVisible &&
-          view === "context" &&
+          activeView === "context" &&
           (target ? (
             <WorkspaceContextView active={visible && !pickerVisible} projectPath={target.projectPath} sessionId={target.sessionId} />
           ) : (
             <p className="px-3 py-3 text-xs text-ink-faint">Open a chat to inspect its context.</p>
           ))}
         {!pickerVisible &&
-          view === "files" &&
-          (target ? <WorkspaceFilesView projectPath={target.projectPath} /> : <p className="px-3 py-3 text-xs text-ink-faint">Open a chat to browse its project files.</p>)}
+          activeView === "files" &&
+          (target ? (
+            <WorkspaceFilesView projectPath={target.projectPath} sessionId={target.sessionId} />
+          ) : (
+            <p className="px-3 py-3 text-xs text-ink-faint">Open a chat to browse its project files.</p>
+          ))}
       </div>
     </aside>
   );

@@ -2,8 +2,9 @@ import {create} from "zustand";
 import {createJSONStorage, persist} from "zustand/middleware";
 import {ancestorDirectories} from "@/features/workspace/lib/workspace-paths";
 
-const WORKSPACE_PANEL_STORAGE_KEY = "supernova-workspace-panel-v2";
+const WORKSPACE_PANEL_STORAGE_KEY = "supernova-workspace-panel-v3";
 const DEFAULT_WORKSPACE_PANEL_WIDTH = 288;
+const DEFAULT_FILE_WORKSPACE_WIDTH = 760;
 const MIN_WORKSPACE_PANEL_WIDTH = 240;
 const MAX_WORKSPACE_PANEL_WIDTH = 900;
 const DEFAULT_BROWSER_URL = "https://pi.dev/docs";
@@ -18,17 +19,16 @@ export interface WorkspaceTarget {
 
 interface WorkspacePanelState {
   readonly activeFilePath: string | null;
+  readonly activeView: WorkspaceView | null;
   readonly browserUrl: string;
   readonly expandedPaths: readonly string[];
   readonly filter: string;
-  readonly openFilePaths: readonly string[];
   readonly pickerVisible: boolean;
+  readonly tabs: readonly WorkspaceView[];
   readonly target: WorkspaceTarget | null;
-  readonly view: WorkspaceView;
   readonly visible: boolean;
   readonly width: number;
-  readonly closeFile: (path: string) => void;
-  readonly closePanel: () => void;
+  readonly closeView: (view: WorkspaceView) => void;
   readonly openFile: (path: string) => void;
   readonly openView: (view: WorkspaceView) => void;
   readonly showViewPicker: () => void;
@@ -39,47 +39,59 @@ interface WorkspacePanelState {
   readonly setWidth: (width: number) => void;
   readonly toggleDirectory: (path: string) => void;
   readonly togglePanel: () => void;
-  readonly toggleView: (view: WorkspaceView) => void;
 }
 
 export const useWorkspacePanelStore = create<WorkspacePanelState>()(
   persist(
     (set) => ({
       activeFilePath: null,
+      activeView: null,
       browserUrl: DEFAULT_BROWSER_URL,
       expandedPaths: [],
       filter: "",
-      openFilePaths: [],
       pickerVisible: true,
+      tabs: [],
       target: null,
-      view: "files",
       visible: false,
       width: DEFAULT_WORKSPACE_PANEL_WIDTH,
-      closeFile: (path) => {
+      closeView: (view) => {
         set((state) => {
-          const closedIndex = state.openFilePaths.indexOf(path);
+          const closedIndex = state.tabs.indexOf(view);
           if (closedIndex === -1) return state;
 
-          const openFilePaths = state.openFilePaths.filter((item) => item !== path);
-          const activeFilePath = state.activeFilePath === path ? (openFilePaths[Math.min(closedIndex, openFilePaths.length - 1)] ?? null) : state.activeFilePath;
-          return {activeFilePath, openFilePaths};
+          const tabs = state.tabs.filter((item) => item !== view);
+          if (tabs.length === 0) {
+            return {
+              activeFilePath: view === "files" ? null : state.activeFilePath,
+              activeView: null,
+              pickerVisible: true,
+              tabs,
+              visible: false,
+              width: DEFAULT_WORKSPACE_PANEL_WIDTH,
+            };
+          }
+
+          return {
+            activeFilePath: view === "files" ? null : state.activeFilePath,
+            activeView: state.activeView === view ? (tabs[Math.min(closedIndex, tabs.length - 1)] ?? null) : state.activeView,
+            pickerVisible: false,
+            tabs,
+          };
         });
-      },
-      closePanel: () => {
-        set({visible: false});
       },
       openFile: (path) => {
         set((state) => ({
           activeFilePath: path,
+          activeView: "files",
           expandedPaths: [...new Set([...state.expandedPaths, ...ancestorDirectories(path)])],
-          openFilePaths: state.openFilePaths.includes(path) ? state.openFilePaths : [...state.openFilePaths, path],
           pickerVisible: false,
-          view: "files",
+          tabs: state.tabs.includes("files") ? state.tabs : [...state.tabs, "files"],
           visible: true,
+          width: Math.max(state.width, DEFAULT_FILE_WORKSPACE_WIDTH),
         }));
       },
       openView: (view) => {
-        set(view === "files" ? {activeFilePath: null, pickerVisible: false, view, visible: true} : {pickerVisible: false, view, visible: true});
+        set((state) => ({activeView: view, pickerVisible: false, tabs: state.tabs.includes(view) ? state.tabs : [...state.tabs, view], visible: true}));
       },
       showViewPicker: () => {
         set({pickerVisible: true, visible: true});
@@ -91,18 +103,21 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
         set({filter});
       },
       selectFile: (path) => {
-        set((state) => {
-          if (path !== null && !state.openFilePaths.includes(path)) return state;
-          return {activeFilePath: path, pickerVisible: false, view: "files", visible: true};
-        });
+        set((state) => ({
+          activeFilePath: path,
+          activeView: "files",
+          pickerVisible: false,
+          tabs: state.tabs.includes("files") ? state.tabs : [...state.tabs, "files"],
+          visible: true,
+        }));
       },
       setTarget: (target) => {
         set((state) => {
           if (state.target?.sessionId === target.sessionId && state.target.projectPath === target.projectPath) return state;
-          // A different project has a different tree, so the revealed paths and
-          // the open file belong to the chat that was replaced.
+          // A different project has a different tree, so revealed paths and the
+          // selected file belong to the chat that was replaced.
           const sameProject = state.target?.projectPath === target.projectPath;
-          return sameProject ? {target} : {activeFilePath: null, expandedPaths: [], filter: "", openFilePaths: [], target};
+          return sameProject ? {target} : {activeFilePath: null, expandedPaths: [], filter: "", target};
         });
       },
       setWidth: (width) => {
@@ -114,16 +129,20 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
         }));
       },
       togglePanel: () => {
-        set((state) => ({visible: !state.visible}));
-      },
-      toggleView: (view) => {
-        set((state) => (state.visible && !state.pickerVisible && state.view === view ? {visible: false} : {pickerVisible: false, view, visible: true}));
+        set((state) => ({pickerVisible: state.visible ? state.pickerVisible : state.tabs.length === 0 || state.pickerVisible, visible: !state.visible}));
       },
     }),
     {
       name: WORKSPACE_PANEL_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({browserUrl: state.browserUrl, view: state.view, visible: state.visible, width: state.width}),
+      partialize: (state) => ({
+        activeView: state.activeView,
+        browserUrl: state.browserUrl,
+        pickerVisible: state.pickerVisible,
+        tabs: state.tabs,
+        visible: state.visible,
+        width: state.width,
+      }),
     }
   )
 );

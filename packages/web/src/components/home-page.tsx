@@ -12,7 +12,6 @@ import {useSplitViewStore} from "@/features/sessions/stores/split-view-store";
 import UpdateButton from "@/features/updates/components/update-button";
 import WorkspacePanel from "@/features/workspace/components/workspace-panel";
 import WorkspacePanelToggle from "@/features/workspace/components/workspace-panel-toggle";
-import {useWorkspaceShortcuts} from "@/features/workspace/hooks/use-workspace-shortcuts";
 import {useSidebarVisibility} from "@/features/sidebar/hooks/use-sidebar-visibility";
 import {useSidebarSectionsStore} from "@/features/sidebar/stores/sidebar-store";
 import {cn} from "@/lib/cn";
@@ -29,8 +28,6 @@ export default function HomePage(props: HomePageProps) {
   const setSidebarWidth = useSidebarSectionsStore((state) => state.setSidebarWidth);
   const panes = useSplitViewStore((state) => state.panes);
   const router = useRouter();
-
-  useWorkspaceShortcuts();
 
   useRouterState({
     select: (state) => state.location.href,

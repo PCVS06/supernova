@@ -41,6 +41,7 @@ export type IconName =
   | "loader"
   | "maximize"
   | "monitor"
+  | "microphone"
   | "moon"
   | "more-horizontal"
   | "new-chat"
@@ -111,6 +112,7 @@ const icons = {
   loader: getStaticIcon(lucideIcons, "loader-circle"),
   maximize: getStaticIcon(lucideIcons, "maximize-2"),
   monitor: getStaticIcon(lucideIcons, "monitor"),
+  microphone: getStaticIcon(lucideIcons, "mic"),
   moon: getStaticIcon(lucideIcons, "moon"),
   "more-horizontal": getStaticIcon(lucideIcons, "more-horizontal"),
   "new-chat": getStaticIcon(lucideIcons, "message-square-plus"),
