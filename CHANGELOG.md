@@ -10,9 +10,17 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
+- Reworked the harness settings: every agent page has Settings, Instructions, Skills and Memory tabs; Resources is harness-wide only; the Projects tab is a per-project planning tool with Plan, Instructions and Setup; Workflows shows Workflows and Limits.
+- Redesigned the sidebar: a search field, small-caps harness headers with hover-only actions, aligned project and chat rows whose actions no longer overlap the name, a Lead pill for the coordinating project, and a quiet footer.
+
 ### Fixed
 
+- A project whose folder disappeared from disk no longer fails new chats with a generic "Please try again"; the sidebar and settings mark it as missing, the toast names the folder, and its plan and instructions stay editable.
+- Projects removed from a harness no longer linger in the sidebar as unmanaged folders.
+
 ### Removed
+
+- The separate Specialist memory list and the project-scoped Context page, both replaced by the reworked settings above.
 
 ## [0.2.0]
 
