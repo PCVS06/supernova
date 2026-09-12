@@ -1,10 +1,12 @@
 import {useState} from "react";
-import type {HarnessAgent, HarnessConfig} from "@supernova/contracts/harnesses/schemas";
+import type {HarnessAgent, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import AgentWorkbench from "@/features/harnesses/components/agent-workbench";
+import type {AgentEditorSection} from "@/features/harnesses/components/agent-workbench";
 import AgentIdentityPicker from "@/features/harnesses/components/agent-identity-picker";
+import AgentMemoryPanel from "@/features/harnesses/components/agent-memory-panel";
 import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import SkillsEditor from "@/features/harnesses/components/skills-editor";
@@ -16,12 +18,16 @@ interface AgentsEditorProps {
   harness?: HarnessConfig;
   selectedName?: string;
   inheritedAgents?: readonly HarnessAgent[];
+  /** Ledgers a specialist may read on its Memory tab. */
+  projects?: readonly HarnessProject[];
+  /** The project whose ledger opens first, usually the one selected in the page. */
+  memoryProjectId?: string;
 }
 
 export default function AgentsEditor(props: AgentsEditorProps) {
-  const {agents, onChange, harness, selectedName, inheritedAgents} = props;
+  const {agents, onChange, harness, selectedName, inheritedAgents, projects = [], memoryProjectId} = props;
   const [name, setName] = useState(selectedName ?? agents[0]?.name ?? "");
-  const [section, setSection] = useState<"settings" | "prompt" | "skills">("settings");
+  const [section, setSection] = useState<AgentEditorSection>("settings");
   const agent = agents.find((item) => item.name === name) ?? agents[0];
   const patch = (change: Partial<HarnessAgent>) => onChange(agents.map((item) => (item === agent ? {...item, ...change} : item)));
   const inherited = inheritedAgents?.find((item) => item.name === agent?.name);
@@ -150,6 +156,9 @@ export default function AgentsEditor(props: AgentsEditorProps) {
             <SettingsGroup title="Skills">
               <SkillsEditor harnessId={harness.id} inherited={harness.enabledSkills} value={agent.skillNames} onChange={(skillNames) => patch({skillNames})} />
             </SettingsGroup>
+          )}
+          {section === "memory" && harness && (
+            <AgentMemoryPanel explanation="Specialists share the ledger of the project they work in." harnessId={harness.id} projectId={memoryProjectId} projects={projects} />
           )}
         </>
       ) : (

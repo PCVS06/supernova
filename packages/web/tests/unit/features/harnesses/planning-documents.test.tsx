@@ -32,24 +32,36 @@ describe("planning documents editor", () => {
     rpc.read = {data: loaded, isPending: false, isError: false, isFetching: false, refetch: vi.fn()};
     rpc.save = {mutate: vi.fn(), reset: vi.fn(), isPending: false, isSuccess: false, error: undefined};
   });
-  const render = (documents: readonly string[] = ["PLAN.md"]) => renderToStaticMarkup(<PlanningDocumentsEditor documents={documents} projectPath="/robot" onChange={vi.fn()} />);
+  const render = (documents: readonly string[] = ["PLAN.md"], disabled?: boolean) =>
+    renderToStaticMarkup(<PlanningDocumentsEditor disabled={disabled} documents={documents} projectPath="/robot" onChange={vi.fn()} />);
 
-  it("explains the purpose and loads the first document from the project folder", () => {
+  it("explains the purpose and opens the first document beside the list", () => {
     const html = render();
-    expect(html).toContain("Every agent working in this project reads these Markdown documents as part of its instructions");
+    expect(html).toContain("Every chat in this project reads these files after the project instructions.");
+    expect(html).toContain("Keep the long-term plan, goals and open decisions here.");
     expect(html).toContain('aria-label="Edit PLAN.md" aria-pressed="true"');
     expect(html).toContain('aria-label="Remove PLAN.md"');
     expect(html).toContain('aria-label="PLAN.md content"');
     expect(html).toContain("Ship the graph editor.");
+    expect(html).toContain("Save</button>");
+    expect(html).toContain("Revert</button>");
     expect(rpc.scope).toHaveBeenCalledWith("/robot", "PLAN.md");
   });
 
   it("offers the quick actions and keeps an already listed document out of them", () => {
     expect(render([])).toContain("Create PLAN.md");
     expect(render([])).toContain("Create GOALS.md");
-    expect(render([])).toContain("No planning documents yet.");
+    expect(render([])).toContain("Create ROADMAP.md");
+    expect(render([])).toContain("No documents yet. Add PLAN.md to start.");
+    expect(render([])).toContain("Add a document to write this project");
     expect(render(["PLAN.md"])).toContain("Create PLAN.md</button>");
     expect(render(["PLAN.md"])).toMatch(/disabled[^>]*>Create PLAN\.md/);
+  });
+
+  it("stops editing and says why when the project folder is missing", () => {
+    const html = render(["PLAN.md"], true);
+    expect(html).toContain("folder is missing, so its documents cannot be read or saved.");
+    expect(html).toMatch(/aria-label="PLAN.md content"[^>]*disabled/);
   });
 
   it("reports a refused write as a conflict without losing the edit", () => {

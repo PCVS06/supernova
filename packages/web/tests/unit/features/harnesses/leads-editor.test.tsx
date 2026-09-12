@@ -103,15 +103,15 @@ describe("lead workbench", () => {
     expect(project).toContain('aria-label="Project instructions"');
     expect(project).toContain('aria-label="Lead role prompt"');
   });
-  it("separates the role levels and memory with an explicit selected tab", () => {
+  it("offers the three role levels and no memory entry of its own", () => {
     const html = renderToStaticMarkup(<AgentRoleMap harness={harness} project={lab} projects={[head, lab]} section="leads" onSelect={vi.fn()} />);
     expect(html).toContain('aria-label="Main orchestrator" aria-pressed="false"');
     expect(html).toContain('aria-label="Project leads" aria-pressed="true"');
     expect(html).toContain('aria-label="Specialists" aria-pressed="false"');
-    expect(html).toContain('aria-label="Memory" aria-pressed="false"');
-    const memory = renderToStaticMarkup(<AgentRoleMap harness={harness} project={lab} projects={[head, lab]} section="memory" onSelect={vi.fn()} />);
-    expect(memory).toContain('aria-label="Memory" aria-pressed="true"');
-    expect(memory).toContain('aria-label="Project leads" aria-pressed="false"');
+    expect(html).not.toContain('aria-label="Memory"');
+    const specialists = renderToStaticMarkup(<AgentRoleMap harness={harness} project={lab} projects={[head, lab]} section="specialists" onSelect={vi.fn()} />);
+    expect(specialists).toContain('aria-label="Specialists" aria-pressed="true"');
+    expect(specialists).toContain('aria-label="Project leads" aria-pressed="false"');
   });
   it("uses the same portrait, editor navigation and settings order for all three roles", () => {
     const specialist = renderToStaticMarkup(<AgentsEditor agents={harness.agents} harness={harness} onChange={vi.fn()} />);
@@ -121,6 +121,7 @@ describe("lead workbench", () => {
       expect(html).toContain('aria-label="Settings" aria-pressed="true"');
       expect(html).toContain('aria-label="Instructions" aria-pressed="false"');
       expect(html).toContain('aria-label="Skills" aria-pressed="false"');
+      expect(html).toContain('aria-label="Memory" aria-pressed="false"');
       expect(html.indexOf("Execution controls")).toBeLessThan(html.indexOf(">Identity<"));
       expect(html.indexOf(">Identity<")).toBeLessThan(html.indexOf(">Responsibilities<"));
       expect(html).not.toContain('data-state="working"');

@@ -145,20 +145,20 @@ export default function WorkflowsEditor(props: WorkflowsEditorProps) {
                 <SettingsGroup title="Workflow">
                   <SettingsRow
                     control={<Input aria-label="Workflow name" className="sm:w-64" value={workflow.name} onChange={(event) => patch({name: event.target.value})} />}
-                    description="Shared by every project of this harness. Ask for it by name in chat."
+                    description="Ask for this workflow by name in chat."
                     title="Name"
                   />
                   <SettingsRow
                     control={
                       <Input aria-label="Workflow description" className="sm:w-64" value={workflow.description} onChange={(event) => patch({description: event.target.value})} />
                     }
-                    description="Tells the lead when this workflow is the right one to run."
+                    description="Tells the lead when to run it."
                     title="Description"
                   />
                   <SettingsRow
                     control={
                       <Input
-                        aria-label="Wall-clock limit in seconds"
+                        aria-label="Time limit in seconds"
                         className="sm:w-40"
                         type="number"
                         min={10}
@@ -167,8 +167,8 @@ export default function WorkflowsEditor(props: WorkflowsEditorProps) {
                         onChange={(event) => patch({limits: {...workflow.limits, maxWallClockSeconds: Number(event.target.value)}})}
                       />
                     }
-                    description="The whole run stops when this budget is spent."
-                    title="Wall-clock limit in seconds"
+                    description="The run stops when this time is spent."
+                    title="Time limit in seconds"
                   />
                   <SettingsRow
                     control={
@@ -184,16 +184,14 @@ export default function WorkflowsEditor(props: WorkflowsEditorProps) {
                         onChange={(event) => patch({limits: {...workflow.limits, maxCostUsd: Number(event.target.value) || undefined}})}
                       />
                     }
-                    description="Optional. Empty inherits no cost ceiling."
+                    description="Optional. Empty means no ceiling."
                     title="Cost limit in USD"
                   />
                 </SettingsGroup>
 
                 <SettingsGroup title="Graph">
                   <div className="px-3 sm:px-4">
-                    <p className="mb-4 max-w-xl text-xs leading-relaxed text-ink-muted">
-                      Each step hands the next one a typed result instead of prose. Select a step to edit it; the labels on the edges are the fields that travel along them.
-                    </p>
+                    <p className="mb-4 max-w-xl text-xs leading-relaxed text-ink-muted">Steps run in order. Each one hands the next a checked result; select a step to edit it.</p>
                     <div className="workflow-graph-rail relative">
                       <div className="flex items-center gap-3 pb-1.5">
                         <RailDot />
@@ -240,15 +238,6 @@ export default function WorkflowsEditor(props: WorkflowsEditorProps) {
                   </div>
                 </SettingsGroup>
               </>
-            )}
-
-            {harness.source && (
-              <SettingsGroup title="Research graph">
-                <SettingsRow
-                  description="Science Pi's Idea Graph stores research ideas and evidence within your projects. This tab controls how agents hand work to each other. Research actions that require approval are not yet available in the app; editing this workflow does not approve them."
-                  title="Your research graph stays separate"
-                />
-              </SettingsGroup>
             )}
           </SettingsPageShell>
         </div>

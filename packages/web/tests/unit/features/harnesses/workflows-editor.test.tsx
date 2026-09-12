@@ -118,9 +118,9 @@ describe("workflow graph", () => {
     expect(html).not.toContain('aria-label="Workflow steps"');
     expect(html).not.toContain('aria-label="Edit step literature-scout"');
   });
-  it("keeps the research graph note for an imported harness only", () => {
+  it("keeps the panel to the workflow itself, with no research-graph aside", () => {
     expect(render().html).not.toContain("Your research graph stays separate");
-    expect(render({...harness, source: {packagePath: "/pkg", rootPath: "/root"}}).html).toContain("Your research graph stays separate");
+    expect(render({...harness, source: {packagePath: "/pkg", rootPath: "/root"}}).html).not.toContain("research graph");
   });
 });
 

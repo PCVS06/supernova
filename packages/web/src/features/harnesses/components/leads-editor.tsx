@@ -3,8 +3,10 @@ import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses
 import Button from "@/components/ui/button";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import AgentWorkbench from "@/features/harnesses/components/agent-workbench";
+import type {AgentEditorSection} from "@/features/harnesses/components/agent-workbench";
 import AgentIdentityPicker from "@/features/harnesses/components/agent-identity-picker";
 import AgentMark from "@/features/harnesses/components/agent-mark";
+import AgentMemoryPanel from "@/features/harnesses/components/agent-memory-panel";
 import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import SkillsEditor from "@/features/harnesses/components/skills-editor";
@@ -24,7 +26,7 @@ interface LeadsEditorProps {
 /** Role definitions, not live agents. Editing a lead stays within its project draft. */
 export default function LeadsEditor(props: LeadsEditorProps) {
   const {harness, project, projects, onChangeProject, onChangeHarness, onSelect, onOpenSpecialists, initialSection = "settings"} = props;
-  const [section, setSection] = useState<"settings" | "prompt" | "skills">(initialSection);
+  const [section, setSection] = useState<AgentEditorSection>(initialSection);
   const head = projects.find((item) => item.id === harness.coordinatorProjectId);
   const isHead = !!project && project.id === head?.id;
   const labs = projects.filter((item) => item.id !== head?.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -180,6 +182,20 @@ export default function LeadsEditor(props: LeadsEditorProps) {
             onChange={(enabledSkills) => (project ? onChangeProject({enabledSkills}) : onChangeHarness({enabledSkills}))}
           />
         </SettingsGroup>
+      )}
+      {section === "memory" && (
+        <AgentMemoryPanel
+          explanation={
+            project
+              ? isHead
+                ? `Records saved in ${name}, the coordinating project of this harness.`
+                : `Records saved in ${name}, this lead's own project.`
+              : "Connect a project to read its records."
+          }
+          harnessId={harness.id}
+          projectId={project?.id}
+          projects={project ? [project] : []}
+        />
       )}
     </AgentWorkbench>
   );

@@ -51,15 +51,31 @@ describe("settings harness surfaces", () => {
 
   it("maps a legacy section onto its new panel and falls back for unknown ones", () => {
     expect(harnessTabs.map((tab) => tab.label)).toEqual(["Agents", "Resources", "Workflows", "Projects"]);
+    // Memory is no longer a section; it is a tab of every agent page.
+    expect(harnessTabs.flatMap((tab) => tab.sections.map((section) => section.id))).toEqual([
+      "orchestrator",
+      "leads",
+      "specialists",
+      "skills",
+      "tools",
+      "connectors",
+      "context",
+      "workflows",
+      "limits",
+      "projects",
+    ]);
+    expect(harnessTabs.flatMap((tab) => tab.sections).find((section) => section.id === "limits")?.label).toBe("Limits");
     const cases = [
       {name: "missing", from: undefined, section: defaultHarnessSection, tab: "agents"},
       {name: "unknown", from: "nowhere", section: defaultHarnessSection, tab: "agents"},
       {name: "legacy_chats", from: "Chats", section: "orchestrator", tab: "agents"},
       {name: "legacy_team", from: "Team", section: "specialists", tab: "agents"},
-      {name: "legacy_memory_tab", from: "Memory", section: "memory", tab: "agents"},
+      {name: "legacy_memory_tab", from: "Memory", section: "specialists", tab: "agents"},
+      {name: "legacy_memory_section", from: "memory", section: "specialists", tab: "agents"},
       {name: "legacy_context", from: "Context", section: "context", tab: "resources"},
       {name: "legacy_workflow", from: "Workflow", section: "workflows", tab: "workflows"},
       {name: "legacy_run_limits", from: "Run limits", section: "limits", tab: "workflows"},
+      {name: "current_context", from: "context", section: "context", tab: "resources"},
       {name: "current_projects", from: "projects", section: "projects", tab: "projects"},
     ];
     for (const each of cases) {

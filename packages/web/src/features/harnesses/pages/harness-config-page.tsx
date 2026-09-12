@@ -7,7 +7,6 @@ import AgentsEditor from "@/features/harnesses/components/agents-editor";
 import EditorTabs from "@/features/harnesses/components/editor-tabs";
 import HarnessConfigHeader from "@/features/harnesses/components/harness-config-header";
 import LeadsEditor from "@/features/harnesses/components/leads-editor";
-import MemoryEditor from "@/features/harnesses/components/memory-editor";
 import ProjectConfigEditor from "@/features/harnesses/components/project-config-editor";
 import ResourcesEditor from "@/features/harnesses/components/resources-editor";
 import RunLimitsEditor from "@/features/harnesses/components/run-limits-editor";
@@ -170,6 +169,8 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
         <AgentsEditor
           key={agentName ?? "specialists"}
           agents={effectiveHarness.agents}
+          memoryProjectId={projectDraft?.id}
+          projects={projects}
           selectedName={agentName}
           harness={effectiveHarness}
           inheritedAgents={projectDraft ? harness.agents : undefined}
@@ -188,17 +189,7 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
           }}
         />
       )}
-      {section === "memory" && <MemoryEditor harness={draft} project={projectDraft} projects={projects} onOpenContext={(projectId) => changeScope(projectId, "context")} />}
-      {tab.id === "resources" && (
-        <ResourcesEditor
-          harness={draft}
-          project={projectDraft}
-          section={section}
-          onChangeHarness={(change) => setDraft({...draft, ...change})}
-          onChangeProject={patchProject}
-          onOpenShared={() => changeScope(undefined, section)}
-        />
-      )}
+      {tab.id === "resources" && <ResourcesEditor harness={draft} section={section} onChangeHarness={(change) => setDraft({...draft, ...change})} />}
       {section === "workflows" && <WorkflowsEditor harness={effectiveHarness} onChange={(change) => setDraft({...draft, ...change})} />}
       {section === "limits" && <RunLimitsEditor harness={draft} onChange={(change) => setDraft({...draft, ...change})} />}
       {section === "projects" && (
@@ -241,8 +232,8 @@ export default function HarnessConfigPage(props: HarnessConfigPageProps) {
   const projects = library.data.projects.filter((item) => item.harnessId === harnessId).toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const labs = projects.filter((item) => item.id !== harness.coordinatorProjectId);
   const requested = projectId ? projects.find((item) => item.id === projectId) : undefined;
-  // Workflows and run limits belong to the harness, so those panels never run inside a project scope.
-  const harnessScoped = resolved.tab.id === "workflows";
+  // Workflows, limits and resources belong to the harness, so those panels never run inside a project scope.
+  const harnessScoped = resolved.tab.id === "workflows" || resolved.tab.id === "resources";
   const defaultOwnerId =
     resolved.section.id === "orchestrator"
       ? harness.coordinatorProjectId

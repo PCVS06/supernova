@@ -85,7 +85,7 @@ export default function WorkflowStepEditor(props: WorkflowStepEditorProps) {
           </SettingsGroup>
 
           <SettingsGroup title="Reads">
-            <SettingsRow description="Outputs this step receives. Only earlier steps can be read." stacked title="Incoming fields">
+            <SettingsRow description="Only a step that runs earlier can be read." stacked title="Incoming fields">
               {earlier.length === 0 ? (
                 <p className="text-xs text-ink-muted">Nothing runs before this step. It receives the task only.</p>
               ) : (
@@ -176,7 +176,7 @@ export default function WorkflowStepEditor(props: WorkflowStepEditorProps) {
                   onChange={(value) => onChange({effects: value as WorkflowStepEffects})}
                 />
               }
-              description="External effects are never retried automatically; a resume has to allow the rerun explicitly."
+              description="A step with external effects is never retried on its own."
               stacked
               title="What this step touches"
             />
@@ -200,7 +200,7 @@ export default function WorkflowStepEditor(props: WorkflowStepEditorProps) {
                   onChange={(event) => onChange({limits: {...step.limits, maxTurns: Number(event.target.value) || undefined}})}
                 />
               }
-              description="Empty inherits the harness run limits."
+              description="Empty uses the harness limits."
               stacked
               title="Maximum turns"
             />

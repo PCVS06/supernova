@@ -1,5 +1,5 @@
 /** Documents a project can create in one click, because almost every long-running project wants them. */
-export const quickPlanningDocuments = ["PLAN.md", "GOALS.md"] as const;
+export const quickPlanningDocuments = ["PLAN.md", "GOALS.md", "ROADMAP.md"] as const;
 
 const conflictPattern = /conflict|changed|modified|stale|newer/i;
 

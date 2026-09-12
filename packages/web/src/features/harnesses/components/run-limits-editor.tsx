@@ -16,7 +16,7 @@ export default function RunLimitsEditor(props: RunLimitsEditorProps) {
   return (
     <SettingsPageShell>
       <SettingsGroup title="Run limits">
-        <SettingsRow description="Run limits belong to the harness, so every project runs under the same ceiling." title="Shared by every project" />
+        <SettingsRow description="Every chat and workflow of this harness runs under these limits." title="Shared by every project" />
         <SettingsRow
           control={
             <Input
@@ -47,10 +47,7 @@ export default function RunLimitsEditor(props: RunLimitsEditorProps) {
           description="A single run never outlives this budget."
           title="Timeout in seconds"
         />
-        <SettingsRow
-          description="Workflow steps may lower these limits, never raise them. Approval-dialog actions remain unavailable in the app."
-          title="How steps relate to this"
-        />
+        <SettingsRow description="A workflow step may lower these limits, never raise them." title="How workflow steps relate to this" />
       </SettingsGroup>
     </SettingsPageShell>
   );

@@ -1,16 +1,26 @@
 import {useState} from "react";
 import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
-import Icon from "@/components/ui/icon";
 import Input from "@/components/ui/input";
+import SettingsPageShell from "@/features/settings/components/settings-page-shell";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
-import AgentWorkbench from "@/features/harnesses/components/agent-workbench";
 import AgentIdentityPicker from "@/features/harnesses/components/agent-identity-picker";
-import ConfigCard from "@/features/harnesses/components/config-card";
-import ConfigChoice from "@/features/harnesses/components/config-choice";
+import AgentMark from "@/features/harnesses/components/agent-mark";
+import EditorTabs from "@/features/harnesses/components/editor-tabs";
 import PlanningDocumentsEditor from "@/features/harnesses/components/planning-documents-editor";
+import ProjectConfigList from "@/features/harnesses/components/project-config-list";
+import ProjectOverridesEditor from "@/features/harnesses/components/project-overrides-editor";
 import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
+import {cn} from "@/lib/cn";
+
+type ProjectSection = "plan" | "instructions" | "setup";
+
+const projectSections: readonly {value: ProjectSection; label: string}[] = [
+  {value: "plan", label: "Plan"},
+  {value: "instructions", label: "Instructions"},
+  {value: "setup", label: "Setup"},
+];
 
 interface ProjectConfigEditorProps {
   harness: HarnessConfig;
@@ -21,122 +31,95 @@ interface ProjectConfigEditorProps {
   onOpenSpecialists: () => void;
 }
 
-/** One project of a harness: its identity, its own instructions, its planning documents, its overrides. */
+/** Planning per project: what it is working towards, how its chats are instructed, where it lives. */
 export default function ProjectConfigEditor(props: ProjectConfigEditorProps) {
   const {harness, project, projects, onChangeProject, onSelect, onOpenSpecialists} = props;
-  const [overrideName, setOverrideName] = useState(harness.agents[0]?.name ?? "");
-  const head = projects.find((item) => item.id === harness.coordinatorProjectId);
-  const isHead = !!project && project.id === head?.id;
-  const ordered = projects.toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const [section, setSection] = useState<ProjectSection>("plan");
+  const coordinatorId = harness.coordinatorProjectId;
+  const isHead = !!project && project.id === coordinatorId;
+  const ordered = projects.toSorted((a, b) => Number(b.id === coordinatorId) - Number(a.id === coordinatorId) || (a.order ?? 0) - (b.order ?? 0));
   const color = project ? agentColor(project.id, project.color ?? (isHead ? "#ffffff" : undefined)) : "#ffffff";
-  const overrides = project?.agents ?? [];
+  const documents = project?.planningDocuments ?? [];
+  const parent = project?.parentProjectId ? projects.find((item) => item.id === project.parentProjectId) : undefined;
+  const canOpenInFinder = window.desktopApi?.environment === "mac";
 
   return (
-    <AgentWorkbench
-      kind="lead"
-      identity={
-        project
-          ? {
-              id: project.id,
-              name: agentLabel(project.name),
-              color,
-              role: isHead ? "Coordinating project" : "Project",
-              description: project.path,
-            }
-          : undefined
-      }
-      selection={{
-        label: "Projects",
-        value: project?.id ?? "",
-        items: ordered.map((item) => ({
-          id: item.id,
-          name: agentLabel(item.name),
-          color: item.color ?? (item.id === head?.id ? "#ffffff" : undefined),
-          subtitle: item.path,
-          searchText: item.path,
-        })),
-        onChange: onSelect,
-      }}
-    >
-      {!project && <p className="px-3 text-sm text-ink-muted sm:px-4">Select a project to edit its instructions, planning documents and overrides.</p>}
-      {project && (
-        <>
-          <SettingsGroup title="Project">
-            <SettingsRow
-              control={<Input aria-label="Project display name" className="sm:w-64" value={project.name} onChange={(event) => onChangeProject({name: event.target.value})} />}
-              description="Shown in the sidebar, the chats and every agent mark of this project."
-              title="Display name"
+    <div className="harness-agent-layout flex h-full min-h-0 overflow-hidden" data-testid="project-workspace">
+      <ProjectConfigList coordinatorId={coordinatorId} projects={ordered} selectedId={project?.id} onSelect={onSelect} />
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="project-editor-detail">
+        {project && (
+          <header className="shrink-0 border-b border-border px-5 pt-5 sm:px-6">
+            <div className="mx-auto w-full max-w-4xl">
+              <div className="flex items-start gap-3">
+                <AgentMark name={project.id} color={color} kind="lead" className="size-11 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="line-clamp-2 text-lg font-medium leading-snug" title={agentLabel(project.name)}>
+                    {agentLabel(project.name)}
+                  </h2>
+                  <p className="mt-1 truncate font-mono text-xs text-ink-muted" title={project.path}>
+                    {project.path}
+                  </p>
+                  <p className={cn("mt-1 text-xs leading-relaxed", project.folderMissing ? "text-danger-ink" : "text-ink-faint")}>
+                    {project.folderMissing ? "Folder missing — chats cannot start until it is restored or the project is re-linked" : "Folder found"} · {documents.length} planning{" "}
+                    {documents.length === 1 ? "document" : "documents"}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <EditorTabs label="Project editor tabs" value={section} items={projectSections} onChange={setSection} />
+              </div>
+            </div>
+          </header>
+        )}
+        <SettingsPageShell testId="project-detail-scroll">
+          {!project && <p className="px-3 text-sm text-ink-muted sm:px-4">Select a project to plan its work.</p>}
+          {project && section === "plan" && (
+            <PlanningDocumentsEditor
+              disabled={project.folderMissing}
+              documents={documents}
+              projectPath={project.path}
+              onChange={(planningDocuments) => onChangeProject({planningDocuments})}
             />
-            <SettingsRow description={project.path} title="Folder on the server" />
-            <AgentIdentityPicker name={project.id} color={color} kind="lead" onChange={(next) => onChangeProject({color: next})} />
-          </SettingsGroup>
-
-          <SettingsGroup title="Instructions">
-            <SettingsRow description={`Appended to ${harness.name}'s shared instructions. Other projects are unaffected.`} title="Project system instructions">
-              <PromptEditor label="Project system instructions" value={project.systemPrompt} onChange={(systemPrompt) => onChangeProject({systemPrompt})} />
-            </SettingsRow>
-            <SettingsRow description="Loaded with the context rules of this harness, for this project's chats only." title="Project context instructions">
-              <PromptEditor
-                label="Project context instructions"
-                size="sm"
-                value={project.contextInstructions}
-                onChange={(contextInstructions) => onChangeProject({contextInstructions})}
+          )}
+          {project && section === "instructions" && (
+            <>
+              <SettingsGroup title="Instructions">
+                <SettingsRow description={`Added to ${harness.name}'s shared instructions for this project's chats only.`} title="Project instructions">
+                  <PromptEditor label="Project system instructions" value={project.systemPrompt} onChange={(systemPrompt) => onChangeProject({systemPrompt})} />
+                </SettingsRow>
+              </SettingsGroup>
+              <ProjectOverridesEditor harness={harness} overrides={project.agents} onChange={(agents) => onChangeProject({agents})} onOpenSpecialists={onOpenSpecialists} />
+            </>
+          )}
+          {project && section === "setup" && (
+            <SettingsGroup title="Setup">
+              <SettingsRow
+                control={<Input aria-label="Project display name" className="sm:w-64" value={project.name} onChange={(event) => onChangeProject({name: event.target.value})} />}
+                description="Shown in the sidebar, the chats and every mark of this project."
+                title="Display name"
               />
-            </SettingsRow>
-          </SettingsGroup>
-
-          <PlanningDocumentsEditor documents={project.planningDocuments ?? []} projectPath={project.path} onChange={(planningDocuments) => onChangeProject({planningDocuments})} />
-
-          <SettingsGroup title="Specialist overrides">
-            <SettingsRow
-              control={
-                <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={onOpenSpecialists}>
-                  Edit in Agents
-                </Button>
-              }
-              description="Specialists inherit from the harness unless this project overrides them by name."
-              title={`${overrides.length} overridden specialists`}
-            >
-              <div className="space-y-2">
-                {overrides.map((agent) => (
-                  <ConfigCard className="flex items-center gap-2" key={agent.name}>
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-muted">{agent.name}</span>
+              <SettingsRow
+                control={
+                  canOpenInFinder && (
                     <Button
-                      aria-label={`Remove ${agent.name} override`}
-                      className="grid size-7 shrink-0 place-items-center rounded-md hover:bg-overlay-hover"
-                      onClick={() => onChangeProject({agents: overrides.filter((item) => item.name !== agent.name)})}
+                      className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink"
+                      onClick={() => void window.desktopApi?.openDirectory(project.path)}
                     >
-                      <Icon name="x" size="xs" />
+                      Open in Finder
                     </Button>
-                  </ConfigCard>
-                ))}
-              </div>
-            </SettingsRow>
-            <SettingsRow description="Copies the harness definition into this project so you can change it here." title="Add an override">
-              <div className="flex flex-wrap items-center gap-2">
-                <ConfigChoice
-                  className="sm:w-56"
-                  label="Agent to override"
-                  value={overrideName}
-                  options={harness.agents.length ? harness.agents.map((agent) => ({value: agent.name, label: agentLabel(agent.name)})) : [{value: "", label: "No specialists yet"}]}
-                  onChange={setOverrideName}
-                />
-                <Button
-                  className="px-3 py-2 text-xs"
-                  variant="filled"
-                  disabled={!overrideName || overrides.some((agent) => agent.name === overrideName)}
-                  onClick={() => {
-                    const agent = harness.agents.find((item) => item.name === overrideName);
-                    if (agent) onChangeProject({agents: [...overrides, agent]});
-                  }}
-                >
-                  Override specialist
-                </Button>
-              </div>
-            </SettingsRow>
-          </SettingsGroup>
-        </>
-      )}
-    </AgentWorkbench>
+                  )
+                }
+                description={project.folderMissing ? "This folder no longer exists on the server." : "Set when the project was linked; it cannot be changed here."}
+                title="Folder on the server"
+              >
+                <p className="break-all font-mono text-xs text-ink-muted">{project.path}</p>
+              </SettingsRow>
+              <AgentIdentityPicker name={project.id} color={color} kind="lead" onChange={(next) => onChangeProject({color: next})} />
+              {parent && <SettingsRow description={agentLabel(parent.name)} title="Part of" />}
+            </SettingsGroup>
+          )}
+        </SettingsPageShell>
+      </section>
+    </div>
   );
 }

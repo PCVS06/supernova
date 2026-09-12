@@ -1,7 +1,7 @@
 /** Top-level areas of harness configuration. One tab bar, one URL section per panel. */
 export type HarnessTabId = "agents" | "resources" | "workflows" | "projects";
 
-export type HarnessSectionId = "orchestrator" | "leads" | "specialists" | "memory" | "skills" | "tools" | "connectors" | "context" | "workflows" | "limits" | "projects";
+export type HarnessSectionId = "orchestrator" | "leads" | "specialists" | "skills" | "tools" | "connectors" | "context" | "workflows" | "limits" | "projects";
 
 export interface HarnessSection {
   id: HarnessSectionId;
@@ -24,7 +24,6 @@ export const harnessTabs: readonly HarnessTab[] = [
     ["orchestrator", "Main orchestrator"],
     ["leads", "Project leads"],
     ["specialists", "Specialists"],
-    ["memory", "Memory"],
   ]),
   tab("resources", "Resources", [
     ["skills", "Skills"],
@@ -34,7 +33,7 @@ export const harnessTabs: readonly HarnessTab[] = [
   ]),
   tab("workflows", "Workflows", [
     ["workflows", "Workflows"],
-    ["limits", "Run limits"],
+    ["limits", "Limits"],
   ]),
   tab("projects", "Projects", [["projects", "Projects"]]),
 ];
@@ -46,7 +45,9 @@ const legacySections: Record<string, HarnessSectionId> = {
   Chats: "orchestrator",
   Context: "context",
   Graph: "workflows",
-  Memory: "memory",
+  // Memory is no longer a panel of its own; every agent page carries its own memory tab.
+  Memory: "specialists",
+  memory: "specialists",
   Overview: "orchestrator",
   Prompts: "orchestrator",
   "Run limits": "limits",

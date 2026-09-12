@@ -1,5 +1,4 @@
 import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
-import Icon from "@/components/ui/icon";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import EditorTabs from "@/features/harnesses/components/editor-tabs";
 import type {HarnessSectionId} from "@/features/harnesses/lib/harness-sections";
@@ -12,7 +11,7 @@ interface AgentRoleMapProps {
   onSelect: (projectId: string | undefined, section: HarnessSectionId) => void;
 }
 
-/** Sub-navigation of the Agents tab: the main orchestrator, project leads, specialists, and what they remember. */
+/** Sub-navigation of the Agents tab: the main orchestrator, the project leads, the specialists. */
 export default function AgentRoleMap(props: AgentRoleMapProps) {
   const {harness, project, projects, section, onSelect} = props;
   const head = projects.find((item) => item.id === harness.coordinatorProjectId);
@@ -43,12 +42,6 @@ export default function AgentRoleMap(props: AgentRoleMapProps) {
       count: harness.agents.length,
       icon: <AgentMark name="specialist-roles" className="size-7" />,
       action: () => onSelect(project?.id, "specialists"),
-    },
-    {
-      value: "memory" as HarnessSectionId,
-      label: "Memory",
-      icon: <Icon className="text-ink-muted" name="archive" size="md" />,
-      action: () => onSelect(project?.id, "memory"),
     },
   ];
 

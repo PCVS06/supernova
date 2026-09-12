@@ -12,13 +12,14 @@ import EditorTabs from "@/features/harnesses/components/editor-tabs";
 import {agentColor} from "@/features/harnesses/lib/agent-identity";
 import {cn} from "@/lib/cn";
 
-export type AgentEditorSection = "settings" | "prompt" | "skills";
+export type AgentEditorSection = "settings" | "prompt" | "skills" | "memory";
 
-/** The three panels every agent-like role is edited through. */
+/** The four panels every agent-like role is edited through. Memory is part of the agent, not a place of its own. */
 const agentEditorSections: readonly {value: AgentEditorSection; label: string}[] = [
   {value: "settings", label: "Settings"},
   {value: "prompt", label: "Instructions"},
   {value: "skills", label: "Skills"},
+  {value: "memory", label: "Memory"},
 ];
 
 interface AgentWorkbenchProps {
@@ -30,26 +31,21 @@ interface AgentWorkbenchProps {
     items: readonly {id: string; name: string; color?: string; subtitle: string; searchText?: string}[];
     onChange: (id: string) => void;
     onAdd?: () => void;
-    purpose?: "memory";
   };
-  /** Detail navigation. Defaults to the shared settings/instructions/skills tabs when `section` is given instead. */
-  navigation?: ReactNode;
   section?: AgentEditorSection;
   onSectionChange?: (section: AgentEditorSection) => void;
   children: ReactNode;
 }
 
-/** Shared identity, selector, navigation and scroll ownership for agent settings, leads, projects and memory. */
+/** Shared identity, selector, navigation and scroll ownership for every agent-like role: orchestrator, leads, specialists. */
 export default function AgentWorkbench(props: AgentWorkbenchProps) {
-  const {kind, identity, selection, navigation, section, onSectionChange, children} = props;
+  const {kind, identity, selection, section, onSectionChange, children} = props;
   const [query, setQuery] = useState("");
   const prefix = kind === "lead" ? "lead" : "agent";
   const filtered = selection?.items.filter((item) => `${item.name} ${item.searchText ?? ""}`.toLowerCase().includes(query.toLowerCase())) ?? [];
-  const detailNavigation =
-    navigation ??
-    (section && onSectionChange && (
-      <EditorTabs label={kind === "lead" ? "Lead editor tabs" : "Agent editor tabs"} value={section} items={agentEditorSections} onChange={onSectionChange} />
-    ));
+  const detailNavigation = section && onSectionChange && (
+    <EditorTabs label={kind === "lead" ? "Lead editor tabs" : "Agent editor tabs"} value={section} items={agentEditorSections} onChange={onSectionChange} />
+  );
 
   return (
     <div className="harness-agent-layout flex h-full min-h-0 overflow-hidden" data-testid={`${prefix}-workbench`}>
@@ -97,7 +93,7 @@ export default function AgentWorkbench(props: AgentWorkbenchProps) {
               {filtered.map((item) => (
                 <Button
                   key={item.id}
-                  aria-label={selection.purpose === "memory" ? `View ${item.name} memory` : `Configure ${item.name}${kind === "lead" ? " lead" : ""}`}
+                  aria-label={`Configure ${item.name}${kind === "lead" ? " lead" : ""}`}
                   aria-pressed={selection.value === item.id}
                   onClick={() => selection.onChange(item.id)}
                   className={cn(
@@ -116,11 +112,7 @@ export default function AgentWorkbench(props: AgentWorkbenchProps) {
                   </span>
                 </Button>
               ))}
-              {!filtered.length && (
-                <p className="px-2 py-3 text-xs text-ink-muted">
-                  {selection.items.length ? "No matches." : selection.purpose === "memory" ? "Nothing to select yet." : "Add an agent to get started."}
-                </p>
-              )}
+              {!filtered.length && <p className="px-2 py-3 text-xs text-ink-muted">{selection.items.length ? "No matches." : "Add an agent to get started."}</p>}
             </div>
           </aside>
         </>
