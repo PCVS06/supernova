@@ -19,7 +19,6 @@ import SessionContextIndicator from "@/features/sessions/components/composer/ses
 import SessionControlsTray from "@/features/sessions/components/composer/session-controls-tray";
 import UndoneTurnsDrawer from "@/features/sessions/components/composer/undone-turns-drawer";
 import SessionActionsMenu from "@/features/sessions/components/session-actions-menu";
-import SessionContextStrip from "@/features/sessions/components/session-context-strip";
 import SessionLayout from "@/features/sessions/components/session-layout";
 import SessionTitleText from "@/features/sessions/components/session-title-text";
 import SplitSessionPicker from "@/features/sessions/components/split-session-picker";
@@ -157,21 +156,11 @@ export default function SessionConversation(props: SessionConversationProps) {
       {primary && project && <SelectChatProject key={`${project.harnessId}:${project.id}`} harnessId={project.harnessId} projectId={project.id} />}
       <SessionLayout
         actions={
-          primary ? (
-            <IconButton
-              className="size-7"
-              disabled={panes.length >= MAX_SPLIT_PANES}
-              label="Open a chat beside this one"
-              onClick={() => setSplitPickerOpen(true)}
-              title={panes.length >= MAX_SPLIT_PANES ? "Three chats are already open side by side" : "Split: open another chat beside this one"}
-            >
-              <Icon name="columns" size="sm" />
-            </IconButton>
-          ) : (
+          !primary ? (
             <IconButton className="size-7" label="Close this pane" onClick={onClose} title="Close this pane">
               <Icon name="x" size="sm" />
             </IconButton>
-          )
+          ) : undefined
         }
         appEnvironment={appEnvironment}
         badge={
@@ -179,7 +168,6 @@ export default function SessionConversation(props: SessionConversationProps) {
         }
         subtitle={project?.name ?? session.projectPath}
         color={project ? (project.color ?? (lead ? "#ffffff" : agentColor(project.id))) : undefined}
-        contextStrip={<SessionContextStrip projectPath={session.projectPath} sessionId={session.id} />}
         mark={
           <AgentMark className="size-6" color={project?.color ?? (lead ? "#ffffff" : undefined)} kind={lead ? "lead" : "specialist"} name={project?.id ?? session.projectPath} />
         }
@@ -233,6 +221,19 @@ export default function SessionConversation(props: SessionConversationProps) {
               projectPath={session.projectPath}
               slashCommandActions={{...stream.slashCommandActions, redo: handleRedo, undo: handleUndo}}
               streamStatus={stream.streamStatus}
+              toolbarActions={
+                primary ? (
+                  <IconButton
+                    className="size-7"
+                    disabled={panes.length >= MAX_SPLIT_PANES}
+                    label="Open a chat beside this one"
+                    onClick={() => setSplitPickerOpen(true)}
+                    title={panes.length >= MAX_SPLIT_PANES ? "Three chats are already open side by side" : "Split: open another chat beside this one"}
+                  >
+                    <Icon name="columns" size="sm" />
+                  </IconButton>
+                ) : undefined
+              }
               toolbarControls={
                 <div className="flex min-w-0 items-center gap-3">
                   <SessionContextIndicator context={stream.liveContext ?? session.context} />
@@ -298,7 +299,7 @@ export default function SessionConversation(props: SessionConversationProps) {
             <SessionTitleText className="block truncate" title={session.title} />
           )
         }
-        titleActions={<SessionActionsMenu onRename={startRenaming} projectPath={session.projectPath} sessionId={session.id} sessionTitle={session.title} />}
+        titleActions={!primary ? <SessionActionsMenu onRename={startRenaming} projectPath={session.projectPath} sessionId={session.id} sessionTitle={session.title} /> : undefined}
       />
       <CheckpointConflictDialog
         onCancel={stream.checkpointConflict.cancel}

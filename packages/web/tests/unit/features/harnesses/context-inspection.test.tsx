@@ -26,12 +26,14 @@ describe("context inspection", () => {
     expect(html).toContain('aria-label="Runtime"');
   });
 
-  it("puts context in the chat header without adding a project-goals strip above the conversation", () => {
-    const html = renderToStaticMarkup(
-      <SessionLayout appEnvironment="web" contextStrip={<button>Context</button>} composer={<div>Composer</div>} timeline={<div>Conversation</div>} title="Research" />
-    );
-    expect(html.indexOf("Context")).toBeLessThan(html.indexOf("</header>"));
-    expect(html.indexOf("Conversation")).toBeGreaterThan(html.indexOf("</header>"));
-    expect(html).not.toContain("Goals");
+  it.each([
+    {header: false, variant: "primary" as const},
+    {header: true, variant: "pane" as const},
+  ])("renders the $variant chat with header=$header", ({header, variant}) => {
+    const html = renderToStaticMarkup(<SessionLayout appEnvironment="web" composer={<div>Composer</div>} timeline={<div>Conversation</div>} title="Research" variant={variant} />);
+    expect(html.includes("<header")).toBe(header);
+    expect(html).toContain("Conversation");
+    expect(html).toContain("Composer");
+    expect(html.includes("Research")).toBe(header);
   });
 });

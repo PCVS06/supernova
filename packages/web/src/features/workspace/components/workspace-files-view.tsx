@@ -57,9 +57,12 @@ interface WorkspaceFilesViewProps {
   readonly sessionId: string | null;
 }
 
-/** Browses the current project: a lazy tree, a project-wide filter, and the file viewer. */
-export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
-  const {projectPath, sessionId} = props;
+interface WorkspaceFileNavigatorProps {
+  readonly projectPath: string;
+}
+
+function WorkspaceFileNavigator(props: WorkspaceFileNavigatorProps) {
+  const {projectPath} = props;
   const expandedPaths = useWorkspacePanelStore((state) => state.expandedPaths);
   const filter = useWorkspacePanelStore((state) => state.filter);
   const openFilePath = useWorkspacePanelStore((state) => state.openFilePath);
@@ -68,12 +71,15 @@ export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
   const toggleDirectory = useWorkspacePanelStore((state) => state.toggleDirectory);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <aside
+      aria-label="Project file navigation"
+      className={cn("flex min-h-0 min-w-0 flex-col bg-surface-sidebar", openFilePath ? "w-2/5 max-w-72 shrink-0 border-l border-border-muted" : "flex-1")}
+    >
       <p className="shrink-0 truncate px-3 pb-1 pt-3 text-xs text-ink-faint" title={projectPath}>
         {pathFileName(projectPath)} /
       </p>
       <SearchField aria-label="Filter project files" onChange={(event) => setFilter(event.target.value)} placeholder="Filter files" value={filter} />
-      <div className={cn("min-h-0 min-w-0 overflow-auto py-2 px-2", openFilePath ? "max-h-56 shrink-0 border-b border-border-muted" : "flex-1")}>
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto px-2 py-2">
         {filter.trim().length > 0 ? (
           <WorkspaceFilterResults filter={filter} projectPath={projectPath} />
         ) : (
@@ -87,7 +93,19 @@ export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
           />
         )}
       </div>
+    </aside>
+  );
+}
+
+/** Browses project files beside the open document, matching the app's wider document workspace. */
+export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
+  const {projectPath, sessionId} = props;
+  const openFilePath = useWorkspacePanelStore((state) => state.openFilePath);
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1">
       {openFilePath && <WorkspaceFileViewer key={`${projectPath}:${openFilePath}`} path={openFilePath} projectPath={projectPath} sessionId={sessionId} />}
+      <WorkspaceFileNavigator projectPath={projectPath} />
     </div>
   );
 }

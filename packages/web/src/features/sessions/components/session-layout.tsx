@@ -12,8 +12,6 @@ interface SessionLayoutProps {
   readonly badge?: ReactNode;
   readonly color?: string;
   readonly composer: ReactNode;
-  /** Single entry point to this chat's captured context, placed in the header. */
-  readonly contextStrip?: ReactNode;
   readonly mark?: ReactNode;
   readonly timeline: ReactNode;
   readonly title: ReactNode;
@@ -23,25 +21,26 @@ interface SessionLayoutProps {
   readonly variant?: "pane" | "primary";
 }
 
-/** One chat surface with context inspection in the header, transcript and composer. */
+/** One chat surface; routed chats stay headerless while secondary panes retain compact identity chrome. */
 export default function SessionLayout(props: SessionLayoutProps) {
-  const {actions, attachmentDropOverlayVisible = false, attachmentDropZoneProps, badge, color, composer, contextStrip, mark, timeline, title, subtitle, titleActions} = props;
+  const {
+    actions,
+    attachmentDropOverlayVisible = false,
+    attachmentDropZoneProps,
+    badge,
+    color,
+    composer,
+    mark,
+    timeline,
+    title,
+    subtitle,
+    titleActions,
+    variant = "primary",
+  } = props;
 
   return (
     <div {...attachmentDropZoneProps} className="chat-workspace relative flex min-h-0 min-w-0 flex-1 flex-col" style={{"--chat-accent": color ?? "#ffffff"} as CSSProperties}>
-      <SessionHeader
-        actions={
-          <>
-            {contextStrip}
-            {actions}
-          </>
-        }
-        badge={badge}
-        mark={mark}
-        title={title}
-        subtitle={subtitle}
-        titleActions={titleActions}
-      />
+      {variant === "pane" && <SessionHeader actions={actions} badge={badge} mark={mark} title={title} subtitle={subtitle} titleActions={titleActions} />}
       {timeline}
       {composer}
       {attachmentDropOverlayVisible && <AttachmentDropOverlay />}

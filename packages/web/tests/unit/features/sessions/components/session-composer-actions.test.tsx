@@ -41,7 +41,9 @@ describe("session composer primary action", () => {
 
     expect(html).toContain('aria-label="Send message"');
     expect(html).not.toContain("Steer");
-    expect(html).toContain("Enter sends");
+    expect(html).not.toContain("Enter sends");
+    expect(html).not.toContain("Shift+Enter");
+    expect(html).not.toContain(">/goal<");
   });
 
   it("queues by default while a turn is streaming and keeps explicit steering and stop", () => {
@@ -51,7 +53,7 @@ describe("session composer primary action", () => {
     expect(html).toContain('aria-label="Queue message"');
     expect(html).toContain('aria-label="Stop streaming"');
     expect(html).not.toContain('aria-label="Send message"');
-    expect(html).toContain("Enter queues");
+    expect(html).not.toContain("Enter queues");
   });
 
   it("keeps steering unavailable until the user has written something", () => {

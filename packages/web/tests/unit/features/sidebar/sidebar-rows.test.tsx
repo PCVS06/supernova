@@ -181,6 +181,7 @@ describe("sidebar rows", () => {
 
     expect(html).toContain(">Harness lead<");
     expect(html).not.toContain("Coordinates all labs");
+    expect(html).not.toContain("pi-orb");
   });
 
   it("names the disclosure after its project and names its chat action when chats exist", () => {

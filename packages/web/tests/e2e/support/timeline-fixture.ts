@@ -64,7 +64,7 @@ export class TimelineDriver {
     await this.page.goto(`/session/new?projectId=${projectId}`, {waitUntil: "commit"});
     await this.sendMessage();
     await expect(this.page).toHaveURL(`/session/${EMPTY_SESSION_ID}`);
-    await expect(this.page.getByRole("heading", {name: EMPTY_SESSION_TITLE})).toBeVisible();
+    await expect(this.page.getByRole("button", {name: `Open chat: ${EMPTY_SESSION_TITLE}`})).toHaveAttribute("aria-current", "page");
   }
 
   /** Navigates through the real sidebar to the second long session. */
@@ -361,13 +361,13 @@ export class TimelineDriver {
 
   private async openSession(sessionId: string, title: string): Promise<void> {
     await this.page.goto(`/session/${sessionId}`, {waitUntil: "commit"});
-    await expect(this.page.getByRole("heading", {name: title})).toBeVisible();
+    await expect(this.page.getByRole("button", {name: `Open chat: ${title}`})).toHaveAttribute("aria-current", "page");
     await expect(this.timeline()).toBeVisible();
   }
 
   private async switchToSession(title: string): Promise<void> {
-    await this.page.getByText(title, {exact: true}).click();
-    await expect(this.page.getByRole("heading", {name: title})).toBeVisible();
+    await this.page.getByRole("button", {name: `Open chat: ${title}`}).click();
+    await expect(this.page.getByRole("button", {name: `Open chat: ${title}`})).toHaveAttribute("aria-current", "page");
     await expect(this.timeline()).toBeVisible();
   }
 

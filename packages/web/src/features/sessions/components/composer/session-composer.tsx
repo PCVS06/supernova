@@ -31,8 +31,6 @@ type ComposerClipboardEvent = ClipboardEvent<HTMLElement> | globalThis.Clipboard
 
 type ComposerEditorInstance = ReturnType<typeof useEditor>;
 
-const KEYBOARD_HINT = "Enter sends · Shift+Enter adds a line";
-
 interface SessionComposerDraft {
   readonly contentParts: readonly UserMessageContentPart[];
   readonly clear?: () => void;
@@ -226,6 +224,8 @@ interface SessionComposerProps {
   readonly slashCommandActions?: ClientSlashCommandActions;
   readonly streamStatus?: SessionLiveStatus;
   readonly toolbarControls?: ReactNode;
+  /** Compact chat actions that belong beside Send instead of in a primary header. */
+  readonly toolbarActions?: ReactNode;
   readonly topExtension?: ReactNode;
 }
 
@@ -249,6 +249,7 @@ export default function SessionComposer(props: SessionComposerProps) {
     slashCommandActions,
     streamStatus = "idle",
     toolbarControls,
+    toolbarActions,
     topExtension,
   } = props;
 
@@ -428,6 +429,7 @@ export default function SessionComposer(props: SessionComposerProps) {
               {toolbarControls}
             </div>
             <div className="flex shrink-0 items-center gap-3">
+              {toolbarActions}
               <ComposerSendAction
                 canInterrupt={canInterrupt}
                 canSend={canSubmit}
@@ -440,12 +442,6 @@ export default function SessionComposer(props: SessionComposerProps) {
               />
             </div>
           </div>
-        </div>
-        <div className="flex items-center justify-between gap-3 px-1 pt-2 text-xs text-ink-faint">
-          <span role="status">{pending ? "Waiting for confirmation…" : goalMode ? "Enter starts goal" : queueMode ? "Enter queues · Steer changes this turn" : KEYBOARD_HINT}</span>
-          <Button className="shrink-0 font-mono text-xs" disabled={pending || inputDisabled} onClick={openGoalInput} title="Set a goal for this chat" variant="ghost">
-            /goal
-          </Button>
         </div>
       </div>
     </div>

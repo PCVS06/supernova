@@ -8,9 +8,10 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
-- Changed the chat workspace to a quieter, layered layout with project identity above the chat title and Files and Browser controls at the far right.
-- Changed context inspection to one entry point with directly readable Instructions, Resources and Runtime views; project planning documents remain in project settings and Files.
-- Changed the file panel to keep its tree visible while reading a document, with rendered Markdown and a source view.
+- Changed the primary chat to a headerless workspace, with Split View moved beside the composer controls and secondary panes retaining compact identity headers.
+- Changed the right workspace access to one icon toggle that opens an in-panel switcher for Files, Browser, Terminal and Context, with the panel sliding in and out like the main sidebar. Context now opens directly beside the active chat instead of in a dialog.
+- Changed the file workspace to keep the open document beside its project tree, with rendered Markdown and a source view.
+- Changed harness project rows to use a compact disclosure chevron instead of repeating the animated π mark.
 - Reworked the harness settings: every agent page has Settings, Instructions, Skills and Memory tabs; Resources is harness-wide only; the Projects tab is a per-project planning tool with Plan, Instructions and Setup; Workflows shows Workflows and Limits.
 - Redesigned the sidebar: a search field, small-caps harness headers with hover-only actions, aligned project and chat rows whose actions no longer overlap the name, a Lead pill for the coordinating project, and a quiet footer.
 - The project Plan tab is a full-height workspace: a documents column beside the open document, Save, Revert and Cmd+S, a starting structure for files that do not exist yet, and a document list that saves as soon as it changes.
@@ -30,6 +31,7 @@ All notable changes to Supernova are documented in this file.
 
 ### Removed
 
+- Removed the keyboard hint and `/goal` shortcut row beneath the composer; goals remain available by typing the command in the composer.
 - The separate Specialist memory list and the project-scoped Context page, both replaced by the reworked settings above.
 
 ## [0.2.0]

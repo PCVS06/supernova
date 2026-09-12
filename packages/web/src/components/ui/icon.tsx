@@ -68,6 +68,7 @@ export type IconName =
   | "star-filled"
   | "stop"
   | "sun"
+  | "terminal"
   | "trash"
   | "undo"
   | "update"
@@ -137,6 +138,7 @@ const icons = {
   "star-filled": getStaticIcon(iconoirIcons, "star-solid"),
   stop: getStaticIcon(materialSymbolsIcons, "stop-rounded"),
   sun: getStaticIcon(lucideIcons, "sun"),
+  terminal: getStaticIcon(lucideIcons, "square-terminal"),
   trash: getStaticIcon(lucideIcons, "trash-2"),
   undo: getStaticIcon(lucideIcons, "undo-2"),
   update: getStaticIcon(fluentIcons, "arrow-up-16-filled"),

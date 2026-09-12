@@ -17,7 +17,6 @@ import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store
 import {hasUnseenActivity, useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
 import {formatUpdatedAt} from "@/features/projects/utils/format-updated-at";
 import {cn} from "@/lib/cn";
-import AgentMark from "@/features/harnesses/components/agent-mark";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import {useHarnessLibrary, useRemoveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
@@ -193,30 +192,14 @@ export default function ProjectListItem(props: ProjectListItemProps) {
             className={ledgerPrimaryClassName}
             onClick={handleToggle}
           >
-            <span className="relative grid size-6 shrink-0 place-items-center">
-              <span className="col-start-1 row-start-1 transition-opacity group-hover/ledger:opacity-0 group-focus-within/ledger:opacity-0 motion-reduce:transition-none">
-                {folderMissing ? (
-                  <Icon className="shrink-0 text-danger-ink" name="alert" size="sm" />
-                ) : project.harnessProjectId ? (
-                  <AgentMark
-                    name={project.harnessProjectId}
-                    kind="lead"
-                    color={project.color ?? (project.isCoordinator ? "#ffffff" : undefined)}
-                    working={workingSessions.length > 0}
-                    className="size-6 shrink-0"
-                  />
-                ) : (
-                  <Icon className="shrink-0 text-ink-faint" name={expanded ? "folder-open" : "folder"} size="sm" />
-                )}
-              </span>
-              <Icon
-                name="chevron-down"
-                size="xs"
-                className={cn(
-                  "col-start-1 row-start-1 text-ink-faint opacity-0 transition-opacity group-hover/ledger:opacity-100 group-focus-within/ledger:opacity-100 motion-reduce:transition-none",
-                  !expanded && "-rotate-90"
-                )}
-              />
+            <span className="grid size-6 shrink-0 place-items-center">
+              {folderMissing ? (
+                <Icon className="shrink-0 text-danger-ink" name="alert" size="sm" />
+              ) : project.harnessProjectId ? (
+                <Icon className={cn("text-ink-faint transition-transform motion-reduce:transition-none", !expanded && "-rotate-90")} name="chevron-down" size="xs" />
+              ) : (
+                <Icon className="shrink-0 text-ink-faint" name={expanded ? "folder-open" : "folder"} size="sm" />
+              )}
             </span>
             <span className="min-w-0 flex-1">
               <span className="line-clamp-2 break-words text-sm font-medium leading-5">{projectLabel}</span>

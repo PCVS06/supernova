@@ -63,6 +63,20 @@ async function expectResponse(page: Page, prompt: string): Promise<void> {
   await expect(page.getByRole("button", {name: "Send message"})).toBeVisible();
 }
 
+async function openWorkspaceView(page: Page, view: "Browser" | "Context" | "Files" | "Terminal"): Promise<void> {
+  const panel = page.getByRole("complementary", {name: "Workspace panel"});
+  if (!(await panel.isVisible())) {
+    await page.getByRole("button", {name: "Toggle workspace panel"}).click();
+    await expect(panel).toBeVisible();
+  }
+  const switcher = panel.getByRole("navigation", {name: "Workspace view switcher"});
+  if (!(await switcher.isVisible())) {
+    await panel.getByRole("button", {name: "Switch workspace view"}).click();
+    await expect(switcher).toBeVisible();
+  }
+  await switcher.getByRole("button", {name: `Open ${view} workspace`}).click();
+}
+
 async function runCheckpointCommand(page: Page, command: "redo" | "undo"): Promise<void> {
   const editor = page.locator('[contenteditable="true"]').first();
   const suggestionName = command === "undo" ? /^Undo Roll back to the previous checkpoint$/ : /^Redo Restore the next undone checkpoint$/;
@@ -85,13 +99,13 @@ test("creates a session, streams a response, and reloads the persisted conversat
   await test.step("Create a session and receive a streamed response", async () => {
     await openProject(page);
     await sendMessage(page, prompt);
-    await expect(page.getByRole("heading", {name: prompt})).toBeVisible();
+    await expect(page.getByRole("button", {name: `Open chat: ${prompt}`})).toBeVisible();
     await expectResponse(page, prompt);
   });
 
   await test.step("Reload and verify the conversation was persisted", async () => {
     await page.reload();
-    await expect(page.getByRole("heading", {name: prompt})).toBeVisible();
+    await expect(page.getByRole("button", {name: `Open chat: ${prompt}`})).toBeVisible();
     await expect(sessionTimeline(page).getByText(prompt, {exact: true})).toHaveCount(1);
     await expect(sessionTimeline(page).getByText(`Runtime response: ${prompt}`, {exact: true})).toHaveCount(1);
   });
@@ -111,16 +125,16 @@ test("switching away and back during streaming never duplicates the active user 
     await expect(page.getByRole("heading", {name: "What would you like to work on?"})).toBeVisible();
     resetControl("duplicate-message");
     await sendMessage(page, prompt);
-    await expect(page.getByRole("heading", {name: prompt})).toBeVisible();
+    await expect(page.getByRole("button", {name: `Open chat: ${prompt}`})).toBeVisible();
     await expect.poll(() => existsSync(controlPath("started-duplicate-message"))).toBe(true);
     await expect(page.getByRole("button", {name: "Stop streaming"})).toBeVisible();
   });
 
   await test.step("Switch away and back while the response is active", async () => {
     await page.locator("aside").getByText("Create alternate session", {exact: true}).click();
-    await expect(page.getByRole("heading", {name: "Create alternate session"})).toBeVisible();
+    await expect(page.getByRole("button", {name: "Open chat: Create alternate session"})).toHaveAttribute("aria-current", "page");
     await page.locator("aside").getByText(prompt, {exact: true}).click();
-    await expect(page.getByRole("heading", {name: prompt})).toBeVisible();
+    await expect(page.getByRole("button", {name: `Open chat: ${prompt}`})).toHaveAttribute("aria-current", "page");
     await expect(sessionTimeline(page).getByText(prompt, {exact: true})).toHaveCount(1);
   });
 
@@ -172,7 +186,7 @@ test("reloading during streaming reconnects to the server-owned response", async
 
   await test.step("Reload while the provider request remains active", async () => {
     await page.reload();
-    await expect(page.getByRole("heading", {name: prompt})).toBeVisible();
+    await expect(page.getByRole("button", {name: `Open chat: ${prompt}`})).toHaveAttribute("aria-current", "page");
   });
 
   await test.step("Release and verify the response completes exactly once", async () => {
@@ -221,7 +235,7 @@ test("two sessions can run independently", async ({page}) => {
 
   await test.step("Return to session A and complete its response", async () => {
     await page.locator("aside").getByText(firstPrompt, {exact: true}).click();
-    await expect(page.getByRole("heading", {name: firstPrompt})).toBeVisible();
+    await expect(page.getByRole("button", {name: `Open chat: ${firstPrompt}`})).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("button", {name: "Stop streaming"})).toBeVisible();
     writeFileSync(controlPath("release-concurrent-session-a"), "");
     await expectResponse(page, firstPrompt);
@@ -267,24 +281,33 @@ test("undo and redo survive a reload", async ({page}) => {
   });
 });
 
-test("inspects context directly and keeps project navigation beside a readable file", async ({page}) => {
+test("offers terminal and context beside readable project files", async ({page}) => {
   await openProject(page);
   await sendMessage(page, "Review this plan");
   await expectResponse(page, "Review this plan");
 
-  await page.getByRole("button", {name: "Context", exact: true}).click();
-  const context = page.getByRole("dialog", {name: "Chat context"});
-  await expect(context).toBeVisible();
-  await expect(context.getByRole("button", {name: "Instructions"})).toBeVisible();
-  await context.getByRole("button", {name: "Runtime", exact: true}).click();
-  await expect(context.getByText("Exact runtime system prompt", {exact: true})).toBeVisible();
-  await page.getByRole("button", {name: "Close dialog"}).click();
-
-  await page.getByRole("button", {name: "Toggle project files"}).click();
+  await expect(page.locator(".chat-workspace > header")).toHaveCount(0);
+  await expect(page.getByText("Enter sends · Shift+Enter adds a line", {exact: true})).toHaveCount(0);
+  await expect(page.getByRole("button", {name: "/goal", exact: true})).toHaveCount(0);
+  await openWorkspaceView(page, "Terminal");
   const panel = page.getByRole("complementary", {name: "Workspace panel"});
+  await expect(panel.getByText("Terminal transport required", {exact: true})).toBeVisible();
+
+  await openWorkspaceView(page, "Context");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("button", {name: "Instructions"})).toBeVisible();
+  await panel.getByRole("button", {name: "Runtime", exact: true}).click();
+  await expect(panel.getByText("Exact runtime system prompt", {exact: true})).toBeVisible();
+
+  await openWorkspaceView(page, "Files");
   await panel.getByRole("button", {name: "PLAN.md", exact: true}).click();
   await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
   await expect(panel.getByRole("list", {name: "Project files"})).toBeVisible();
+  const fileNavigation = panel.getByRole("complementary", {name: "Project file navigation"});
+  const [headingBounds, navigationBounds] = await Promise.all([panel.getByRole("heading", {name: "Project plan"}).boundingBox(), fileNavigation.boundingBox()]);
+  expect(headingBounds).not.toBeNull();
+  expect(navigationBounds).not.toBeNull();
+  expect(navigationBounds!.x).toBeGreaterThan(headingBounds!.x);
   await panel.getByRole("button", {name: "Source", exact: true}).click();
   await expect(panel.getByText("# Project plan", {exact: true})).toBeVisible();
   await panel.getByRole("button", {name: "Add to chat", exact: true}).click();
@@ -334,7 +357,7 @@ test("keeps workspace tools at the right edge while chats are split", async ({pa
     .click();
   await expect(page.locator(".chat-workspace")).toHaveCount(2);
 
-  await page.getByRole("button", {name: "Toggle project files"}).click();
+  await openWorkspaceView(page, "Files");
   const panel = page.getByRole("complementary", {name: "Workspace panel"});
   await expect(panel).toBeInViewport({ratio: 1});
   const bounds = await panel.boundingBox();
@@ -345,7 +368,7 @@ test("keeps workspace tools at the right edge while chats are split", async ({pa
   await page.route("https://example.com/pi-workspace-test", (route) =>
     route.fulfill({contentType: "text/html", body: "<!doctype html><html><body><h1>Reference alongside chats</h1></body></html>"})
   );
-  await page.getByRole("button", {name: "Toggle browser", exact: true}).click();
+  await openWorkspaceView(page, "Browser");
   await panel.getByRole("textbox", {name: "Page address"}).fill("https://example.com/pi-workspace-test");
   await panel.getByRole("textbox", {name: "Page address"}).press("Enter");
   await expect(page.frameLocator('iframe[title="Workspace browser"]').getByRole("heading", {name: "Reference alongside chats"})).toBeVisible();
