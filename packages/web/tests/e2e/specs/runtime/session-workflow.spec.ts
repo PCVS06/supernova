@@ -210,7 +210,7 @@ test("two sessions can run independently", async ({page}) => {
   });
 
   await test.step("Complete a response in session B while session A is active", async () => {
-    await page.getByRole("button", {exact: true, name: "New session in runtime-e2e"}).click();
+    await page.getByRole("button", {exact: true, name: "New chat in runtime-e2e"}).click();
     await expect(page.getByRole("heading", {name: "What should we build in runtime-e2e?"})).toBeVisible();
     await sendMessage(page, secondPrompt);
     await expectResponse(page, secondPrompt);

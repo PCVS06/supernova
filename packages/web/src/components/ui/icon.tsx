@@ -15,6 +15,7 @@ import {getIconData} from "@iconify/utils";
 import {cn} from "@/lib/cn";
 
 export type IconName =
+  | "alert"
   | "archive"
   | "arrow-down"
   | "arrow-left"
@@ -42,6 +43,7 @@ export type IconName =
   | "monitor"
   | "moon"
   | "more-horizontal"
+  | "new-chat"
   | "new-session"
   | "panel-left"
   | "panel-right"
@@ -61,6 +63,7 @@ export type IconName =
   | "settings"
   | "shield"
   | "skill"
+  | "sliders"
   | "star"
   | "star-filled"
   | "stop"
@@ -81,6 +84,7 @@ function getStaticIcon(collection: Parameters<typeof getIconData>[0], name: stri
 }
 
 const icons = {
+  alert: getStaticIcon(lucideIcons, "triangle-alert"),
   archive: getStaticIcon(lucideIcons, "archive"),
   "arrow-down": getStaticIcon(lucideIcons, "arrow-down"),
   "arrow-left": getStaticIcon(lucideIcons, "arrow-left"),
@@ -108,6 +112,7 @@ const icons = {
   monitor: getStaticIcon(lucideIcons, "monitor"),
   moon: getStaticIcon(lucideIcons, "moon"),
   "more-horizontal": getStaticIcon(lucideIcons, "more-horizontal"),
+  "new-chat": getStaticIcon(lucideIcons, "message-square-plus"),
   "new-session": getStaticIcon(cuidaIcons, "edit-outline"),
   "panel-left": getStaticIcon(tablerIcons, "layout-sidebar"),
   "panel-right": getStaticIcon(lucideIcons, "panel-right"),
@@ -127,6 +132,7 @@ const icons = {
   settings: getStaticIcon(lucideIcons, "settings"),
   shield: getStaticIcon(lucideIcons, "shield"),
   skill: getStaticIcon(mingcuteIcons, "tool-line"),
+  sliders: getStaticIcon(lucideIcons, "sliders-horizontal"),
   star: getStaticIcon(lucideIcons, "star"),
   "star-filled": getStaticIcon(iconoirIcons, "star-solid"),
   stop: getStaticIcon(materialSymbolsIcons, "stop-rounded"),

@@ -19,17 +19,25 @@ const dragMeasuring = {droppable: {strategy: MeasuringStrategy.Always}};
 interface SortableProjectItemProps {
   activeSessionId: string;
   expanded: boolean;
+  folderMissing: boolean;
   project: ProjectListProject;
   onToggle: (projectId: string) => void;
 }
 
 function SortableProjectItem(props: SortableProjectItemProps) {
-  const {activeSessionId, expanded, onToggle, project} = props;
+  const {activeSessionId, expanded, folderMissing, onToggle, project} = props;
   const {isDragging, listeners, setNodeRef, transform, transition} = useSortable({id: project.id});
 
   return (
     <li className={cn(isDragging && "opacity-0")} ref={setNodeRef} style={{transform: CSS.Translate.toString(transform), transition}} {...listeners}>
-      <ProjectListItem activeSessionId={activeSessionId} dragging={isDragging} expanded={expanded && !isDragging} onToggle={onToggle} project={project} />
+      <ProjectListItem
+        activeSessionId={activeSessionId}
+        dragging={isDragging}
+        expanded={expanded && !isDragging}
+        folderMissing={folderMissing}
+        onToggle={onToggle}
+        project={project}
+      />
     </li>
   );
 }
@@ -38,13 +46,15 @@ interface SortableProjectListProps {
   activeSessionId: string;
   className?: string;
   expandedProjectIds: Set<string>;
+  /** Harness project ids whose folder is gone from disk. */
+  missingFolderProjectIds?: ReadonlySet<string>;
   projects: ProjectListProject[];
   onToggleProject: (projectId: string) => void;
 }
 
 /** Project list where items can be drag-reordered within their own section. */
 export default function SortableProjectList(props: SortableProjectListProps) {
-  const {activeSessionId, className, expandedProjectIds, onToggleProject, projects} = props;
+  const {activeSessionId, className, expandedProjectIds, missingFolderProjectIds, onToggleProject, projects} = props;
 
   const reorderProject = useProjectsStore((state) => state.reorderProject);
   const library = useHarnessLibrary();
@@ -52,6 +62,8 @@ export default function SortableProjectList(props: SortableProjectListProps) {
   const suppressClickRef = useRef(false);
   const [activeProject, setActiveProject] = useState<ProjectListProject | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, {activationConstraint: {distance: 6}}));
+
+  const isFolderMissing = (project: ProjectListProject): boolean => !!project.harnessProjectId && missingFolderProjectIds?.has(project.harnessProjectId) === true;
 
   const handleDragStart = (event: DragStartEvent): void => {
     setActiveProject(projects.find((project) => project.id === event.active.id) ?? null);
@@ -106,17 +118,31 @@ export default function SortableProjectList(props: SortableProjectListProps) {
       sensors={sensors}
     >
       <SortableContext items={projects.map((project) => project.id)} strategy={verticalListSortingStrategy}>
-        <ul className={className} onClickCapture={handleClickCapture}>
+        <ul className={cn("space-y-px", className)} onClickCapture={handleClickCapture}>
           {projects.map((project) => (
-            <SortableProjectItem activeSessionId={activeSessionId} expanded={expandedProjectIds.has(project.id)} key={project.id} onToggle={onToggleProject} project={project} />
+            <SortableProjectItem
+              activeSessionId={activeSessionId}
+              expanded={expandedProjectIds.has(project.id)}
+              folderMissing={isFolderMissing(project)}
+              key={project.id}
+              onToggle={onToggleProject}
+              project={project}
+            />
           ))}
         </ul>
       </SortableContext>
       {createPortal(
         <DragOverlay>
           {activeProject && (
-            <div className="rounded-xl corner-superellipse/1.3 bg-surface-raised">
-              <ProjectListItem activeSessionId={activeSessionId} dragging expanded={false} onToggle={onToggleProject} project={activeProject} />
+            <div className="rounded-md bg-surface-raised shadow-md">
+              <ProjectListItem
+                activeSessionId={activeSessionId}
+                dragging
+                expanded={false}
+                folderMissing={isFolderMissing(activeProject)}
+                onToggle={onToggleProject}
+                project={activeProject}
+              />
             </div>
           )}
         </DragOverlay>,

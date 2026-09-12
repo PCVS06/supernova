@@ -1,4 +1,4 @@
-import Button from "@/components/ui/button";
+import type {KeyboardEvent} from "react";
 import PiOrb from "@/components/brand/pi-orb";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
@@ -22,7 +22,7 @@ interface ProjectSessionListItemProps {
   onTogglePinned: () => void;
 }
 
-/** Renders a sidebar session with shared actions and local inline renaming. */
+/** Renders a sidebar chat with shared actions and local inline renaming. */
 export default function ProjectSessionListItem(props: ProjectSessionListItemProps) {
   const {session, projectPath, selected, streaming, unseen, onOpen, onPrefetch, onTogglePinned, color, managed} = props;
   const renameSession = useRenameSession();
@@ -31,36 +31,30 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
     onSave: (title) => renameSession.mutate({sessionId: session.id, title}),
   });
 
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    onOpen();
+  };
+
   return (
     <li onFocusCapture={onPrefetch} onPointerDown={onPrefetch} onPointerEnter={onPrefetch}>
-      <Button
-        as="div"
+      <div
+        aria-current={selected ? "page" : undefined}
         className={cn(
-          "group/session flex w-full items-center gap-2 border-l-2 border-transparent py-1.5 pl-2 pr-1 text-left",
-          selected && "border-l-ink bg-overlay-pressed text-ink"
+          "group/session flex h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-2 text-left text-ink-muted hover:bg-overlay-hover hover:text-ink",
+          selected && "bg-overlay-pressed text-ink-strong"
         )}
         onClick={onOpen}
-        style={selected ? {borderLeftColor: color, color} : undefined}
-        variant="primary"
+        onKeyDown={handleRowKeyDown}
+        role="button"
+        tabIndex={0}
+        title={session.title}
       >
-        <IconButton
-          className={cn("group/pin-toggle size-4 shrink-0", !session.pinned && "invisible group-hover/session:visible")}
-          label={session.pinned ? "Unpin session" : "Pin session"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onTogglePinned();
-          }}
-        >
-          <Icon
-            className="origin-center transition-transform duration-250 ease-[cubic-bezier(0.2,0.9,0.2,1.15)] group-active/pin-toggle:scale-85 group-active/pin-toggle:-rotate-8 motion-reduce:transition-none"
-            name="pin"
-            size="xs"
-          />
-        </IconButton>
-        {renaming && (
+        {renaming ? (
           <input
-            aria-label="Session title"
-            className="min-w-0 flex-1 truncate bg-transparent text-sm outline-none"
+            aria-label="Chat title"
+            className="min-w-0 flex-1 truncate bg-transparent text-[13px] text-ink outline-none"
             onBlur={handleBlur}
             onChange={handleChange}
             onClick={handleClick}
@@ -70,27 +64,46 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
             ref={handleInputRef}
             value={draftName}
           />
+        ) : (
+          <SessionTitleText className="min-w-0 flex-1 truncate text-[13px] leading-5" title={session.title} />
         )}
-        {!renaming && <SessionTitleText className="min-w-0 flex-1 truncate text-sm" title={session.title} />}
-        <span className="grid w-12 shrink-0 place-items-center justify-items-end">
-          <span className="col-start-1 row-start-1 w-full justify-self-end whitespace-nowrap pr-1.5 text-right text-xs text-ink-muted group-hover/session:invisible group-focus-within/session:invisible group-has-[[data-popup-open]]/session:invisible">
+        <span className="grid w-12 shrink-0 place-items-end">
+          <span className="col-start-1 row-start-1 flex items-center justify-end pr-1 group-hover/session:invisible group-focus-within/session:invisible group-has-[[data-popup-open]]/session:invisible">
             {streaming ? (
-              <PiOrb color={color} className="ml-auto size-5" label="Session streaming" state="working" />
+              <PiOrb color={color} className="size-4" label="Chat streaming" state="working" />
             ) : unseen ? (
-              <span className="inline-block size-1.5 bg-ink" aria-label="Finished while closed" role="status" />
+              <span className="inline-block size-1.5 rounded-full bg-ink" aria-label="Finished while closed" role="status" />
+            ) : session.pinned ? (
+              <Icon className="text-ink-faint" name="pin" size="xs" />
             ) : (
-              session.updatedAt
+              <span className="font-mono text-[10px] tabular-nums text-ink-faint">{session.updatedAt}</span>
             )}
           </span>
-          <SessionActionsMenu
-            onRename={startRenaming}
-            projectPath={projectPath}
-            sessionId={session.id}
-            sessionTitle={session.title}
-            triggerClassName="col-start-1 row-start-1 size-5 opacity-0 group-hover/session:opacity-100 group-focus-within/session:opacity-100 data-popup-open:opacity-100"
-          />
+          <span className="col-start-1 row-start-1 flex items-center gap-0.5 opacity-0 group-hover/session:opacity-100 group-focus-within/session:opacity-100 group-has-[[data-popup-open]]/session:opacity-100">
+            <IconButton
+              className="group/pin-toggle size-5 rounded-md text-ink-faint hover:bg-overlay-pressed hover:text-ink"
+              label={session.pinned ? "Unpin chat" : "Pin chat"}
+              onClick={(event) => {
+                event.stopPropagation();
+                onTogglePinned();
+              }}
+            >
+              <Icon
+                className="origin-center transition-transform duration-250 ease-[cubic-bezier(0.2,0.9,0.2,1.15)] group-active/pin-toggle:scale-85 group-active/pin-toggle:-rotate-8 motion-reduce:transition-none"
+                name="pin"
+                size="xs"
+              />
+            </IconButton>
+            <SessionActionsMenu
+              onRename={startRenaming}
+              projectPath={projectPath}
+              sessionId={session.id}
+              sessionTitle={session.title}
+              triggerClassName="size-5 rounded-md hover:bg-overlay-pressed"
+            />
+          </span>
         </span>
-      </Button>
+      </div>
       {managed && <ChatRunList sessionId={session.id} live={selected || streaming} />}
     </li>
   );
