@@ -1,6 +1,5 @@
 import type {ReactNode} from "react";
 import {LayoutGroup, motion} from "framer-motion";
-import {cn} from "@/lib/cn";
 
 const TITLE_TRANSITION = {duration: 0.18, ease: "easeOut"} as const;
 
@@ -11,27 +10,31 @@ interface SessionHeaderProps {
   readonly badge?: ReactNode;
   /** The project's agent mark, so a chat is recognizable before it is read. */
   readonly mark?: ReactNode;
-  /** Sticky inset that keeps the routed chat's title clear of the window controls. */
-  readonly offsetClassName?: string;
   readonly title: ReactNode;
+  /** Project or parent conversation, kept above the title rather than mixed with actions. */
+  readonly subtitle?: ReactNode;
   readonly titleActions?: ReactNode;
 }
 
 /** One header row for a chat: its mark, title, role badge and actions. */
 export default function SessionHeader(props: SessionHeaderProps) {
-  const {actions, badge, mark, offsetClassName, title, titleActions} = props;
+  const {actions, badge, mark, subtitle, title, titleActions} = props;
 
   return (
-    <header className="relative flex h-12 min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border-muted px-4">
+    <header className="relative flex min-h-18 min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border-muted px-4 py-3">
       <LayoutGroup>
-        {/* Sticky so the cluster clears the window controls only while the sidebar is
-            collapsed, and the window drag region covers this row, so it stays above it. */}
-        <div className={cn("sticky z-20 flex h-7 min-w-0 items-center gap-2 overflow-visible", offsetClassName)}>
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {mark && <span className="shrink-0">{mark}</span>}
-          <motion.h1 className="min-w-0 max-w-xs truncate text-sm font-medium leading-5 text-ink" layout="position" transition={TITLE_TRANSITION}>
-            {title}
-          </motion.h1>
-          {badge}
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex min-w-0 items-center gap-1.5 text-xs text-ink-faint">
+              {subtitle && <span className="truncate">{subtitle}</span>}
+              {subtitle && badge && <span aria-hidden="true">/</span>}
+              {badge}
+            </div>
+            <motion.h1 className="truncate text-base font-medium leading-5 text-ink" layout="position" transition={TITLE_TRANSITION}>
+              {title}
+            </motion.h1>
+          </div>
           {titleActions && (
             <motion.div className="shrink-0" layout="position" transition={TITLE_TRANSITION}>
               {titleActions}

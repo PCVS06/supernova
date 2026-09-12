@@ -84,20 +84,24 @@ describe("steering a running session", () => {
     expect(events.filter((event) => event.type === "session.agent.started")).toHaveLength(1);
   });
 
-  it("ignores steering while the session is idle", async () => {
+  it("rejects steering while the session is idle or missing", async () => {
     const pi = await createPiTestRuntime();
     runtimes.push(pi);
     const {info, manager} = pi.createSession();
     pi.faux.setResponses([fauxAssistantMessage("Done"), fauxAssistantMessage("Must never run")]);
     await pi.sendMessage({message: "Start the work", modelReference: selectedModelReference, sessionId: info.id});
 
-    await pi.runWithSessionRuntime(
-      Effect.gen(function* () {
-        const sessionRuntime = yield* SessionRuntimeService;
-        yield* sessionRuntime.steerSession({sessionId: info.id, text: "Too late"});
-        yield* sessionRuntime.steerSession({sessionId: "never-started", text: "No runtime at all"});
-      })
-    );
+    await expect(
+      pi.runWithSessionRuntime(
+        Effect.gen(function* () {
+          const sessionRuntime = yield* SessionRuntimeService;
+          yield* sessionRuntime.steerSession({sessionId: info.id, text: "Too late"});
+        })
+      )
+    ).rejects.toThrow("not accepting steering");
+    await expect(
+      pi.runWithSessionRuntime(Effect.flatMap(Effect.service(SessionRuntimeService), (runtime) => runtime.steerSession({sessionId: "never-started", text: "No runtime at all"})))
+    ).rejects.toThrow("not accepting steering");
 
     // A delivered message would have reached the provider and been persisted as a second user message.
     expect(pi.faux.getPendingResponseCount()).toBe(1);

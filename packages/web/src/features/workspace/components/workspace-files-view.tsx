@@ -5,6 +5,8 @@ import {useFolderFiles} from "@/features/workspace/hooks/api/use-folder-files";
 import WorkspaceFileTree from "@/features/workspace/components/workspace-file-tree";
 import WorkspaceFileViewer from "@/features/workspace/components/workspace-file-viewer";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
+import {pathFileName} from "@/features/workspace/lib/workspace-paths";
+import {cn} from "@/lib/cn";
 
 interface WorkspaceFilterResultsProps {
   readonly filter: string;
@@ -65,12 +67,13 @@ export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
   const setFilter = useWorkspacePanelStore((state) => state.setFilter);
   const toggleDirectory = useWorkspacePanelStore((state) => state.toggleDirectory);
 
-  if (openFilePath) return <WorkspaceFileViewer path={openFilePath} projectPath={projectPath} sessionId={sessionId} />;
-
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <p className="shrink-0 truncate px-3 pb-1 pt-3 text-xs text-ink-faint" title={projectPath}>
+        {pathFileName(projectPath)} /
+      </p>
       <SearchField aria-label="Filter project files" onChange={(event) => setFilter(event.target.value)} placeholder="Filter files" value={filter} />
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto py-1 pl-1 pr-2">
+      <div className={cn("min-h-0 min-w-0 overflow-auto py-2 px-2", openFilePath ? "max-h-56 shrink-0 border-b border-border-muted" : "flex-1")}>
         {filter.trim().length > 0 ? (
           <WorkspaceFilterResults filter={filter} projectPath={projectPath} />
         ) : (
@@ -84,6 +87,7 @@ export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
           />
         )}
       </div>
+      {openFilePath && <WorkspaceFileViewer key={`${projectPath}:${openFilePath}`} path={openFilePath} projectPath={projectPath} sessionId={sessionId} />}
     </div>
   );
 }

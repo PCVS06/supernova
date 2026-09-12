@@ -6,6 +6,8 @@ import HarnessSidebarSection from "@/features/harnesses/components/harness-sideb
 import ProjectListItem from "@/features/projects/components/project-list/project-list-item";
 import ProjectSessionListItem from "@/features/projects/components/project-list/project-session-list-item";
 import type {ProjectListProject} from "@/features/projects/types/project-list";
+import type {SessionLiveStatus} from "@/features/sessions/stores/session-live-store";
+import {sidebarSessionId} from "@/features/sidebar/lib/ledger-navigation";
 
 interface StoredSession {
   id: string;
@@ -13,7 +15,7 @@ interface StoredSession {
   updatedAt: string;
 }
 
-const state = vi.hoisted(() => ({sessions: [] as StoredSession[], pendingProposals: 0}));
+const state = vi.hoisted(() => ({sessions: [] as StoredSession[], pendingProposals: 0, pathname: "/", liveSessions: {} as Record<string, {status: SessionLiveStatus}>}));
 
 function MockLink(props: {
   readonly "aria-label"?: string;
@@ -37,7 +39,7 @@ function MockLink(props: {
 
 vi.mock("@tanstack/react-router", () => ({
   Link: MockLink,
-  useLocation: () => ({pathname: "/"}),
+  useLocation: () => ({pathname: state.pathname}),
   useNavigate: () => () => undefined,
 }));
 vi.mock("@tanstack/react-query", () => ({useQueryClient: () => ({prefetchQuery: () => undefined})}));
@@ -81,7 +83,9 @@ vi.mock("@/features/projects/stores/projects-store", () => ({
       toggleSessionPinned: () => undefined,
     }),
 }));
-vi.mock("@/features/sessions/stores/session-live-store", () => ({useSessionLiveStore: (select: (store: Record<string, unknown>) => unknown) => select({sessions: {}})}));
+vi.mock("@/features/sessions/stores/session-live-store", () => ({
+  useSessionLiveStore: (select: (store: Record<string, unknown>) => unknown) => select({sessions: state.liveSessions}),
+}));
 vi.mock("@/features/sessions/stores/session-visits-store", () => ({
   hasUnseenActivity: () => false,
   useSessionVisitsStore: (select: (store: Record<string, unknown>) => unknown) => select({visits: {}}),
@@ -156,6 +160,8 @@ describe("sidebar rows", () => {
   beforeEach(() => {
     state.sessions = [];
     state.pendingProposals = 0;
+    state.pathname = "/";
+    state.liveSessions = {};
     vi.stubGlobal("window", {});
   });
 
@@ -164,25 +170,26 @@ describe("sidebar rows", () => {
 
     // The actions sit in a fixed-width right slot, so they can never cover the name.
     expect(html).toContain("Science Spaceflight Lab");
-    expect(html).toContain("w-13");
+    expect(html).toContain("w-14");
     expect(html).toContain('aria-label="New chat in Science Spaceflight Lab"');
     expect(html).toContain('aria-label="Project actions for Science Spaceflight Lab"');
     expect(html.indexOf("Science Spaceflight Lab")).toBeLessThan(html.indexOf('aria-label="New chat in Science Spaceflight Lab"'));
   });
 
-  it("marks the coordinator with a pill instead of a second line of prose", () => {
+  it("identifies the harness lead separately from the project name", () => {
     const html = renderProjectRow({isCoordinator: true});
 
-    expect(html).toContain(">Lead<");
+    expect(html).toContain(">Harness lead<");
     expect(html).not.toContain("Coordinates all labs");
   });
 
-  it("offers the expand chevron only for a project that actually has chats", () => {
+  it("names the disclosure after its project and names its chat action when chats exist", () => {
     const withoutChats = renderProjectRow();
     state.sessions = [{id: "c1", title: "Launch review", updatedAt: "2026-09-11T10:00:00Z"}];
     const withChats = renderProjectRow();
 
     expect(withoutChats).not.toContain("chats in Science Spaceflight Lab");
+    expect(withoutChats).toContain('aria-label="Science Spaceflight Lab"');
     expect(withChats).toContain('aria-label="Expand chats in Science Spaceflight Lab"');
   });
 
@@ -210,7 +217,8 @@ describe("sidebar rows", () => {
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain('aria-label="New project in Science Pi"');
     expect(html).toContain('aria-label="Harness settings for Science Pi"');
-    expect(html).toContain("uppercase");
+    expect(html).toContain(">1 project<");
+    expect(html).not.toContain("bg-surface-sidebar");
     // Rings identify projects, so the group header carries none.
     expect(html).not.toContain("pi-orb");
   });
@@ -230,10 +238,10 @@ describe("sidebar rows", () => {
     const html = renderHarnessSection([], []);
 
     expect(html).toContain("Add a project");
-    expect(html).toContain("border-dashed");
+    expect(html).toContain('aria-label="New project in Science Pi"');
   });
 
-  it("gives a chat row its title, a muted mono timestamp and a filled selection", () => {
+  it("gives the chat its own navigation target, timestamp and separate actions", () => {
     const html = renderToStaticMarkup(
       <ProjectSessionListItem
         onOpen={() => undefined}
@@ -248,10 +256,77 @@ describe("sidebar rows", () => {
     );
 
     expect(html).toContain("Launch review");
-    expect(html).toContain("font-mono");
+    expect(html).toContain('aria-label="Open chat: Launch review"');
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain('aria-label="Pin chat"');
+    // Pinning has its own button after the navigation button, never inside it.
+    const primaryButton = html.slice(html.indexOf("<button"), html.indexOf("</button>"));
+    expect(primaryButton).not.toContain('aria-label="Pin chat"');
     expect(html).toContain(">3h<");
     expect(html).toContain("bg-overlay-pressed");
     // A selected chat reads as a filled row, not as a bordered one.
     expect(html).not.toContain("border-l-2");
+  });
+
+  it.each(["streaming", "compacting", "stopping"] as const)("keeps a %s chat visible beyond the recent limit and inside a collapsed project", (status) => {
+    state.sessions = Array.from({length: 8}, (_, index) => ({id: `chat-${index}`, title: `Research ${index}`, updatedAt: `2026-09-11T10:0${index}:00Z`}));
+    state.liveSessions = {"chat-0": {status}};
+    const collapsed = renderProjectRow();
+    const expanded = renderToStaticMarkup(<ProjectListItem activeSessionId="" dragging={false} expanded onToggle={() => undefined} project={project()} />);
+    for (const html of [collapsed, expanded]) {
+      expect(html).toContain('aria-label="Open chat: Research 0"');
+      expect(html).toContain("1 working");
+    }
+    expect(collapsed).not.toContain('aria-label="Open chat: Research 7"');
+  });
+
+  it.each([
+    ["streaming", "Working"],
+    ["compacting", "Compacting"],
+    ["stopping", "Stopping"],
+  ] as const)("shows the actual %s state instead of a generic busy animation", (status, label) => {
+    const html = renderToStaticMarkup(
+      <ProjectSessionListItem
+        onOpen={() => undefined}
+        onPrefetch={() => undefined}
+        onTogglePinned={() => undefined}
+        projectPath="/work/lab"
+        selected={false}
+        session={{id: "c1", title: "Review", pinned: true, updatedAt: "3h"}}
+        streaming
+        status={status}
+        unseen={false}
+      />
+    );
+    expect(html).toContain(`>${label}<`);
+    expect(html).not.toContain(">3h<");
+  });
+
+  it.each([
+    ["/session/chat", "chat"],
+    ["/session/chat/run/worker", "chat"],
+    ["/session/chat/workflow/review", "chat"],
+    ["/session/new", ""],
+    ["/settings/harness/science", ""],
+  ])("resolves the owning chat for %s", (pathname, expected) => {
+    expect(sidebarSessionId(pathname)).toBe(expected);
+  });
+
+  it("keeps the owner chat accessible without marking it as the selected worker page", () => {
+    const html = renderToStaticMarkup(
+      <ProjectSessionListItem
+        onOpen={() => undefined}
+        onPrefetch={() => undefined}
+        onTogglePinned={() => undefined}
+        projectPath="/work/lab"
+        selected
+        current={false}
+        session={{id: "c1", title: "Owner chat", pinned: false, updatedAt: "1h"}}
+        streaming={false}
+        unseen={false}
+      />
+    );
+    expect(html).toContain('aria-label="Open chat: Owner chat"');
+    expect(html).not.toContain('aria-current="page"');
   });
 });

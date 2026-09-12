@@ -3,7 +3,7 @@ import {defaultRangeExtractor, elementScroll, useVirtualizer} from "@tanstack/re
 import type {VirtualItem} from "@tanstack/react-virtual";
 import {animate, AnimatePresence, motion, useReducedMotion} from "framer-motion";
 import {useCallback, useLayoutEffect, useRef, useState} from "react";
-import type {UIEvent} from "react";
+import type {ReactNode, UIEvent} from "react";
 import PiOrb from "@/components/brand/pi-orb";
 import {Marker, MarkerContent} from "@/components/ui/marker";
 import {MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerProvider, MessageScrollerViewport} from "@/components/ui/message-scroller";
@@ -72,6 +72,8 @@ function buildTimelineRows(input: {
 }
 
 interface SessionTimelineProps {
+  /** Observed delegated work for this chat, kept with the conversation. */
+  readonly activity?: ReactNode;
   readonly bottomOverlayHeight?: number;
   readonly compacting: boolean;
   readonly isStreaming: boolean;
@@ -87,7 +89,7 @@ interface SessionTimelineViewportProps extends SessionTimelineProps {
 }
 
 function SessionTimelineViewport(props: SessionTimelineViewportProps) {
-  const {bottomOverlayHeight = 0, compacting, isStreaming, items, liveItems, onAnchorScrollingChange, onRevertToMessage, sessionId, streamError} = props;
+  const {activity, bottomOverlayHeight = 0, compacting, isStreaming, items, liveItems, onAnchorScrollingChange, onRevertToMessage, sessionId, streamError} = props;
   const {scrollToEnd} = useMessageScroller();
   const {end: canScrollToEnd} = useMessageScrollerScrollable();
   const cachedMeasurementsRef = useRef(timelineCache.get(sessionId));
@@ -411,6 +413,7 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
                   })}
                 </div>
               </div>
+              {activity && <div className="mx-auto w-full max-w-3xl px-5 pb-4 md:px-8">{activity}</div>}
               {statusLabel && (
                 <div
                   className={cn("relative z-10 mx-auto w-full max-w-3xl bg-surface px-5 pb-8 md:px-8", pullStatusIntoLastMessage && "-mt-6")}

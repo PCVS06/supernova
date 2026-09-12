@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, rmSync, writeFileSync} from "node:fs";
+import {existsSync, mkdirSync, realpathSync, rmSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
 import {randomUUID} from "node:crypto";
 import {expect, test} from "@playwright/test";
@@ -17,9 +17,11 @@ function projectId(projectPath: string): string {
 }
 
 async function openProject(page: Page): Promise<string> {
-  const projectPath = join(e2eRoot, "projects", randomUUID());
+  const directory = join(e2eRoot, "projects", randomUUID());
+  mkdirSync(directory, {recursive: true});
+  const projectPath = realpathSync(directory);
   const id = projectId(projectPath);
-  mkdirSync(projectPath, {recursive: true});
+  writeFileSync(join(projectPath, "PLAN.md"), "# Project plan\n\n- Check evidence\n- Verify the result\n");
 
   await page.addInitScript(
     ({id: storedProjectId, path}) => {
@@ -39,7 +41,8 @@ async function openProject(page: Page): Promise<string> {
   );
 
   await page.goto(`/session/new?projectId=${encodeURIComponent(id)}`);
-  await expect(page.getByRole("heading", {name: "What should we build in runtime-e2e?"})).toBeVisible();
+  await expect(page.getByRole("heading", {name: "What would you like to work on?"})).toBeVisible();
+  await expect(page.getByText("runtime-e2e", {exact: true}).last()).toBeVisible();
   return id;
 }
 
@@ -105,7 +108,7 @@ test("switching away and back during streaming never duplicates the active user 
 
   await test.step("Start a held response in a second session", async () => {
     await page.goto(`/session/new?projectId=${encodeURIComponent(id)}`);
-    await expect(page.getByRole("heading", {name: "What should we build in runtime-e2e?"})).toBeVisible();
+    await expect(page.getByRole("heading", {name: "What would you like to work on?"})).toBeVisible();
     resetControl("duplicate-message");
     await sendMessage(page, prompt);
     await expect(page.getByRole("heading", {name: prompt})).toBeVisible();
@@ -211,7 +214,7 @@ test("two sessions can run independently", async ({page}) => {
 
   await test.step("Complete a response in session B while session A is active", async () => {
     await page.getByRole("button", {exact: true, name: "New chat in runtime-e2e"}).click();
-    await expect(page.getByRole("heading", {name: "What should we build in runtime-e2e?"})).toBeVisible();
+    await expect(page.getByRole("heading", {name: "What would you like to work on?"})).toBeVisible();
     await sendMessage(page, secondPrompt);
     await expectResponse(page, secondPrompt);
   });
@@ -262,4 +265,125 @@ test("undo and redo survive a reload", async ({page}) => {
     await expect(sessionTimeline(page).getByText(firstPrompt, {exact: true})).toHaveCount(1);
     await expect(sessionTimeline(page).getByText(secondPrompt, {exact: true})).toHaveCount(1);
   });
+});
+
+test("inspects context directly and keeps project navigation beside a readable file", async ({page}) => {
+  await openProject(page);
+  await sendMessage(page, "Review this plan");
+  await expectResponse(page, "Review this plan");
+
+  await page.getByRole("button", {name: "Context", exact: true}).click();
+  const context = page.getByRole("dialog", {name: "Chat context"});
+  await expect(context).toBeVisible();
+  await expect(context.getByRole("button", {name: "Instructions"})).toBeVisible();
+  await context.getByRole("button", {name: "Runtime", exact: true}).click();
+  await expect(context.getByText("Exact runtime system prompt", {exact: true})).toBeVisible();
+  await page.getByRole("button", {name: "Close dialog"}).click();
+
+  await page.getByRole("button", {name: "Toggle project files"}).click();
+  const panel = page.getByRole("complementary", {name: "Workspace panel"});
+  await panel.getByRole("button", {name: "PLAN.md", exact: true}).click();
+  await expect(panel.getByRole("heading", {name: "Project plan"})).toBeVisible();
+  await expect(panel.getByRole("list", {name: "Project files"})).toBeVisible();
+  await panel.getByRole("button", {name: "Source", exact: true}).click();
+  await expect(panel.getByText("# Project plan", {exact: true})).toBeVisible();
+  await panel.getByRole("button", {name: "Add to chat", exact: true}).click();
+  await expect(page.locator('[contenteditable="true"]').first()).toContainText("PLAN.md");
+  await panel.getByRole("button", {name: "Close workspace panel"}).click();
+  await expect(panel).not.toBeVisible();
+});
+
+test("queued messages survive reload, can be removed and run in FIFO order", async ({page}) => {
+  await openProject(page);
+  resetControl("queue-acceptance");
+  await sendMessage(page, "Queue acceptance message");
+  await expect.poll(() => existsSync(controlPath("started-queue-acceptance"))).toBe(true);
+  const editor = page.locator('[contenteditable="true"]').first();
+  for (const message of ["First follow-up", "Remove this follow-up", "Last follow-up"]) {
+    await editor.fill(message);
+    await editor.press("Enter");
+    await expect(editor).toHaveText("");
+  }
+  const tray = page.getByRole("region", {name: "Goal and queued messages"});
+  await expect(tray.locator("li")).toHaveCount(3);
+  await tray.getByRole("button", {name: "Remove queued message 2", exact: true}).click();
+  await expect(tray.locator("li")).toHaveCount(2);
+  await page.reload();
+  await expect(tray.locator("li")).toHaveCount(2);
+  await expect(tray.locator("summary").getByText("First follow-up", {exact: true})).toBeVisible();
+  writeFileSync(controlPath("release-queue-acceptance"), "");
+  await expectResponse(page, "Last follow-up");
+  const transcript = await sessionTimeline(page).innerText();
+  expect(transcript.indexOf("Runtime response: First follow-up")).toBeGreaterThan(-1);
+  expect(transcript.indexOf("Runtime response: First follow-up")).toBeLessThan(transcript.indexOf("Runtime response: Last follow-up"));
+  expect(transcript).not.toContain("Remove this follow-up");
+  await expect(tray).not.toBeVisible();
+});
+
+test("keeps workspace tools at the right edge while chats are split", async ({page}) => {
+  await openProject(page);
+  await sendMessage(page, "First split chat");
+  await expectResponse(page, "First split chat");
+  await page.getByRole("button", {name: "New chat in runtime-e2e", exact: true}).click();
+  await sendMessage(page, "Second split chat");
+  await expectResponse(page, "Second split chat");
+  await page.getByRole("button", {name: "Open a chat beside this one"}).click();
+  await page
+    .getByRole("dialog", {name: "Open a chat beside this one"})
+    .getByRole("button", {name: /First split chat/})
+    .click();
+  await expect(page.locator(".chat-workspace")).toHaveCount(2);
+
+  await page.getByRole("button", {name: "Toggle project files"}).click();
+  const panel = page.getByRole("complementary", {name: "Workspace panel"});
+  await expect(panel).toBeInViewport({ratio: 1});
+  const bounds = await panel.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(Math.abs(bounds!.x + bounds!.width - page.viewportSize()!.width)).toBeLessThan(2);
+  await expect(panel.getByRole("button", {name: "PLAN.md", exact: true})).toBeVisible();
+
+  await page.route("https://example.com/pi-workspace-test", (route) =>
+    route.fulfill({contentType: "text/html", body: "<!doctype html><html><body><h1>Reference alongside chats</h1></body></html>"})
+  );
+  await page.getByRole("button", {name: "Toggle browser", exact: true}).click();
+  await panel.getByRole("textbox", {name: "Page address"}).fill("https://example.com/pi-workspace-test");
+  await panel.getByRole("textbox", {name: "Page address"}).press("Enter");
+  await expect(page.frameLocator('iframe[title="Workspace browser"]').getByRole("heading", {name: "Reference alongside chats"})).toBeVisible();
+  await expect(panel).toBeInViewport({ratio: 1});
+});
+
+test("steering is applied to the active run and the accepted draft clears", async ({page}) => {
+  await openProject(page);
+  resetControl("steering-acceptance");
+  await sendMessage(page, "Steering acceptance message");
+  await expect.poll(() => existsSync(controlPath("started-steering-acceptance"))).toBe(true);
+  const editor = page.locator('[contenteditable="true"]').first();
+  await editor.fill("Focus on the acceptance criteria");
+  await page.getByRole("button", {name: "Steer now", exact: true}).click();
+  await expect(editor).toHaveText("");
+  writeFileSync(controlPath("release-steering-acceptance"), "");
+  await expectResponse(page, "Focus on the acceptance criteria");
+  await page.reload();
+  await expect(sessionTimeline(page).getByText("Runtime response: Focus on the acceptance criteria", {exact: true})).toHaveCount(1);
+});
+
+test("a first-message goal pauses, survives reload and stops at its pass limit", async ({page}) => {
+  await openProject(page);
+  resetControl("goal-acceptance");
+  const editor = page.locator('[contenteditable="true"]').first();
+  await editor.fill("/goal Validate the workspace controls");
+  await editor.press("Enter");
+  await expect.poll(() => existsSync(controlPath("started-goal-acceptance"))).toBe(true);
+  const tray = page.getByRole("region", {name: "Goal and queued messages"});
+  await expect(tray.getByText(/Active goal/)).toBeVisible();
+  await tray.getByRole("button", {name: "Pause", exact: true}).click();
+  await expect(tray.getByText(/Paused goal/)).toBeVisible();
+  await page.reload();
+  await expect(tray.getByText(/Paused goal/)).toBeVisible();
+  writeFileSync(controlPath("release-goal-acceptance"), "");
+  await expect(page.getByRole("button", {name: "Send message", exact: true})).toBeVisible();
+  await expect(tray.getByText(/1 of 10 passes/, {exact: false}).first()).toBeVisible();
+  await tray.getByRole("button", {name: "Resume", exact: true}).click();
+  await expect(tray.getByText(/Paused goal · 10 of 10 passes/)).toBeVisible({timeout: 30_000});
+  await expect(tray.getByRole("button", {name: "Resume", exact: true})).toHaveCount(0);
 });

@@ -95,7 +95,7 @@ interface ComposerSuggestionMenuProps {
   readonly onSelect: (item: ComposerSuggestionItem) => void;
   readonly onSubmit: () => void;
   readonly open: boolean;
-  readonly query: UseQueryResult<readonly ComposerSuggestionItem[]>;
+  readonly query: Pick<UseQueryResult<readonly ComposerSuggestionItem[]>, "data" | "isLoading" | "isError" | "isSuccess" | "error">;
 }
 
 export default function ComposerSuggestionMenu(props: ComposerSuggestionMenuProps) {

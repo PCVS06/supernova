@@ -84,7 +84,7 @@ export default function WorkflowRunPage({sessionId, runId}: {sessionId: string; 
   const query = useWorkflowRun(sessionId, runId);
   const run = query.data;
   return (
-    <div className="flex min-h-0 flex-1 flex-col pt-12">
+    <div className="flex min-h-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-border px-6 py-3">
         <Link to="/session/$sessionId" params={{sessionId}} className="text-sm text-ink-muted">
           ← Back to owning chat

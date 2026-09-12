@@ -91,7 +91,12 @@ function streamRpcClient(events: readonly SessionStreamEvent[]): RpcClient {
   } as RpcClient & {readonly interrupted: boolean};
 }
 
-function commandRpcClient(input?: {readonly rejectNavigation?: boolean; readonly rejectSend?: boolean}): RpcClient {
+function commandRpcClient(input?: {
+  readonly rejectNavigation?: boolean;
+  readonly rejectSend?: boolean;
+  readonly rejectSteer?: boolean;
+  readonly sendAck?: Promise<void>;
+}): RpcClient {
   return {
     dispose: vi.fn(async () => undefined),
     fork: vi.fn(),
@@ -101,7 +106,8 @@ function commandRpcClient(input?: {readonly rejectNavigation?: boolean; readonly
         compactSession: () => Effect.void,
         redoCheckpoint: () => (input?.rejectNavigation ? Effect.fail(new Error("Checkpoint unavailable")) : Effect.void),
         revertToMessage: () => (input?.rejectNavigation ? Effect.fail(new Error("Checkpoint unavailable")) : Effect.void),
-        sendMessage: () => (input?.rejectSend ? Effect.fail(new Error("Model unavailable")) : Effect.void),
+        sendMessage: () => (input?.sendAck ? Effect.promise(() => input.sendAck!) : input?.rejectSend ? Effect.fail(new Error("Model unavailable")) : Effect.void),
+        steerSession: () => (input?.rejectSteer ? Effect.fail(new Error("The turn is no longer running")) : Effect.void),
         undoCheckpoint: () => (input?.rejectNavigation ? Effect.fail(new Error("Checkpoint unavailable")) : Effect.void),
       } as unknown as RpcProtocolClient;
       return await Effect.runPromise(execute(protocol));
@@ -223,6 +229,48 @@ describe("session live store", () => {
       expect(useSessionLiveStore.getState().sessions["session-1"]).toMatchObject({error: "Model unavailable", liveTurn: null, status: "idle"});
     });
     expect(queryClient.getQueryData(sessionQueryKey("session-1"))).toEqual(previousSession);
+  });
+
+  it.each(["before snapshot", "after snapshot"])("does not confuse send acceptance %s with transcript commitment", async (order) => {
+    let acknowledge = (): void => {
+      throw new Error("Missing acknowledgement");
+    };
+    const sendAck = new Promise<void>((resolve) => {
+      acknowledge = resolve;
+    });
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(sessionQueryKey("session-1"), session());
+    const delivery = useSessionLiveStore.getState().sendMessage({contentParts, modelReference: model, queryClient, rpcClient: commandRpcClient({sendAck}), sessionId: "session-1"});
+    expect(useSessionLiveStore.getState().sessions["session-1"]?.liveTurn?.userMessage.contentParts).toEqual(contentParts);
+    if (order === "before snapshot") {
+      acknowledge();
+      expect(await delivery).toBe(true);
+      expect(useSessionLiveStore.getState().sessions["session-1"]?.status).toBe("streaming");
+    }
+    const committed = session({turns: [turn({status: "completed"})]});
+    disconnect = connectSessionEvents({queryClient, rpcClient: streamRpcClient([{revision: 1, sessionId: "session-1", session: committed, type: "session.snapshot"}])});
+    await waitUntil(() => expect(useSessionLiveStore.getState().sessions["session-1"]?.liveTurn).toBeNull());
+    if (order === "after snapshot") {
+      acknowledge();
+      expect(await delivery).toBe(true);
+    }
+    expect(queryClient.getQueryData(sessionQueryKey("session-1"))).toEqual(committed);
+    expect(useSessionLiveStore.getState().sessions["session-1"]).toMatchObject({status: "idle", liveTurn: null});
+  });
+
+  it.each([
+    {status: "streaming", rejectSteer: false, accepted: true, sends: 1},
+    {status: "streaming", rejectSteer: true, accepted: false, sends: 1},
+    {status: "idle", rejectSteer: false, accepted: false, sends: 0},
+    {status: "stopping", rejectSteer: false, accepted: false, sends: 0},
+    {status: "compacting", rejectSteer: false, accepted: false, sends: 0},
+  ] as const)("reports steering acceptance=$accepted in $status (provider rejection=$rejectSteer)", async ({status, rejectSteer, accepted, sends}) => {
+    const liveTurn = turn();
+    useSessionLiveStore.setState({sessions: {"session-1": {status, revision: 1, liveTurn, liveContext: null, error: null}}});
+    const rpcClient = commandRpcClient({rejectSteer});
+    expect(await useSessionLiveStore.getState().steerSession({sessionId: "session-1", text: "Use the fixture", rpcClient})).toBe(accepted);
+    expect(rpcClient.run).toHaveBeenCalledTimes(sends);
+    expect(useSessionLiveStore.getState().sessions["session-1"]?.liveTurn).toBe(liveTurn);
   });
 
   it.each(

@@ -412,4 +412,6 @@ export class HarnessStore {
   }
 }
 
-export const harnessStore = new HarnessStore(join(homedir(), ".config", "pi-plus"));
+// A configured server home isolates the complete workspace, including harness
+// snapshots and run receipts. Normal installs keep their existing library path.
+export const harnessStore = new HarnessStore(process.env.SUPERNOVA_HOME?.trim() ? join(getAgentDir(), "harnesses") : join(homedir(), ".config", "pi-plus"));

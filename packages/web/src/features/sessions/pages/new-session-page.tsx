@@ -1,7 +1,9 @@
-import type {UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
+import type {Session, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
+import {useRef} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {useNavigate} from "@tanstack/react-router";
 import PiOrb from "@/components/brand/pi-orb";
+import ChatRoleBadge from "@/features/sessions/components/chat-role-badge";
 import AttachmentDropOverlay from "@/features/sessions/components/attachments/attachment-drop-overlay";
 import ComposerToolbarGroup from "@/features/sessions/components/composer/composer-toolbar-group";
 import ModelPicker from "@/features/sessions/components/composer/pickers/model-picker";
@@ -9,16 +11,21 @@ import ThinkingLevelPicker from "@/features/sessions/components/composer/pickers
 import SessionComposer from "@/features/sessions/components/composer/session-composer";
 import SessionComposerSkeleton from "@/features/sessions/components/composer/session-composer-skeleton";
 import {useCreateSession} from "@/features/sessions/hooks/api/use-create-session";
+import {useRenameSession} from "@/features/sessions/hooks/api/use-rename-session";
+import {useUpdateSessionControls} from "@/features/sessions/hooks/api/use-session-controls";
 import {sessionQueryKey} from "@/features/sessions/hooks/api/use-session";
 import {useComposerAttachments} from "@/features/sessions/hooks/use-composer-attachments";
 import {useComposerDraft} from "@/features/sessions/hooks/use-composer-draft";
 import {useComposerModelSelection} from "@/features/sessions/hooks/use-composer-model-selection";
-import {newSessionComposerDraftKey} from "@/features/sessions/stores/composer-drafts-store";
+import {newSessionComposerDraftKey, sessionComposerDraftKey, useComposerDraftsStore} from "@/features/sessions/stores/composer-drafts-store";
+import {useGeneralSettingsStore} from "@/features/settings/stores/general-settings-store";
 import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store";
 import {useRpcClient} from "@/rpc/use-rpc-client";
 import {showToast} from "@/components/ui/toast-manager";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentColor} from "@/features/harnesses/lib/agent-identity";
+
+const GOAL_CHAT_TITLE_LENGTH = 120;
 
 interface NewSessionPageProps {
   readonly harnessProjectId?: string;
@@ -26,13 +33,17 @@ interface NewSessionPageProps {
   readonly projectPath: string;
 }
 
-export default function NewSessionPage(props: NewSessionPageProps) {
+function NewProjectSession(props: NewSessionPageProps) {
   const {harnessProjectId, projectName, projectPath} = props;
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const rpcClient = useRpcClient();
   const createSessionMutation = useCreateSession();
+  const renameSessionMutation = useRenameSession();
+  const controlsMutation = useUpdateSessionControls();
+  const createdSession = useRef<Session | null>(null);
+  const acceptedSession = useRef<string | null>(null);
   const sendMessage = useSessionLiveStore((state) => state.sendMessage);
   const library = useHarnessLibrary();
   const project = library.data?.projects.find((item) => item.id === harnessProjectId);
@@ -64,25 +75,45 @@ export default function NewSessionPage(props: NewSessionPageProps) {
     modelSelection.selectModel(value);
   };
 
-  const handleSubmit = (contentParts: readonly UserMessageContentPart[]): void => {
+  const handleSubmit = async (contentParts: readonly UserMessageContentPart[], objective?: string): Promise<boolean> => {
     const modelReference = modelSelection.modelReference;
-    if (!modelReference) return;
+    if (!modelReference) return false;
+    // A failed send can retry in the chat already created; never create another empty chat.
+    if (acceptedSession.current) throw new Error("This chat has already started. Open it from the sidebar; your new draft has been kept.");
+    const session = createdSession.current ?? (await createSessionMutation.mutateAsync({projectPath, harnessProjectId}));
+    if (!createdSession.current) {
+      createdSession.current = session;
+      queryClient.setQueryData(sessionQueryKey(session.id), session);
+    }
+    modelSelection.assignToSession(session.id, modelReference);
+    if (objective !== undefined) {
+      await renameSessionMutation.mutateAsync({sessionId: session.id, title: objective.replace(/\s+/g, " ").trim().slice(0, GOAL_CHAT_TITLE_LENGTH)});
+      await controlsMutation.mutateAsync({
+        sessionId: session.id,
+        action: {
+          type: "start_goal",
+          objective,
+          modelReference,
+          captureCheckpoints: useGeneralSettingsStore.getState().captureCheckpoints,
+        },
+      });
+    } else if (!(await sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId: session.id}))) return false;
+    acceptedSession.current = session.id;
+    return true;
+  };
 
-    createSessionMutation.mutate(
-      {projectPath, harnessProjectId},
-      {
-        onError: (error) => {
-          // The API explains configuration failures such as a missing project folder; surface that instead of a generic retry hint.
-          showToast("Unable to create the session", error instanceof Error && error.message ? error.message : "Please try again.");
-        },
-        onSuccess: (session) => {
-          queryClient.setQueryData(sessionQueryKey(session.id), session);
-          modelSelection.assignToSession(session.id, modelReference);
-          sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId: session.id});
-          void navigate({params: {sessionId: session.id}, to: "/session/$sessionId"});
-        },
-      }
-    );
+  const handleAccepted = (): void => {
+    const sessionId = acceptedSession.current;
+    if (!sessionId) return;
+    // Goal creation sends only the objective. Carry retained attachments into its chat.
+    const drafts = useComposerDraftsStore.getState();
+    const remaining = drafts.drafts[composerDraftKey];
+    const parts = [...(remaining?.editableContentParts ?? []), ...(remaining?.attachments ?? [])];
+    if (parts.length > 0) drafts.setDraftContentParts(sessionComposerDraftKey(sessionId), parts);
+    drafts.clearDraft(composerDraftKey);
+    void navigate({params: {sessionId}, to: "/session/$sessionId"}).catch(() => {
+      showToast("Chat started", "The message was accepted, but this chat could not be opened. Open it from the sidebar; do not resend it.");
+    });
   };
 
   return (
@@ -92,7 +123,8 @@ export default function NewSessionPage(props: NewSessionPageProps) {
           <PiOrb className="mb-1 size-36" color={project ? (project.color ?? (project.id === harness?.coordinatorProjectId ? "#ffffff" : agentColor(project.id))) : undefined} />
           <h1 className="text-center text-2xl font-medium tracking-tight text-ink-strong">What would you like to work on?</h1>
           <p className="max-w-full truncate text-sm text-ink-muted" title={projectName}>
-            Project lead · <span className="text-ink">{projectName}</span>
+            <ChatRoleBadge role={project ? (project.id === harness?.coordinatorProjectId ? "harness-lead" : "project-lead") : "chat"} /> ·{" "}
+            <span className="text-ink">{projectName}</span>
           </p>
         </div>
         <div className="relative w-full">
@@ -105,6 +137,8 @@ export default function NewSessionPage(props: NewSessionPageProps) {
               disabled={composerDisabled}
               draft={composerDraft}
               onSubmit={handleSubmit}
+              onStartGoal={(objective) => handleSubmit([], objective)}
+              onAccepted={handleAccepted}
               projectPath={projectPath}
               toolbarControls={
                 <div className="flex min-w-0 items-center gap-3">
@@ -136,4 +170,9 @@ export default function NewSessionPage(props: NewSessionPageProps) {
       {composerAttachments.isDraggingFiles && <AttachmentDropOverlay />}
     </div>
   );
+}
+
+/** Keeps creation acknowledgements and model selection scoped to the selected project. */
+export default function NewSessionPage(props: NewSessionPageProps) {
+  return <NewProjectSession key={`${props.projectPath}:${props.harnessProjectId ?? ""}`} {...props} />;
 }

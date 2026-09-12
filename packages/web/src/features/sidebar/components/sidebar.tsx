@@ -12,9 +12,12 @@ import {useSidebarSections} from "@/features/sidebar/hooks/use-sidebar-sections"
 import HarnessSidebarSection from "@/features/harnesses/components/harness-sidebar-section";
 import {useHarnessLibrary, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
+import {sidebarSessionId} from "@/features/sidebar/lib/ledger-navigation";
+import {cn} from "@/lib/cn";
 
-/** One quiet geometry for the two footer destinations. */
-const footerRowClassName = "flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-xs text-ink-muted hover:bg-overlay-hover hover:text-ink";
+/** Settings is one destination; harness-specific controls stay with their group. */
+const footerRowClassName =
+  "flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-xs text-ink-muted transition-colors hover:bg-overlay-hover hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong";
 
 export default function Sidebar() {
   const {expandProject, expandedProjects, toggleProject} = useSidebarSections();
@@ -26,7 +29,7 @@ export default function Sidebar() {
   const addProject = useProjectsStore((state) => state.addProject);
   const [addingToHarness, setAddingToHarness] = useState<string>();
   const [searchOpen, setSearchOpen] = useState(false);
-  const activeSessionId = location.pathname.startsWith("/session/") && location.pathname !== "/session/new" ? location.pathname.slice("/session/".length) : "";
+  const activeSessionId = sidebarSessionId(location.pathname);
 
   const handleOpenProject = (projectPath: string): void => {
     if (!library.data || !addingToHarness) return;
@@ -65,18 +68,18 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="flex h-full w-full shrink-0 flex-col">
+    <aside aria-label="Workspace ledger" className="flex h-full w-full shrink-0 flex-col">
       <PiBrand />
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-5">
         <Button
-          className="flex h-9 w-full items-center gap-2.5 rounded-lg border border-border-muted bg-surface-raised/60 px-2.5 text-sm text-ink-faint hover:border-border hover:bg-surface-raised hover:text-ink-muted"
+          className="flex h-9 w-full items-center gap-2.5 rounded-lg border border-border-muted bg-surface px-2.5 text-sm text-ink-muted transition-colors hover:bg-overlay-hover hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong"
           onClick={() => setSearchOpen(true)}
         >
           <Icon name="search" size="sm" />
           <span className="flex-1 text-left">Search chats</span>
         </Button>
       </div>
-      <nav aria-label="Harness workspaces" className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-2" data-testid="harness-sidebar-scroll">
+      <nav aria-label="Harness workspaces" className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-2 pb-4" data-testid="harness-sidebar-scroll">
         {library.data?.harnesses.map((harness) => (
           <HarnessSidebarSection
             key={harness.id}
@@ -104,17 +107,17 @@ export default function Sidebar() {
           </p>
         )}
       </nav>
-      <div className="space-y-0.5 border-t border-border-muted px-2 py-2">
-        <Link className={footerRowClassName} params={{sectionId: "harnesses"}} to="/settings/$sectionId">
-          <Icon name="sliders" size="sm" />
-          <span>Manage harnesses</span>
-        </Link>
-        <Link className={footerRowClassName} to="/settings">
+      <nav aria-label="Workspace settings" className="space-y-0.5 border-t border-border-muted px-2 py-2">
+        <Link
+          aria-current={location.pathname.startsWith("/settings") ? "page" : undefined}
+          className={cn(footerRowClassName, location.pathname.startsWith("/settings") && "bg-overlay-pressed text-ink")}
+          to="/settings"
+        >
           <Icon name="settings" size="sm" />
           <span className="flex-1">Settings</span>
-          {window.desktopApi?.nightly && <span className="text-[10px] uppercase tracking-wide text-ink-faint">Nightly</span>}
+          {window.desktopApi?.nightly && <span className="text-xs text-ink-faint">Nightly</span>}
         </Link>
-      </div>
+      </nav>
       <OpenProjectDialog onClose={() => setAddingToHarness(undefined)} onOpenProject={handleOpenProject} open={!!addingToHarness} />
       <SearchSessionsDialog onClose={() => setSearchOpen(false)} open={searchOpen} />
     </aside>

@@ -14,6 +14,9 @@ const heldPrompts = new Map([
   ["Abort recovery message", "abort-recovery"],
   ["Reload during streaming message", "reload-streaming"],
   ["Concurrent session A message", "concurrent-session-a"],
+  ["Queue acceptance message", "queue-acceptance"],
+  ["Steering acceptance message", "steering-acceptance"],
+  ["Continue the active goal: Validate the workspace controls", "goal-acceptance"],
 ]);
 
 function messageText(context: Context): string {
@@ -56,7 +59,7 @@ const response: FauxResponseFactory = async (context, options) => {
     return fauxAssistantMessage("", {errorMessage: "Synthetic provider failure.", stopReason: "error"});
   }
 
-  const controlId = heldPrompts.get(prompt);
+  const controlId = heldPrompts.get(prompt.split("\n\n")[0] ?? prompt);
   if (controlId) await waitForRelease(controlDir, controlId, options?.signal);
   return fauxAssistantMessage(`Runtime response: ${prompt}`);
 };

@@ -8,12 +8,18 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
+- Changed the chat workspace to a quieter, layered layout with project identity above the chat title and Files and Browser controls at the far right.
+- Changed context inspection to one entry point with directly readable Instructions, Resources and Runtime views; project planning documents remain in project settings and Files.
+- Changed the file panel to keep its tree visible while reading a document, with rendered Markdown and a source view.
 - Reworked the harness settings: every agent page has Settings, Instructions, Skills and Memory tabs; Resources is harness-wide only; the Projects tab is a per-project planning tool with Plan, Instructions and Setup; Workflows shows Workflows and Limits.
 - Redesigned the sidebar: a search field, small-caps harness headers with hover-only actions, aligned project and chat rows whose actions no longer overlap the name, a Lead pill for the coordinating project, and a quiet footer.
 - The project Plan tab is a full-height workspace: a documents column beside the open document, Save, Revert and Cmd+S, a starting structure for files that do not exist yet, and a document list that saves as soon as it changes.
 
 ### Added
 
+- Added `/goal` with a saved objective, bounded continuation and visible pause/resume controls beside the composer.
+- Added a saved message queue with explicit steering and removal; Stop pauses pending work until the queue is resumed.
+- Added observed worker conversations alongside activity and context, linked from their owning chat and navigation rows.
 - Added the Curator, a background role per harness that keeps instructions, planning documents and the memory ledger correct and short from evidence only: run receipts, user steers and ledger records. It files minimal find/replace proposals into a new Inbox tab (approve, edit, reject, roll back), can supersede or retract memory records and append a dated plan log by itself when those switches are on, keeps a version history of every instruction piece, records steers, and runs a memory-only pass 15 minutes after a project's last run. Off until enabled under Agents → Curator; spend is capped per review and per day.
 - Projects can be removed from a harness, from the project's Setup tab or the sidebar menu. The folder stays on disk, existing chats keep their settings, and a coordinating project cannot be removed while it still has labs.
 

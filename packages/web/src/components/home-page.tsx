@@ -3,6 +3,7 @@ import type {ReactNode} from "react";
 import type {AppEnvironment} from "@/lib/app-environment";
 import {isDesktopEnvironment} from "@/lib/app-environment";
 import Icon from "@/components/ui/icon";
+import Button from "@/components/ui/button";
 import IconButton from "@/components/ui/icon-button";
 import SidebarLayout from "@/features/sidebar/components/sidebar-layout";
 import Sidebar from "@/features/sidebar/components/sidebar";
@@ -71,25 +72,32 @@ export default function HomePage(props: HomePageProps) {
           </IconButton>
         </>
       )}
-      <IconButton
+      {sidebarVisible && <UpdateButton className="ml-auto" />}
+    </>
+  );
+
+  const workspaceActions = (
+    <>
+      <Button
         aria-pressed={filesActive}
-        className={cn("size-7", filesActive && "text-ink-strong")}
-        label="Toggle project files"
+        aria-label="Toggle project files"
+        className={cn("flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs text-ink-muted hover:bg-overlay-hover", filesActive && "bg-overlay-hover text-ink-strong")}
         onClick={() => toggleWorkspaceView("files")}
         title="Project files (Cmd/Ctrl+Shift+F)"
       >
         <Icon name="panel-right" size="sm" />
-      </IconButton>
-      <IconButton
+        <span className="hidden sm:inline">Files</span>
+      </Button>
+      <Button
         aria-pressed={browserActive}
-        className={cn("size-7", browserActive && "text-ink-strong")}
-        label="Toggle browser"
+        aria-label="Toggle browser"
+        className={cn("flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs text-ink-muted hover:bg-overlay-hover", browserActive && "bg-overlay-hover text-ink-strong")}
         onClick={() => toggleWorkspaceView("browser")}
         title="Browser (Cmd/Ctrl+Shift+B)"
       >
         <Icon name="globe" size="sm" />
-      </IconButton>
-      {sidebarVisible && <UpdateButton className="ml-auto" />}
+        <span className="hidden sm:inline">Browser</span>
+      </Button>
     </>
   );
 
@@ -101,12 +109,15 @@ export default function HomePage(props: HomePageProps) {
       sidebarVisible={sidebarVisible}
       sidebarWidth={sidebarWidth}
       titlebarActions={titlebarActions}
+      trailingTitlebarActions={workspaceActions}
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-1">
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-        {panes.map((pane) => (
-          <SessionPane appEnvironment={appEnvironment} key={pane.sessionId} pane={pane} />
-        ))}
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto">
+          <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", panes.length > 0 && "min-w-80")}>{children}</div>
+          {panes.map((pane) => (
+            <SessionPane appEnvironment={appEnvironment} key={pane.sessionId} pane={pane} />
+          ))}
+        </div>
         <WorkspacePanel appEnvironment={appEnvironment} />
       </div>
     </SidebarLayout>

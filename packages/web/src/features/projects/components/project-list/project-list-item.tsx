@@ -1,5 +1,5 @@
 import {useCallback, useRef, useState} from "react";
-import type {KeyboardEvent, MouseEvent} from "react";
+import type {MouseEvent} from "react";
 import {useLocation, useNavigate} from "@tanstack/react-router";
 import {useQueryClient} from "@tanstack/react-query";
 import {autoAnimate} from "@formkit/auto-animate";
@@ -22,6 +22,8 @@ import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import {useHarnessLibrary, useRemoveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {showToast} from "@/components/ui/toast-manager";
+import {ledgerPrimaryClassName, ledgerRowClassName} from "@/features/sidebar/lib/ledger-styles";
+import LedgerRowEnd from "@/features/sidebar/components/ledger-row-end";
 
 const INITIAL_SESSION_LIMIT = 5;
 const SESSION_LIMIT_INCREMENT = 5;
@@ -77,13 +79,19 @@ export default function ProjectListItem(props: ProjectListItemProps) {
       .toSorted((left, right) => Number(right.pinned) - Number(left.pinned) || right.timestamp - left.timestamp) ?? [];
 
   const activeSession = sessions.find((session) => session.id === activeSessionId);
+  const workingSessions = sessions.filter((session) => {
+    const status = sessionLiveStates[session.id]?.status;
+    return status === "streaming" || status === "stopping" || status === "compacting";
+  });
 
   const pinnedSessions = sessions.filter((session) => session.pinned);
   const unpinnedSessions = sessions.filter((session) => !session.pinned);
-  const visibleSessionIds = new Set([...pinnedSessions, ...unpinnedSessions.slice(0, visibleSessionLimit), ...(activeSession ? [activeSession] : [])].map((session) => session.id));
+  const visibleSessionIds = new Set(
+    [...pinnedSessions, ...workingSessions, ...unpinnedSessions.slice(0, visibleSessionLimit), ...(activeSession ? [activeSession] : [])].map((session) => session.id)
+  );
   const visibleSessions = sessions.filter((session) => visibleSessionIds.has(session.id));
-  const displayedSessions = expanded ? visibleSessions : activeSession && !dragging ? [activeSession] : [];
-  const sessionsExpanded = expanded || (activeSession != null && !dragging);
+  const displayedSessions = dragging ? [] : expanded ? visibleSessions : visibleSessions.filter((session) => session.id === activeSessionId || workingSessions.includes(session));
+  const sessionsExpanded = expanded || displayedSessions.length > 0;
 
   const hasSessions = sessions.length > 0;
   const hasHiddenSessions = unpinnedSessions.some((session) => !visibleSessionIds.has(session.id));
@@ -99,12 +107,6 @@ export default function ProjectListItem(props: ProjectListItemProps) {
     selectProject(project.harnessId ?? "coding", project.harnessProjectId);
     // Chats live in the sidebar, so a project row only expands or collapses; configuration is behind the gear.
     onToggle(project.id);
-  };
-
-  const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    handleToggle();
   };
 
   const handleRemoveProject = (): void => {
@@ -168,45 +170,13 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   return (
     <>
       <div
-        aria-expanded={hasSessions ? expanded : undefined}
-        className={cn(
-          "group/project flex h-9 w-full cursor-pointer items-center gap-1.5 rounded-md px-2 text-left text-ink-muted hover:bg-overlay-hover hover:text-ink",
-          actionsMenuOpen && "bg-overlay-hover text-ink",
-          folderMissing && "opacity-60"
-        )}
-        onClick={handleToggle}
-        onKeyDown={handleRowKeyDown}
-        role="button"
-        tabIndex={0}
+        className={cn(ledgerRowClassName, actionsMenuOpen && "bg-overlay-hover text-ink", folderMissing && "opacity-60")}
         title={folderMissing ? `Folder missing: ${project.path}` : `${project.name}\n${project.path}`}
       >
-        {hasSessions ? (
-          <IconButton
-            className="size-4 shrink-0 text-ink-faint hover:text-ink"
-            label={`${expanded ? "Collapse" : "Expand"} chats in ${projectLabel}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggle(project.id);
-            }}
-          >
-            <Icon name="chevron-down" size="xs" className={cn("transition-transform duration-150", !expanded && "-rotate-90")} />
-          </IconButton>
-        ) : (
-          <span aria-hidden="true" className="size-4 shrink-0" />
-        )}
-        {folderMissing ? (
-          <span className="grid size-5 shrink-0 place-items-center text-danger-ink">
-            <Icon name="alert" size="sm" />
-          </span>
-        ) : project.harnessProjectId ? (
-          <AgentMark name={project.harnessProjectId} kind="lead" color={project.color ?? (project.isCoordinator ? "#ffffff" : undefined)} className="size-5 shrink-0" />
-        ) : (
-          <Icon className="size-5 shrink-0 text-ink-faint" name={expanded ? "folder-open" : "folder"} size="sm" />
-        )}
         {renaming ? (
           <input
             aria-label="Project name"
-            className="min-w-0 flex-1 truncate bg-transparent text-[13px] text-ink outline-none"
+            className="m-2 min-w-0 flex-1 rounded-md bg-overlay-hover px-2 py-2 text-sm text-ink outline-none focus-visible:ring-1 focus-visible:ring-border-strong"
             onBlur={handleRenameBlur}
             onChange={handleRenameChange}
             onClick={handleRenameClick}
@@ -217,93 +187,140 @@ export default function ProjectListItem(props: ProjectListItemProps) {
             value={draftName}
           />
         ) : (
-          <span className="min-w-0 flex-1 truncate text-[13px] leading-5">{projectLabel}</span>
-        )}
-        {project.isCoordinator && !renaming && (
-          <span className="shrink-0 rounded-sm bg-overlay-pressed px-1 py-px text-[9px] font-medium uppercase tracking-wide text-ink-faint">Lead</span>
-        )}
-        <span className="grid w-13 shrink-0 place-items-end">
-          <span className="col-start-1 row-start-1 flex items-center justify-end pr-1 text-ink-faint group-hover/project:invisible group-focus-within/project:invisible">
-            {project.pinned && <Icon name="pin" size="xs" />}
-          </span>
-          <span
-            className={cn(
-              "col-start-1 row-start-1 flex items-center gap-0.5 opacity-0 group-hover/project:opacity-100 group-focus-within/project:opacity-100",
-              actionsMenuOpen && "opacity-100"
-            )}
+          <Button
+            aria-expanded={expanded}
+            aria-label={hasSessions ? `${expanded ? "Collapse" : "Expand"} chats in ${projectLabel}` : projectLabel}
+            className={ledgerPrimaryClassName}
+            onClick={handleToggle}
           >
-            <IconButton
-              className="size-6 rounded-md text-ink-muted hover:bg-overlay-pressed hover:text-ink"
-              disabled={folderMissing}
-              label={`New chat in ${projectLabel}`}
-              onClick={handleNewSession}
-              title={folderMissing ? "Folder missing, so chats cannot start" : `New chat in ${projectLabel}`}
-            >
-              <Icon name="new-chat" size="xs" />
-            </IconButton>
-            <Menu
-              onOpenChange={setActionsMenuOpen}
-              open={actionsMenuOpen}
-              trigger={(triggerProps) => (
-                <Button {...triggerProps} className="size-6 rounded-md text-ink-muted hover:bg-overlay-pressed hover:text-ink" shape="icon" size="md" variant="ghost">
-                  <Icon name="more-horizontal" size="xs" />
-                </Button>
+            <span className="relative grid size-6 shrink-0 place-items-center">
+              <span className="col-start-1 row-start-1 transition-opacity group-hover/ledger:opacity-0 group-focus-within/ledger:opacity-0 motion-reduce:transition-none">
+                {folderMissing ? (
+                  <Icon className="shrink-0 text-danger-ink" name="alert" size="sm" />
+                ) : project.harnessProjectId ? (
+                  <AgentMark
+                    name={project.harnessProjectId}
+                    kind="lead"
+                    color={project.color ?? (project.isCoordinator ? "#ffffff" : undefined)}
+                    working={workingSessions.length > 0}
+                    className="size-6 shrink-0"
+                  />
+                ) : (
+                  <Icon className="shrink-0 text-ink-faint" name={expanded ? "folder-open" : "folder"} size="sm" />
+                )}
+              </span>
+              <Icon
+                name="chevron-down"
+                size="xs"
+                className={cn(
+                  "col-start-1 row-start-1 text-ink-faint opacity-0 transition-opacity group-hover/ledger:opacity-100 group-focus-within/ledger:opacity-100 motion-reduce:transition-none",
+                  !expanded && "-rotate-90"
+                )}
+              />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="line-clamp-2 break-words text-sm font-medium leading-5">{projectLabel}</span>
+              {(project.isCoordinator || folderMissing || workingSessions.length > 0) && (
+                <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-faint">
+                  {project.isCoordinator && <span>Harness lead</span>}
+                  {folderMissing ? (
+                    <span className="text-danger-ink">Folder missing</span>
+                  ) : workingSessions.length > 0 ? (
+                    <span className="text-ink-muted">{workingSessions.length} working</span>
+                  ) : null}
+                </span>
               )}
-              triggerLabel={`Project actions for ${projectLabel}`}
-              sideOffset={2}
-            >
-              <MenuItem icon={<Icon name="pin" size="xs" />} onClick={handleToggleProjectPinned}>
-                {project.pinned ? "Unpin project" : "Pin project"}
-              </MenuItem>
-              {canOpenInFinder && (
-                <MenuItem icon={<Icon name="folder-open" size="xs" />} onClick={handleOpenInFinder}>
-                  Open in Finder
+            </span>
+          </Button>
+        )}
+        <LedgerRowEnd
+          menuOpen={actionsMenuOpen}
+          actions={
+            <>
+              <IconButton
+                className="size-6 rounded-md text-ink-muted hover:bg-overlay-pressed hover:text-ink"
+                disabled={folderMissing}
+                label={`New chat in ${projectLabel}`}
+                onClick={handleNewSession}
+                title={folderMissing ? "Folder missing, so chats cannot start" : `New chat in ${projectLabel}`}
+              >
+                <Icon name="new-chat" size="xs" />
+              </IconButton>
+              <Menu
+                onOpenChange={setActionsMenuOpen}
+                open={actionsMenuOpen}
+                trigger={(triggerProps) => (
+                  <Button {...triggerProps} className="size-6 rounded-md text-ink-muted hover:bg-overlay-pressed hover:text-ink" shape="icon" size="md" variant="ghost">
+                    <Icon name="more-horizontal" size="xs" />
+                  </Button>
+                )}
+                triggerLabel={`Project actions for ${projectLabel}`}
+                sideOffset={2}
+              >
+                <MenuItem icon={<Icon name="pin" size="xs" />} onClick={handleToggleProjectPinned}>
+                  {project.pinned ? "Unpin project" : "Pin project"}
                 </MenuItem>
-              )}
-              {project.harnessProjectId && (
-                <MenuItem
-                  icon={<Icon name="settings" size="xs" />}
-                  onClick={() => {
-                    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
-                    void navigate({
-                      to: "/settings/harness/$harnessId",
-                      params: {harnessId: project.harnessId ?? "coding"},
-                      search: {projectId: project.harnessProjectId, section: "projects"},
-                    });
-                  }}
-                >
-                  Project settings
-                </MenuItem>
-              )}
-              {!project.harnessProjectId && (
-                <MenuItem icon={<Icon name="edit" size="xs" />} onClick={startRenaming}>
-                  Rename project
-                </MenuItem>
-              )}
-              {!project.harnessProjectId && (
-                <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
-                  Remove
-                </MenuItem>
-              )}
-              {project.harnessProjectId && (
-                <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveFromHarness}>
-                  Remove from harness
-                </MenuItem>
-              )}
-            </Menu>
-          </span>
-        </span>
+                {canOpenInFinder && (
+                  <MenuItem icon={<Icon name="folder-open" size="xs" />} onClick={handleOpenInFinder}>
+                    Open in Finder
+                  </MenuItem>
+                )}
+                {project.harnessProjectId && (
+                  <MenuItem
+                    icon={<Icon name="settings" size="xs" />}
+                    onClick={() => {
+                      selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+                      void navigate({
+                        to: "/settings/harness/$harnessId",
+                        params: {harnessId: project.harnessId ?? "coding"},
+                        search: {projectId: project.harnessProjectId, section: "projects"},
+                      });
+                    }}
+                  >
+                    Project settings
+                  </MenuItem>
+                )}
+                {!project.harnessProjectId && (
+                  <MenuItem icon={<Icon name="edit" size="xs" />} onClick={startRenaming}>
+                    Rename project
+                  </MenuItem>
+                )}
+                {!project.harnessProjectId && (
+                  <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
+                    Remove
+                  </MenuItem>
+                )}
+                {project.harnessProjectId && (
+                  <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveFromHarness}>
+                    Remove from harness
+                  </MenuItem>
+                )}
+              </Menu>
+            </>
+          }
+        >
+          {project.pinned && <Icon name="pin" size="xs" />}
+          {hasSessions && <span aria-label={`${sessions.length} chats`}>{sessions.length}</span>}
+        </LedgerRowEnd>
       </div>
 
       <div className={cn("overflow-hidden", sessionsExpanded && "pb-0.5")} onPointerDown={(event) => event.stopPropagation()}>
-        <ul className={cn("flex flex-col gap-px", sessionTreeVisible && "ml-3.5 border-l border-border-muted py-0.5 pl-1.5")} ref={attachSessionListAutoAnimateRef}>
+        <ul
+          aria-label={`Chats in ${projectLabel}`}
+          className={cn("flex flex-col gap-0.5", sessionTreeVisible && "ml-4 border-l border-border-muted py-1 pl-2")}
+          ref={attachSessionListAutoAnimateRef}
+        >
           {expanded && sessionsQuery.isPending && (
-            <li className="flex items-center gap-2 px-2 py-1 text-[11px] text-ink-faint">
+            <li className="flex items-center gap-2 px-2 py-1 text-xs text-ink-faint">
               Loading chats
               <span className="size-2.5 animate-spin rounded-full border border-border-strong border-t-ink" aria-hidden="true" />
             </li>
           )}
-          {expanded && sessionsQuery.error != null && <li className="px-2 py-1 text-[11px] text-danger-ink">Unable to load chats.</li>}
+          {expanded && sessionsQuery.error != null && (
+            <li role="status" className="px-2 py-1 text-xs text-danger-ink">
+              Unable to load chats.
+            </li>
+          )}
           {displayedSessions.map((session) => {
             const selected = location.pathname === `/session/${session.id}` || location.pathname.startsWith(`/session/${session.id}/`);
             const sessionLive = sessionLiveStates[session.id];
@@ -318,10 +335,12 @@ export default function ProjectListItem(props: ProjectListItemProps) {
                 onTogglePinned={() => toggleSessionPinned(project.id, session.id)}
                 projectPath={project.path}
                 selected={selected}
+                current={location.pathname === `/session/${session.id}`}
                 session={session}
                 color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(project.harnessProjectId ?? project.id))}
                 managed={!!project.harnessProjectId}
                 streaming={sessionStreaming}
+                status={sessionLive?.status}
                 unseen={sessionUnseen}
               />
             );
@@ -329,21 +348,23 @@ export default function ProjectListItem(props: ProjectListItemProps) {
 
           {canShowMoreSessions && (
             <li>
-              <Button className="flex h-7 items-center px-2 text-[11px] text-ink-faint hover:text-ink" onClick={handleLoadMoreSessions}>
-                Show more
+              <Button className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-ink-faint hover:bg-overlay-hover hover:text-ink" onClick={handleLoadMoreSessions}>
+                <Icon name="chevron-down" size="xs" />
+                Show more chats
               </Button>
             </li>
           )}
 
           {canShowLessAtEnd && (
             <li>
-              <Button className="flex h-7 items-center px-2 text-[11px] text-ink-faint hover:text-ink" onClick={handleShowLessSessions}>
-                Show less
+              <Button className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-ink-faint hover:bg-overlay-hover hover:text-ink" onClick={handleShowLessSessions}>
+                <Icon name="chevron-down" size="xs" className="rotate-180" />
+                Show fewer chats
               </Button>
             </li>
           )}
 
-          {expanded && !sessionsQuery.isPending && sessionsQuery.error == null && !hasSessions && <li className="px-2 py-1 text-[11px] text-ink-faint">No chats yet</li>}
+          {expanded && !sessionsQuery.isPending && sessionsQuery.error == null && !hasSessions && <li className="px-2 py-1 text-xs text-ink-faint">No chats yet</li>}
         </ul>
       </div>
     </>

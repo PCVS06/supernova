@@ -1,4 +1,5 @@
 import type {AgentSession} from "@earendil-works/pi-coding-agent";
+import type {ImageContent} from "@earendil-works/pi-ai";
 import {randomUUID} from "node:crypto";
 import {CheckpointUncapturedError} from "@supernova/contracts/session-runtime/procedures";
 import type {SessionStreamEvent} from "@supernova/contracts/session-runtime/procedures";
@@ -18,10 +19,11 @@ import {
   isCapturedCheckpoint,
 } from "@supernova/agent-runtime/layers/session-runtime/lib/checkpoints/checkpoint-entries";
 import type {CheckpointEntry, CheckpointStatus} from "@supernova/agent-runtime/layers/session-runtime/lib/checkpoints/checkpoint-entries";
-import {buildSessionSnapshot} from "@supernova/agent-runtime/layers/session-runtime/lib/session-snapshot";
+import {buildSessionSnapshot, sessionTitle} from "@supernova/agent-runtime/layers/session-runtime/lib/session-snapshot";
 import {findSelectedModel} from "@supernova/agent-runtime/layers/session-runtime/lib/models/selected-model";
 import {toPiThinkingLevel} from "@supernova/agent-runtime/layers/session-runtime/lib/models/thinking-levels";
 import {ActiveTurn} from "@supernova/agent-runtime/layers/session-runtime/lib/turns/active-turn";
+import {AUTOMATIC_MAX_MODEL_TURNS, AUTOMATIC_TURN_TIMEOUT_MS} from "@supernova/agent-runtime/layers/session-runtime/lib/turns/automatic-turn-limits";
 import type {SendMessageContext} from "@supernova/agent-runtime/layers/session-runtime/lib/user-message/send-message-context";
 
 type RevisionedSessionStreamEvent = Extract<SessionStreamEvent, {readonly revision: number}>;
@@ -38,6 +40,7 @@ export interface PiSessionRuntimeDependencies {
 
 export interface PiSessionRuntimeInput extends PiSessionRuntimeDependencies {
   readonly sessionId: string;
+  readonly reportGoalResult?: (goalId: string, status: "completed" | "blocked", summary: string) => Promise<void>;
 }
 
 /** Maintains one long-lived Pi AgentSession subscription for a Supernova session. */
@@ -52,6 +55,10 @@ export class PiSessionRuntime {
   private readonly sessionStore: PiSessionStoreShape;
 
   private agentSession: AgentSession | undefined;
+  private agentSessionPending: Promise<AgentSession> | undefined;
+  private sessionManagerPending: Promise<PiSessionManager> | undefined;
+  private pendingAbortedSteering: string[] = [];
+  private readonly reportGoalResult: PiSessionRuntimeInput["reportGoalResult"];
   private activeTurn: ActiveTurn | undefined;
   private committedSession: Session | undefined;
 
@@ -60,6 +67,11 @@ export class PiSessionRuntime {
   private releasePromise: Promise<void> | undefined;
   private running = false;
   private revision = 0;
+  private turnFailure: string | undefined;
+  private agentTurnsRemaining: number | undefined;
+  private turnDeadline: ReturnType<typeof setTimeout> | undefined;
+  private workSettled: Promise<void> = Promise.resolve();
+  private resolveWork: (() => void) | undefined;
   private unsubscribe: (() => void) | undefined;
 
   public constructor(input: PiSessionRuntimeInput) {
@@ -70,20 +82,40 @@ export class PiSessionRuntime {
     this.resourceCatalog = input.resourceCatalog;
     this.sessionId = input.sessionId;
     this.sessionStore = input.sessionStore;
+    this.reportGoalResult = input.reportGoalResult;
   }
 
   /** Marks this runtime as busy for a command. */
-  public beginWork(): void {
+  public beginWork(bounded = false): void {
     if (this.running) throw new Error("Session already has active work.");
     this.running = true;
+    this.workSettled = new Promise<void>((resolve) => {
+      this.resolveWork = resolve;
+    });
     this.cancelled = false;
+    this.turnFailure = undefined;
+    this.agentTurnsRemaining = bounded ? AUTOMATIC_MAX_MODEL_TURNS : undefined;
+    if (bounded)
+      this.turnDeadline = setTimeout(() => {
+        this.turnFailure = "Automatic turn reached its 10 minute time limit. Review and resume explicitly.";
+        void this.abort();
+      }, AUTOMATIC_TURN_TIMEOUT_MS);
   }
 
   /** Marks this runtime as no longer running an accepted command. */
   public endWork(): void {
+    if (this.turnDeadline) clearTimeout(this.turnDeadline);
+    this.turnDeadline = undefined;
     this.activeTurn = undefined;
     this.committedSession = undefined;
     this.running = false;
+    this.resolveWork?.();
+    this.resolveWork = undefined;
+  }
+
+  /** Waits through the app's commitment boundary, not merely Pi's provider-idle event. */
+  public waitForWork(): Promise<void> {
+    return this.workSettled;
   }
 
   /**
@@ -119,24 +151,61 @@ export class PiSessionRuntime {
    */
   public async abort(): Promise<void> {
     this.cancelled = true;
+    this.pendingAbortedSteering.push(...(this.agentSession?.clearQueue().steering ?? []));
     await this.agentSession?.abort().catch(() => undefined);
+  }
+
+  /** Whether any mutating session command currently owns this runtime. */
+  public isRunning(): boolean {
+    return this.running;
+  }
+
+  /** Whether Pi can currently accept steering into an active, non-cancelled turn. */
+  public canSteer(): boolean {
+    return this.running && !this.cancelled && !!this.activeTurn && !!this.agentSession?.isStreaming;
+  }
+
+  /** Removes unconsumed SDK steering at a settled boundary, so it cannot leak into a later turn. */
+  public takeUndeliveredSteering(): readonly string[] {
+    const pending = [...this.pendingAbortedSteering, ...(this.agentSession?.clearQueue().steering ?? [])];
+    this.pendingAbortedSteering = [];
+    return pending;
+  }
+
+  /** Provider/limit failure surfaced after Pi has finished its own recovery attempts. */
+  public getTurnFailure(): string | undefined {
+    return this.turnFailure;
   }
 
   /**
    * Delivers a steering message into the turn this runtime is already streaming.
    *
    * Steering is not a new turn: it neither takes the command lock nor touches the
-   * committed/live view split. An idle session has nothing to interrupt, so the message is
-   * dropped; the client only offers steering while a turn is running.
+   * committed/live view split. Idle and stopping sessions reject the message explicitly.
    */
-  public async steer(text: string): Promise<void> {
-    if (!this.agentSession?.isStreaming) return;
-    await this.agentSession.steer(text);
+  public async steer(text: string, images?: ImageContent[]): Promise<string> {
+    if (!this.canSteer() || !this.agentSession) throw new Error("The session is not accepting steering. Send or queue the message instead.");
+    const session = this.agentSession;
+    const accepted = session.steer(text, images);
+    // Pi synchronously expands/queues the message before its promise resolves.
+    const queuedText = session.getSteeringMessages().at(-1) ?? text;
+    await accepted;
+    return queuedText;
   }
 
   /** Returns the session manager owned by this runtime's Pi agent session. */
   public async getSessionManager(): Promise<PiSessionManager> {
-    return (await this.getAgentSession()).sessionManager;
+    this.sessionManagerPending ??= this.sessionStore
+      .openSessionById(this.sessionId)
+      .then((manager) => {
+        if (manager.getSessionId() !== this.sessionId) throw new Error("Session not found.");
+        return manager;
+      })
+      .catch((error) => {
+        this.sessionManagerPending = undefined;
+        throw error;
+      });
+    return this.sessionManagerPending;
   }
 
   /** Resolves a public model reference against Pi's available model catalog. */
@@ -151,6 +220,13 @@ export class PiSessionRuntime {
 
     await agentSession.setModel(model);
     agentSession.setThinkingLevel(toPiThinkingLevel(modelReference.thinkingLevel));
+  }
+
+  /** Exposes goal reporting only to a turn associated with an active goal. */
+  public async setGoalReporting(active: boolean): Promise<void> {
+    const session = await this.getAgentSession();
+    const names = session.getActiveToolNames().filter((name) => name !== "report_goal_result");
+    session.setActiveToolsByName(active ? [...names, "report_goal_result"] : names);
   }
 
   /** Returns the selected model state represented by the active session branch. */
@@ -220,7 +296,10 @@ export class PiSessionRuntime {
       // for settlement avoids treating a recoverable compaction/retry as terminal.
       const lastAnswer = agentSession.state.messages.findLast((message) => message.role === "assistant");
       if (lastAnswer?.stopReason === "error") {
-        await this.publishEvent({type: "session.error", sessionId: this.sessionId, error: lastAnswer.errorMessage || "The model could not answer. Choose another model or retry."});
+        this.turnFailure = lastAnswer.errorMessage || "The model could not answer. Choose another model or retry.";
+        await this.publishEvent({type: "session.error", sessionId: this.sessionId, error: this.turnFailure});
+      } else if (lastAnswer?.stopReason === "aborted" && !this.cancelled) {
+        this.turnFailure = "Provider execution was interrupted. Review and resume explicitly.";
       }
 
       const afterTurnCheckpointId = randomUUID();
@@ -236,7 +315,11 @@ export class PiSessionRuntime {
 
   /** Returns the committed session view while an active turn mutates Pi's branch. */
   public getCommittedSession(): Session | undefined {
-    return this.running ? this.committedSession : undefined;
+    if (!this.running || !this.committedSession) return undefined;
+    const manager = this.agentSession?.sessionManager;
+    // Title is metadata, not an uncommitted turn. Keep it current on reload while
+    // retaining the frozen transcript until the after-turn checkpoint is done.
+    return manager ? {...this.committedSession, title: sessionTitle(manager, manager.getBranch())} : this.committedSession;
   }
 
   /**
@@ -352,13 +435,28 @@ export class PiSessionRuntime {
 
   /** Creates or returns the long-lived Pi AgentSession for this runtime. */
   private async getAgentSession(): Promise<AgentSession> {
-    if (!this.agentSession) {
-      const sessionManager = await this.sessionStore.openSessionById(this.sessionId);
-      const {session} = await this.agentSessionFactory.createAgentSession({cwd: sessionManager.getCwd(), sessionManager});
+    if (this.agentSession) return this.agentSession;
+    this.agentSessionPending ??= (async () => {
+      const sessionManager = await this.getSessionManager();
+      const {session} = await this.agentSessionFactory.createAgentSession({cwd: sessionManager.getCwd(), sessionManager, reportGoalResult: this.reportGoalResult});
+      const stream = session.agent.streamFunction;
+      session.agent.streamFunction = async (model, context, options) => {
+        if (this.cancelled) throw new Error(this.turnFailure ?? "Session was cancelled.");
+        if (this.agentTurnsRemaining !== undefined) {
+          if (this.agentTurnsRemaining <= 0) {
+            this.turnFailure = "Automatic turn reached its 50 model-turn limit. Review and resume explicitly.";
+            throw new Error(this.turnFailure);
+          }
+          this.agentTurnsRemaining -= 1;
+        }
+        return stream(model, context, options);
+      };
       this.agentSession = session;
-    }
-
-    return this.agentSession;
+      return session;
+    })().finally(() => {
+      this.agentSessionPending = undefined;
+    });
+    return this.agentSessionPending;
   }
 
   private subscribeToLiveUpdates(): void {

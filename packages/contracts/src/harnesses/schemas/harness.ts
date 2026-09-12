@@ -122,6 +122,34 @@ export const HarnessRuntimeContext = Schema.Struct({
   contextFiles: Schema.Array(Schema.String),
   model: Schema.optional(ModelReference),
 });
+/** Public worker output only. Provider thinking, signatures and raw result metadata are never recorded. */
+export const HarnessTranscriptEntry = Schema.Union([
+  Schema.Struct({
+    id: Schema.String,
+    at: Schema.String,
+    kind: Schema.Literal("assistant"),
+    text: Schema.String,
+    streaming: Schema.Boolean,
+    incomplete: Schema.optional(Schema.Boolean),
+    truncated: Schema.Boolean,
+  }),
+  Schema.Struct({
+    id: Schema.String,
+    at: Schema.String,
+    kind: Schema.Literal("tool"),
+    toolName: Schema.String,
+    status: Schema.Literals(["running", "completed", "failed"]),
+    input: Schema.String,
+    output: Schema.optional(Schema.String),
+    inputTruncated: Schema.Boolean,
+    outputTruncated: Schema.Boolean,
+    mediaOmitted: Schema.Boolean,
+  }),
+]);
+export const HarnessTranscript = Schema.Struct({
+  entries: Schema.Array(HarnessTranscriptEntry),
+  omittedEntries: Schema.Number,
+});
 export const HarnessRun = Schema.Struct({
   ...HarnessRunSummary.fields,
   projectPath: Schema.String,
@@ -131,6 +159,8 @@ export const HarnessRun = Schema.Struct({
   output: Schema.String,
   error: Schema.optional(Schema.String),
   events: Schema.Array(Schema.Struct({at: Schema.String, message: Schema.String})),
+  /** Absent on older receipts: their final result is not a reconstructed conversation. */
+  transcript: Schema.optional(HarnessTranscript),
 });
 export const ChatHarnessContext = Schema.Struct({
   captured: Schema.Boolean,
@@ -150,5 +180,7 @@ export type CuratorAutoApply = typeof CuratorAutoApply.Type;
 export type HarnessPromptLayer = typeof HarnessPromptLayer.Type;
 export type HarnessRunSummary = typeof HarnessRunSummary.Type;
 export type HarnessRun = typeof HarnessRun.Type;
+export type HarnessTranscriptEntry = typeof HarnessTranscriptEntry.Type;
+export type HarnessTranscript = typeof HarnessTranscript.Type;
 export type HarnessRuntimeContext = typeof HarnessRuntimeContext.Type;
 export type ChatHarnessContext = typeof ChatHarnessContext.Type;

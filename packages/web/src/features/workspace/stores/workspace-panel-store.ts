@@ -3,7 +3,7 @@ import {createJSONStorage, persist} from "zustand/middleware";
 import {ancestorDirectories} from "@/features/workspace/lib/workspace-paths";
 
 const WORKSPACE_PANEL_STORAGE_KEY = "supernova-workspace-panel";
-const DEFAULT_WORKSPACE_PANEL_WIDTH = 420;
+const DEFAULT_WORKSPACE_PANEL_WIDTH = 340;
 const MIN_WORKSPACE_PANEL_WIDTH = 300;
 const MAX_WORKSPACE_PANEL_WIDTH = 900;
 const DEFAULT_BROWSER_URL = "https://pi.dev/docs";

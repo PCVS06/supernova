@@ -96,6 +96,8 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
           return session;
         }),
       abortSession: ({sessionId}) => sessionRuntime.abortSession(sessionId),
+      getSessionControls: ({sessionId}) => sessionRuntime.getSessionControls(sessionId),
+      updateSessionControls: (input) => sessionRuntime.updateSessionControls(input),
       archiveProjectSession: ({projectPath, sessionId}) =>
         Effect.gen(function* () {
           yield* sessionRuntime.releaseSession(sessionId);

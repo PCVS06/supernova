@@ -1,9 +1,10 @@
 import type {Session} from "@supernova/contracts/sessions/schemas";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useState} from "react";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import type {AppEnvironment} from "@/lib/app-environment";
 import AgentMark from "@/features/harnesses/components/agent-mark";
+import ChatDelegatedWork from "@/features/harnesses/components/chat-delegated-work";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentColor} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
@@ -15,6 +16,7 @@ import ThinkingLevelPicker from "@/features/sessions/components/composer/pickers
 import SessionComposer from "@/features/sessions/components/composer/session-composer";
 import SessionComposerSkeleton from "@/features/sessions/components/composer/session-composer-skeleton";
 import SessionContextIndicator from "@/features/sessions/components/composer/session-context-indicator";
+import SessionControlsTray from "@/features/sessions/components/composer/session-controls-tray";
 import UndoneTurnsDrawer from "@/features/sessions/components/composer/undone-turns-drawer";
 import SessionActionsMenu from "@/features/sessions/components/session-actions-menu";
 import SessionContextStrip from "@/features/sessions/components/session-context-strip";
@@ -23,6 +25,8 @@ import SessionTitleText from "@/features/sessions/components/session-title-text"
 import SplitSessionPicker from "@/features/sessions/components/split-session-picker";
 import SessionTimeline from "@/features/sessions/components/timeline/session-timeline";
 import {useRenameSession as useRenameSessionMutation} from "@/features/sessions/hooks/api/use-rename-session";
+import {useSessionControls} from "@/features/sessions/hooks/api/use-session-controls";
+import {useGeneralSettingsStore} from "@/features/settings/stores/general-settings-store";
 import {useComposerAttachments} from "@/features/sessions/hooks/use-composer-attachments";
 import {useComposerDraft} from "@/features/sessions/hooks/use-composer-draft";
 import {useComposerModelSelection} from "@/features/sessions/hooks/use-composer-model-selection";
@@ -33,6 +37,13 @@ import {MAX_SPLIT_PANES, useSplitViewStore} from "@/features/sessions/stores/spl
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
 import {useInlineRename} from "@/hooks/use-inline-rename";
 import {useMountEffect} from "@/lib/use-mount-effect";
+
+/** Applies loaded project identity once; key changes select the new project. */
+function SelectChatProject(props: {harnessId: string; projectId: string}) {
+  const {harnessId, projectId} = props;
+  useMountEffect(() => useHarnessNavigationStore.getState().selectProject(harnessId, projectId));
+  return null;
+}
 
 interface SessionConversationProps {
   readonly appEnvironment: AppEnvironment;
@@ -50,10 +61,6 @@ export default function SessionConversation(props: SessionConversationProps) {
   const library = useHarnessLibrary();
   const project = library.data?.projects.find((item) => item.path === session.projectPath);
   const lead = library.data?.harnesses.some((item) => item.coordinatorProjectId === project?.id) === true;
-  const selectProject = useHarnessNavigationStore((state) => state.selectProject);
-  useEffect(() => {
-    if (project && primary) selectProject(project.harnessId, project.id);
-  }, [primary, project, selectProject]);
 
   const markSessionVisited = useSessionVisitsStore((state) => state.markSessionVisited);
   const setWorkspaceTarget = useWorkspacePanelStore((state) => state.setTarget);
@@ -84,6 +91,7 @@ export default function SessionConversation(props: SessionConversationProps) {
   const composerDraftKey = sessionComposerDraftKey(session.id);
   const composerDraft = useComposerDraft({key: composerDraftKey});
   const stream = useSessionTimeline({modelReference: modelSelection.modelReference, sessionId: session.id, sessionTurns: session.turns});
+  const controls = useSessionControls(session.id, stream.streamStatus !== "idle");
   const [undoneDrawerHeight, setUndoneDrawerHeight] = useState(0);
 
   const composerDisabled = modelSelection.isPending || !modelSelection.modelReference;
@@ -146,6 +154,7 @@ export default function SessionConversation(props: SessionConversationProps) {
 
   return (
     <>
+      {primary && project && <SelectChatProject key={`${project.harnessId}:${project.id}`} harnessId={project.harnessId} projectId={project.id} />}
       <SessionLayout
         actions={
           primary ? (
@@ -165,9 +174,12 @@ export default function SessionConversation(props: SessionConversationProps) {
           )
         }
         appEnvironment={appEnvironment}
-        badge={<ChatRoleBadge lead={lead} title={project ? `${project.name} · ${session.projectPath}` : session.projectPath} />}
+        badge={
+          <ChatRoleBadge role={project ? (lead ? "harness-lead" : "project-lead") : "chat"} title={project ? `${project.name} · ${session.projectPath}` : session.projectPath} />
+        }
+        subtitle={project?.name ?? session.projectPath}
         color={project ? (project.color ?? (lead ? "#ffffff" : agentColor(project.id))) : undefined}
-        contextStrip={primary ? <SessionContextStrip projectPath={session.projectPath} sessionId={session.id} /> : undefined}
+        contextStrip={<SessionContextStrip projectPath={session.projectPath} sessionId={session.id} />}
         mark={
           <AgentMark className="size-6" color={project?.color ?? (lead ? "#ffffff" : undefined)} kind={lead ? "lead" : "specialist"} name={project?.id ?? session.projectPath} />
         }
@@ -181,11 +193,43 @@ export default function SessionConversation(props: SessionConversationProps) {
             <SessionComposer
               key={`${composerDraftKey}:${composerDraft.revision}`}
               attachments={composerAttachments}
-              disabled={composerDisabled}
+              disabled={composerDisabled || !!controls.state?.error}
               draft={composerDraft}
               onInterrupt={stream.stopStreaming}
               onSteer={stream.steerTurn}
               onSubmit={stream.submitMessage}
+              onQueue={(contentParts) =>
+                modelSelection.modelReference
+                  ? controls.update({
+                      type: "enqueue",
+                      contentParts,
+                      modelReference: modelSelection.modelReference,
+                      captureCheckpoints: useGeneralSettingsStore.getState().captureCheckpoints,
+                    })
+                  : false
+              }
+              onStartGoal={(objective) =>
+                modelSelection.modelReference
+                  ? controls.update({
+                      type: "start_goal",
+                      objective,
+                      modelReference: modelSelection.modelReference,
+                      captureCheckpoints: useGeneralSettingsStore.getState().captureCheckpoints,
+                    })
+                  : false
+              }
+              controlsPending={controls.pending}
+              queuePending={(controls.state?.queue.length ?? 0) > 0}
+              controlTray={
+                <SessionControlsTray
+                  state={controls.state}
+                  error={controls.error}
+                  pending={controls.pending}
+                  working={stream.streamStatus === "streaming"}
+                  onAction={controls.update}
+                  onRefresh={() => void controls.refresh()}
+                />
+              }
               projectPath={session.projectPath}
               slashCommandActions={{...stream.slashCommandActions, redo: handleRedo, undo: handleUndo}}
               streamStatus={stream.streamStatus}
@@ -227,6 +271,7 @@ export default function SessionConversation(props: SessionConversationProps) {
         timeline={
           <SessionTimeline
             key={session.id}
+            activity={<ChatDelegatedWork sessionId={session.id} live={stream.streamStatus !== "idle"} />}
             bottomOverlayHeight={undoneDrawerHeight}
             compacting={stream.streamStatus === "compacting"}
             isStreaming={stream.streamStatus === "streaming" || stream.streamStatus === "compacting"}

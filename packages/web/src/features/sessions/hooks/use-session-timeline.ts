@@ -18,12 +18,12 @@ interface UseSessionTimelineResult {
   liveTimelineItems: readonly SessionTimelineItem[];
   slashCommandActions: ClientSlashCommandActions;
   /** Delivers text to the turn that is already running. */
-  readonly steerTurn: (text: string) => void;
+  readonly steerTurn: (text: string) => Promise<boolean>;
   stopStreaming: () => void;
   streamError: string | null;
   readonly streamStatus: SessionLiveStatus;
   readonly revertToMessage: (turnId: string) => void;
-  submitMessage: (contentParts: readonly UserMessageContentPart[]) => void;
+  submitMessage: (contentParts: readonly UserMessageContentPart[]) => Promise<boolean>;
 }
 
 interface UseSessionTimelineInput {
@@ -81,22 +81,22 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
     [streamStatus, streamTurn]
   );
 
-  const submitMessage = (contentParts: readonly UserMessageContentPart[]): void => {
-    if (streamStatus !== "idle") return;
+  const submitMessage = async (contentParts: readonly UserMessageContentPart[]): Promise<boolean> => {
+    if (streamStatus !== "idle") return false;
 
     if (!modelReference) {
       // The composer should already be disabled, but keeping this guard prevents
       // callers from starting an invalid stream from routes that load models later.
-      return;
+      return false;
     }
 
-    sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId});
+    return sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId});
   };
 
-  const steerTurn = (text: string): void => {
-    if (streamStatus !== "streaming") return;
+  const steerTurn = async (text: string): Promise<boolean> => {
+    if (streamStatus !== "streaming") return false;
 
-    steerSession({rpcClient, sessionId, text});
+    return steerSession({rpcClient, sessionId, text});
   };
 
   const stopStreaming = (): void => {

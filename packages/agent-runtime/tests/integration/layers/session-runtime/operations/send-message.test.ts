@@ -65,11 +65,11 @@ function assistantWithUsage(text: string, totalTokens: number): AssistantMessage
 }
 
 describe("sending messages through Pi sessions", () => {
-  const runtimes: Array<{unregister: () => void}> = [];
+  const runtimes: Array<{unregister: () => Promise<void>}> = [];
   const tempDirs: string[] = [];
 
-  afterEach(() => {
-    while (runtimes.length > 0) runtimes.pop()?.unregister();
+  afterEach(async () => {
+    while (runtimes.length > 0) await runtimes.pop()?.unregister();
     while (tempDirs.length > 0) rmSync(tempDirs.pop()!, {force: true, recursive: true});
   });
 

@@ -28,12 +28,22 @@ describe("workspace file viewer", () => {
   });
 
   it("numbers the lines it shows", () => {
-    const html = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" sessionId="chat-1" />);
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="src/example.ts" projectPath="/workspace" sessionId="chat-1" />);
 
     expect(html).toContain("first");
     expect(html).toContain("second");
     expect(html).toMatch(/>1</);
     expect(html).toMatch(/>2</);
+  });
+
+  it("renders planning documents with headings and keeps a source view available", () => {
+    state.file = file({content: "# Research plan\n\n- Validate assumptions\n- Check evidence"});
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="PLAN.md" projectPath="/workspace" sessionId="chat-1" />);
+    expect(html).toContain("<h1");
+    expect(html).toContain("Research plan");
+    expect(html).toContain("Validate assumptions");
+    expect(html).toContain("Source");
+    expect(html).toContain("Preview");
   });
 
   it("says when the server cut the file at its read limit", () => {

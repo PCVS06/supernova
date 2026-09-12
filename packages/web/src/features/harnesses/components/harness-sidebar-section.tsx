@@ -42,20 +42,23 @@ export default function HarnessSidebarSection(props: {
   );
 
   return (
-    <section className="pb-1" aria-label={`${harness.name} harness`}>
-      <div className="group/harness sticky top-0 z-10 flex h-8 items-center gap-0.5 bg-surface-sidebar">
+    <section aria-label={`${harness.name} harness`}>
+      <div className="group/harness flex min-h-9 items-center gap-0.5">
         <Button
           aria-expanded={open}
-          className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-[10px] font-semibold uppercase tracking-[0.09em] text-ink-faint hover:text-ink"
+          className="flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-left text-xs font-medium uppercase tracking-wide text-ink-muted transition-colors hover:bg-overlay-hover hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong"
           onClick={() => setOpen(!open)}
         >
-          <Icon name="chevron-down" className={cn("transition-transform duration-150", !open && "-rotate-90")} size="xs" />
-          <span className="truncate">{harness.name}</span>
+          <Icon name="chevron-down" className={cn("shrink-0 text-ink-faint transition-transform duration-150 motion-reduce:transition-none", !open && "-rotate-90")} size="xs" />
+          <span className="min-w-0 truncate">{harness.name}</span>
+          <span className="sr-only">
+            {projects.length} {projects.length === 1 ? "project" : "projects"}
+          </span>
         </Button>
         {pendingProposals > 0 && (
           <Link
             aria-label={`${pendingProposals} proposals waiting in ${harness.name}`}
-            className="shrink-0 rounded-full border border-border px-1.5 text-[10px] leading-4 text-ink-muted hover:border-border-strong hover:text-ink"
+            className="shrink-0 rounded-md bg-overlay-hover px-1.5 py-0.5 text-xs text-ink-muted hover:bg-overlay-pressed hover:text-ink"
             onClick={() => selectHarness(harness.id)}
             params={{harnessId: harness.id}}
             search={{section: "inbox"}}
@@ -86,18 +89,18 @@ export default function HarnessSidebarSection(props: {
         </div>
       </div>
       {open && (
-        <div className="space-y-px">
+        <div className="space-y-1">
           {head && list([head])}
           {labs.length > 0 && (
-            // Labs read as work inside the lead, so they sit behind one guide line.
-            <div className={cn("space-y-px", head && "ml-3.5 border-l border-border-muted pl-1.5")}>
+            // Projects share one visual level; their lead relationship is identified in the row.
+            <div className="space-y-1">
               {pinnedLabs.length > 0 && list(pinnedLabs)}
               {restLabs.length > 0 && list(restLabs)}
             </div>
           )}
           {projects.length === 0 && (
             <Button
-              className="flex h-9 w-full items-center gap-2 rounded-md border border-dashed border-border px-2 text-xs text-ink-faint hover:border-border-strong hover:text-ink"
+              className="ml-2 flex h-9 items-center gap-2 rounded-lg px-2 text-xs text-ink-faint transition-colors hover:bg-overlay-hover hover:text-ink"
               onClick={() => onAddProject(harness.id)}
             >
               <Icon name="plus" size="xs" />

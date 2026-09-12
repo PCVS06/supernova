@@ -60,11 +60,11 @@ describe("steer log", () => {
   });
 
   it("forwards the steer, records it for a harness chat and never fails the steer when the log cannot be written", async () => {
-    const runtime = {steer: vi.fn(async () => {})} as unknown as PiSessionRuntime;
+    const runtime = {steer: vi.fn(async (text: string) => text)} as unknown as PiSessionRuntime;
     await fixture.store.bindSession("chat-1", await fixture.store.resolveProject(fixture.projectId));
     await steerSession(runtime, {sessionId: "chat-1", text: "Use the newer source"}, fixture.runs);
 
-    expect(runtime.steer).toHaveBeenCalledWith("Use the newer source");
+    expect(runtime.steer).toHaveBeenCalledWith("Use the newer source", undefined);
     expect((await fixture.runs.listSteers("chat-1")).map((steer) => steer.text)).toEqual(["Use the newer source"]);
 
     // A chat outside every harness project has no instructions to curate, so nothing is kept for it.
@@ -73,8 +73,8 @@ describe("steer log", () => {
 
     const broken = {appendSteer: vi.fn(async () => Promise.reject(new Error("disk full")))} as unknown as HarnessRunStore;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await expect(steerSession(runtime, {sessionId: "chat-1", text: "Still delivered"}, broken)).resolves.toBeUndefined();
-    expect(runtime.steer).toHaveBeenCalledWith("Still delivered");
+    await expect(steerSession(runtime, {sessionId: "chat-1", text: "Still delivered"}, broken)).resolves.toBe("Still delivered");
+    expect(runtime.steer).toHaveBeenCalledWith("Still delivered", undefined);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });

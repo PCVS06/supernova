@@ -3,8 +3,6 @@ import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import type {SessionLiveStatus} from "@/features/sessions/stores/session-live-store";
 
-export const STEER_EXPLANATION = "Steering interrupts the current step and hands your message to the running turn.";
-
 interface ComposerSendActionProps {
   readonly canInterrupt: boolean;
   readonly canSend: boolean;
@@ -13,53 +11,51 @@ interface ComposerSendActionProps {
   readonly onSend: () => void;
   readonly onSteer: () => void;
   readonly streamStatus: SessionLiveStatus;
+  readonly sendLabel?: "Send message" | "Queue message" | "Start goal";
 }
 
-/** The composer's primary action: send while the chat is idle, steer while a turn is running. */
+/** Enter's action stays primary; steering and stop remain explicit secondary controls. */
 export default function ComposerSendAction(props: ComposerSendActionProps) {
-  const {canInterrupt, canSend, canSteer, onInterrupt, onSend, onSteer, streamStatus} = props;
-  const streaming = streamStatus === "streaming" || streamStatus === "stopping";
-
-  if (!streaming) {
-    return (
-      <IconButton
-        label="Send message"
-        className="grid size-9 place-items-center rounded-lg bg-ink text-ink-inverse transition hover:bg-ink-strong disabled:cursor-default disabled:bg-overlay-pressed disabled:text-ink-muted"
-        disabled={!canSend}
-        onClick={onSend}
-        size="none"
-        title="Send message"
-        variant="bare"
-      >
-        <Icon name="send" size="md" />
-      </IconButton>
-    );
-  }
+  const {canInterrupt, canSend, canSteer, onInterrupt, onSend, onSteer, streamStatus, sendLabel = "Send message"} = props;
+  const streaming = streamStatus === "streaming" || streamStatus === "stopping" || streamStatus === "compacting";
 
   return (
     <div className="flex items-center gap-1.5">
-      <IconButton
-        label={streamStatus === "stopping" ? "Stopping stream" : "Stop streaming"}
-        className="grid size-9 place-items-center rounded-lg border border-border text-ink transition hover:bg-overlay-hover disabled:cursor-default disabled:text-ink-muted"
-        disabled={!canInterrupt}
-        onClick={onInterrupt}
-        size="none"
-        title={streamStatus === "stopping" ? "Stopping the current turn" : "Stop the current turn"}
-        variant="bare"
-      >
-        <Icon name="stop" size="md" />
-      </IconButton>
+      {streaming && sendLabel !== "Start goal" && (
+        <Button
+          aria-label="Steer now"
+          className="shrink-0 px-2 text-xs"
+          disabled={!canSteer}
+          onClick={onSteer}
+          title="Give this text to the running agent now. Attachments stay in your draft."
+          variant="ghost"
+        >
+          Steer now
+        </Button>
+      )}
       <Button
-        aria-label="Steer this turn"
-        className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-ink px-3 text-sm font-medium text-ink-inverse transition hover:bg-ink-strong disabled:cursor-default disabled:bg-overlay-pressed disabled:text-ink-muted"
-        disabled={!canSteer}
-        onClick={onSteer}
-        title={STEER_EXPLANATION}
-        variant="bare"
+        aria-label={sendLabel}
+        className="flex h-8 shrink-0 items-center gap-1.5 px-2.5 text-xs"
+        disabled={!canSend}
+        onClick={onSend}
+        title={sendLabel === "Queue message" ? "Queue message — runs after the current turn, in order" : sendLabel}
+        variant="filled"
       >
-        <Icon name="corner-left-up" size="sm" />
-        <span>Steer</span>
+        <Icon name={sendLabel === "Start goal" ? "gauge" : sendLabel === "Queue message" ? "new-chat" : "send"} size="sm" />
+        <span>{sendLabel === "Queue message" ? "Queue" : sendLabel === "Start goal" ? "Start goal" : "Send"}</span>
       </Button>
+      {streaming && (
+        <IconButton
+          label={streamStatus === "stopping" ? "Stopping stream" : "Stop streaming"}
+          className="size-8"
+          disabled={!canInterrupt}
+          onClick={onInterrupt}
+          size="none"
+          title={streamStatus === "stopping" ? "Stopping the current turn" : "Stop this turn and pause the goal and queue"}
+        >
+          <Icon name="stop" size="md" />
+        </IconButton>
+      )}
     </div>
   );
 }

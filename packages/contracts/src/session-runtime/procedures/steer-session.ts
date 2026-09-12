@@ -6,4 +6,7 @@ export const SteerSessionPayload = Schema.Struct({
   text: Schema.String,
 });
 
+/** The message was not accepted; the caller must retain it. */
+export class SteerSessionError extends Schema.TaggedErrorClass<SteerSessionError>()("SteerSessionError", {message: Schema.String}) {}
+
 export type SteerSessionPayload = typeof SteerSessionPayload.Type;

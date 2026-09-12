@@ -20,12 +20,11 @@ describe("first-message latency", () => {
     ]);
     const request = pi.sendMessage({message: "Hi", modelReference: selectedModelReference, sessionId: info.id, captureCheckpoints: false});
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      expect(answerStarted, "The answer must not be queued behind a title-generation request").toBe(true);
+      await vi.waitFor(() => expect(answerStarted, "The answer must not be queued behind a title-generation request").toBe(true), {timeout: 3000});
     } finally {
       releaseTitle("Greeting");
       await request;
-      pi.unregister();
+      await pi.unregister();
     }
   });
 
@@ -51,7 +50,7 @@ describe("first-message latency", () => {
     } finally {
       releaseCheckpoint();
       await request;
-      pi.unregister();
+      await pi.unregister();
     }
   });
 });

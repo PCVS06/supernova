@@ -1,4 +1,5 @@
 import type {SendMessagePayload} from "@supernova/contracts/session-runtime/procedures";
+import type {SessionGoal} from "@supernova/contracts/session-runtime/schemas";
 import {randomUUID} from "node:crypto";
 import type {PiModel} from "@supernova/agent-runtime/layers/shared/internal/pi-model-catalog";
 import {prepareSendMessageContext} from "@supernova/agent-runtime/layers/session-runtime/lib/user-message/send-message-context";
@@ -17,8 +18,17 @@ async function generateSessionTitle(options: GenerateSessionTitleOptions): Promi
 }
 
 /** Accepts a user message and starts provider work on the long-lived session runtime. */
-export async function sendMessage(runtime: PiSessionRuntime, titleGenerator: PiSessionTitleGeneratorShape, input: SendMessagePayload): Promise<void> {
-  runtime.beginWork();
+export async function sendMessage(
+  runtime: PiSessionRuntime,
+  titleGenerator: PiSessionTitleGeneratorShape,
+  input: SendMessagePayload,
+  controls?: {
+    readonly goal?: SessionGoal;
+    readonly bounded?: boolean;
+    readonly onSettled: (error: string | undefined) => Promise<void>;
+  }
+): Promise<void> {
+  runtime.beginWork(controls?.bounded);
 
   try {
     const sessionManager = await runtime.getSessionManager();
@@ -39,15 +49,25 @@ export async function sendMessage(runtime: PiSessionRuntime, titleGenerator: PiS
     const checkpointStatus = await runtime.createCheckpoint(checkpointId, captureCheckpoints);
     await runtime.selectModel(selectedModel);
 
-    const {completion} = runtime.startTurn({beforeCheckpoint: {checkpointId, status: checkpointStatus}, captureCheckpoints, messageContext, title: undefined});
+    const goal = controls?.goal;
+    await runtime.setGoalReporting(!!goal);
+    const context = goal
+      ? {
+          ...messageContext,
+          prompt: `${messageContext.prompt}\n\nActive chat goal (${goal.id}), turn ${goal.turnsUsed + 1}/${goal.maxTurns}:\n${goal.objective}\nMake bounded progress within the user's permissions. Use report_goal_result with this goalId and completed or blocked plus a factual summary when finished or when user input/permission is needed. Completion is your report, not independent verification. Do not broaden authority or repeat failed external actions.`,
+        }
+      : messageContext;
+    const {completion} = runtime.startTurn({beforeCheckpoint: {checkpointId, status: checkpointStatus}, captureCheckpoints, messageContext: context, title: undefined});
     void titlePending
       ?.then((title) => {
         if (title) return runtime.applyGeneratedTitle(title);
       })
       .catch(() => undefined);
 
+    let failure: string | undefined;
     void completion
       .catch(async (cause) => {
+        failure = cause instanceof Error ? cause.message : "Failed to send message.";
         if (!runtime.isCancelled()) {
           await runtime.publishEvent({
             type: "session.error",
@@ -56,7 +76,13 @@ export async function sendMessage(runtime: PiSessionRuntime, titleGenerator: PiS
           });
         }
       })
-      .finally(() => runtime.endWork());
+      .finally(async () => {
+        runtime.endWork();
+        await controls?.onSettled(failure ?? runtime.getTurnFailure());
+      })
+      .catch(async (cause) => {
+        await runtime.publishEvent({type: "session.error", sessionId: runtime.sessionId, error: cause instanceof Error ? cause.message : "Could not settle chat controls."});
+      });
   } catch (cause) {
     runtime.endWork();
     throw cause;

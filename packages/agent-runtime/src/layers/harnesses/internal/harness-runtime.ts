@@ -11,6 +11,7 @@ import {HarnessRunStore} from "@supernova/agent-runtime/layers/harnesses/interna
 import {describeWorkflowRun, runWorkflow} from "@supernova/agent-runtime/layers/harnesses/internal/workflow-runner";
 import {HarnessConfigurationFailure} from "@supernova/agent-runtime/layers/harnesses/lib/harness-failures";
 import {captureHarnessContext} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-context";
+import {WorkerTranscript} from "@supernova/agent-runtime/layers/harnesses/internal/worker-transcript";
 import {createHarnessViewTool} from "@supernova/agent-runtime/layers/harnesses/internal/harness-view-tool";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 import {curatorScheduler} from "@supernova/agent-runtime/layers/curator/curator-scheduler";
@@ -171,6 +172,7 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
     agent?: HarnessAgent
   ): Promise<{runId?: string; text: string; usage: WorkflowStepUsage}> => {
     const now = new Date().toISOString();
+    const transcript = new WorkerTranscript();
     let receipt: HarnessRun | undefined = trace
       ? {
           id: randomUUID(),
@@ -191,6 +193,7 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
           instructions: harnessPromptLayers(child, agent),
           output: "",
           events: [{at: now, message: "Preparing isolated worker"}],
+          transcript: transcript.snapshot(),
         }
       : undefined;
     let writes = Promise.resolve();
@@ -244,14 +247,27 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
         steered = true;
         void session.steer(windDownMessage);
       };
+      let transcriptDirty = false;
+      const flushTranscript = () => {
+        if (!transcriptDirty) return;
+        transcriptDirty = false;
+        update({transcript: transcript.snapshot()});
+      };
+      // Token streams are coalesced to one receipt write per second; completed messages flush immediately.
+      const transcriptTimer = trace ? setInterval(flushTranscript, 1000) : undefined;
+      transcriptTimer?.unref();
       const unsubscribe = trace
         ? session.subscribe((event) => {
+            if (transcript.record(event)) {
+              transcriptDirty = true;
+              if (event.type !== "message_update" && event.type !== "tool_execution_update") flushTranscript();
+            }
             if (event.type === "agent_start") {
               const runtime = captureHarnessContext(session, resources.resourceLoader);
               update({status: "running", activity: "Working", runtime, model: runtime.model});
             }
             if (event.type === "tool_execution_start" || event.type === "tool_execution_end") {
-              const activity = `${event.type === "tool_execution_start" ? "Using" : "Finished"} ${event.toolName}`;
+              const activity = `${event.type === "tool_execution_start" ? "Using" : event.isError ? "Failed" : "Finished"} ${event.toolName}`;
               update({activity, events: [...(receipt?.events ?? []), {at: new Date().toISOString(), message: activity}].slice(-200)});
             }
           })
@@ -275,6 +291,7 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
             .join("\n") ?? "";
         if (!answer || answer.stopReason === "error" || answer.stopReason === "aborted")
           throw new Error(`Specialist ${name} did not complete: ${answer?.errorMessage || answer?.stopReason || "no response"}`);
+        flushTranscript();
         update({status: "completed", output: text, activity: "Completed", finishedAt: new Date().toISOString()});
         await writes;
         // Only a run with a receipt is evidence, so only that run arms the curator's after-run pass.
@@ -290,6 +307,9 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
         );
         return {runId: receipt?.id, text, usage};
       } finally {
+        if (transcriptTimer) clearInterval(transcriptTimer);
+        flushTranscript();
+        await writes;
         unsubscribe?.();
         signal?.removeEventListener("abort", abort);
         session.dispose();
@@ -344,7 +364,7 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
     name: "subagent",
     label: "Harness specialists",
     description:
-      "Delegate ad hoc work to this harness's specialists: agent/task for one, chain for sequential handoffs, or up to three parallel tasks. Free text in, free text out, nothing saved. Use harness_workflow instead to run one of this harness's named workflows. Specialists cannot recursively delegate.",
+      "Delegate ad hoc work to this harness's specialists: agent/task for one, chain for sequential handoffs, or up to three parallel tasks. Free text in, free text out, with a chat-owned execution receipt and public conversation. Use harness_workflow instead to run one of this harness's named workflows. Specialists cannot recursively delegate.",
     parameters: delegateParameters,
     executionMode: "sequential",
     async execute(_id, params, signal, _update, ctx) {

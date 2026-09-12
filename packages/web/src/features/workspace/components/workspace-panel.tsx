@@ -85,12 +85,15 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
   return (
     <aside
       aria-label="Workspace panel"
-      className={cn("relative flex h-full min-h-0 shrink-0 flex-col border-l border-border-strong bg-surface", !resizing && "transition-[width] duration-150 ease-out")}
+      className={cn(
+        "absolute inset-y-0 right-0 z-30 flex min-h-0 max-w-full shrink-0 flex-col border-l border-border-strong bg-surface-sidebar md:relative md:z-auto",
+        !resizing && "transition-[width] duration-150 ease-out motion-reduce:transition-none"
+      )}
       ref={panelRef}
       style={{width: "var(--workspace-panel-width)", "--workspace-panel-width": `${width}px`} as CSSProperties}
     >
       <div className="absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize" onPointerDown={handleResizePointerDown} />
-      <header className="relative z-20 flex h-12 shrink-0 items-center gap-1 border-b border-border-muted px-2">
+      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-border-muted px-2">
         <WorkspaceViewTab active={view === "files"} label="Files" onSelect={() => handleSelectView("files")} shortcut="Cmd/Ctrl+Shift+F" />
         <WorkspaceViewTab active={view === "browser"} label="Browser" onSelect={() => handleSelectView("browser")} shortcut="Cmd/Ctrl+Shift+B" />
         <IconButton className="ml-auto size-7" label="Close workspace panel" onClick={closePanel} title="Close workspace panel">

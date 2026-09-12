@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync} from "node:fs";
+import {existsSync, mkdtempSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import type {AgentSession, PromptTemplate, SessionEntry, Skill} from "@earendil-works/pi-coding-agent";
@@ -22,6 +22,7 @@ import type {CheckpointStoreShape} from "@supernova/agent-runtime/layers/session
 import {SessionEventBusLive} from "@supernova/agent-runtime/layers/session-runtime/internal/session-event-bus";
 import {PiSessionsFromInternal} from "@supernova/agent-runtime/layers/sessions/pi-sessions-live";
 import {SessionRuntimeService} from "@supernova/agent-runtime/services/session-runtime-service";
+import {createReportGoalResultTool} from "@supernova/agent-runtime/layers/session-runtime/internal/tools/report-goal-result-tool";
 import {SessionsService} from "@supernova/agent-runtime/services/sessions-service";
 import type {SendMessagePayload, SessionStreamEvent} from "@supernova/contracts/session-runtime/procedures";
 import type {ModelReference, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
@@ -194,11 +195,12 @@ export async function createPiTestRuntime(input?: {
   });
 
   const agentSessionFactory: PiAgentSessionFactoryShape = {
-    createAgentSession: ({cwd, sessionManager}) =>
+    createAgentSession: ({cwd, sessionManager, reportGoalResult}) =>
       createAgentSession({
         cwd,
         modelRuntime,
-        noTools: "all",
+        tools: reportGoalResult ? ["report_goal_result"] : [],
+        customTools: reportGoalResult ? [createReportGoalResultTool(reportGoalResult)] : [],
         sessionManager,
         settingsManager: SettingsManager.inMemory(input?.settings),
       }),
@@ -210,7 +212,7 @@ export async function createPiTestRuntime(input?: {
       const sessionManager = sessions.get(sessionId);
       if (!sessionManager) throw new Error("Session not found.");
       const sessionFile = sessionManager.getSessionFile();
-      if (input?.reopenManagers && input.sessionDir && sessionFile) return SessionManager.open(sessionFile, input.sessionDir);
+      if (input?.reopenManagers && input.sessionDir && sessionFile && existsSync(sessionFile)) return SessionManager.open(sessionFile, input.sessionDir);
       return sessionManager;
     },
   };
@@ -268,12 +270,16 @@ export async function createPiTestRuntime(input?: {
           yield* sessionRuntime.sendMessage({contentParts: message ? [{text: message, type: "text"}] : [], ...payload});
         })
       );
-      await waitUntil(() => {
-        const endedRevision = events.find((event) => event.type === "session.agent.ended")?.revision;
-        if (events.some((event) => event.type === "session.error")) return;
-        if (endedRevision === undefined) throw new Error("Session agent did not end.");
-        if (!events.some((event) => event.type === "session.snapshot" && event.revision > endedRevision)) throw new Error("Session did not publish a final snapshot.");
-      });
+      await waitUntil(
+        () => {
+          const endedRevision = events.find((event) => event.type === "session.agent.ended")?.revision;
+          if (events.some((event) => event.type === "session.error")) return;
+          if (endedRevision === undefined) throw new Error("Session agent did not end.");
+          if (!events.some((event) => event.type === "session.snapshot" && event.revision > endedRevision)) throw new Error("Session did not publish a final snapshot.");
+        },
+        // Real Git checkpoint subprocesses may take seconds under workspace-wide test load.
+        {timeoutMs: 10_000}
+      );
       return events;
     } finally {
       await runtime.runPromise(Fiber.interrupt(watcher).pipe(Effect.ignore));
@@ -282,7 +288,7 @@ export async function createPiTestRuntime(input?: {
 
   return {
     appendConversation: (manager: PiSessionManager, options?: {assistantText?: string; requestText?: string}) => appendConversation(manager, options),
-    createSession: (projectPath = defaultProjectRoot) => sessionRecord(rememberSession(SessionManager.inMemory(projectPath))),
+    createSession: (projectPath = defaultProjectRoot) => sessionRecord(sessionStore.createSessionManager(projectPath)),
     faux,
     getSession: (sessionId: string) => {
       const manager = sessions.get(sessionId);
@@ -306,10 +312,11 @@ export async function createPiTestRuntime(input?: {
     sessionsLive,
     titleGenerator,
     unregister: () => {
-      runtime.dispose();
       faux.unregister();
-      rmSync(checkpointStorageRoot, {force: true, recursive: true});
-      rmSync(defaultProjectRoot, {force: true, recursive: true});
+      return runtime.dispose().finally(() => {
+        rmSync(checkpointStorageRoot, {force: true, recursive: true});
+        rmSync(defaultProjectRoot, {force: true, recursive: true});
+      });
     },
   };
 }

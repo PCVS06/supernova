@@ -84,6 +84,8 @@ class TimelineRpcClient implements RpcClient {
       createSession: () => Effect.succeed(this.session(EMPTY_SESSION_ID)),
       getFolderStatus: () => Effect.succeed({exists: true, kind: "directory"}),
       getSession: ({sessionId}: {readonly sessionId: string}) => Effect.sync(() => this.session(sessionId)),
+      getSessionControls: ({sessionId}: {readonly sessionId: string}) => Effect.succeed({sessionId, revision: 0, goal: null, queue: [], queuePaused: false}),
+      updateSessionControls: ({sessionId}: {readonly sessionId: string}) => Effect.succeed({sessionId, revision: 0, goal: null, queue: [], queuePaused: false}),
       listComposerSuggestions: () => Effect.succeed({items: []}),
       listFolderFiles: () => Effect.succeed({items: []}),
       listFolderSuggestions: ({query}: {readonly query: string}) =>

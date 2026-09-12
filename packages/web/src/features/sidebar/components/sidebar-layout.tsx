@@ -14,15 +14,17 @@ interface SidebarLayoutProps {
   sidebarVisible?: boolean;
   sidebarWidth: number;
   titlebarActions?: ReactNode;
+  trailingTitlebarActions?: ReactNode;
 }
 
 export default function SidebarLayout(props: SidebarLayoutProps) {
-  const {appEnvironment, children, className, onSidebarWidthChange, sidebar, sidebarVisible = true, sidebarWidth, titlebarActions} = props;
+  const {appEnvironment, children, className, onSidebarWidthChange, sidebar, sidebarVisible = true, sidebarWidth, titlebarActions, trailingTitlebarActions} = props;
   const translucentSidebar = useAppearanceStore((state) => state.translucentSidebar);
   const [resizing, setResizing] = useState(false);
   const desktopEnvironment = isDesktopEnvironment(appEnvironment);
   const macEnvironment = appEnvironment === "mac";
   const resizable = onSidebarWidthChange != null;
+  const workspaceChrome = trailingTitlebarActions != null;
 
   const handleResizePointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     if (!onSidebarWidthChange) return;
@@ -61,11 +63,15 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
       <section
         className={cn(
           "relative flex h-full min-h-0 overflow-hidden bg-surface-sidebar",
+          workspaceChrome && "pt-12",
           (macEnvironment || appEnvironment === "windows") && translucentSidebar && "bg-surface-sidebar-translucent backdrop-blur-sm backdrop-saturate-[1.35]"
         )}
       >
         {(titlebarActions != null || macEnvironment || appEnvironment === "windows") && (
-          <div className="absolute inset-x-0 top-0 z-10 flex h-12 items-center [-webkit-app-region:drag]" style={sidebarStyle}>
+          <div
+            className={cn("absolute inset-x-0 top-0 z-10 flex h-12 items-center [-webkit-app-region:drag]", workspaceChrome && "border-b border-border-muted")}
+            style={sidebarStyle}
+          >
             <div
               className={cn(
                 "flex h-full items-center gap-1 pr-3",
@@ -78,6 +84,11 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
             </div>
           </div>
         )}
+        {trailingTitlebarActions && (
+          <nav aria-label="Workspace views" className="absolute right-3 top-0 z-30 flex h-12 items-center gap-1 [-webkit-app-region:no-drag]">
+            {trailingTitlebarActions}
+          </nav>
+        )}
 
         <div
           className={cn(
@@ -89,7 +100,8 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
         >
           <div
             className={cn(
-              "h-full pt-12 transition-opacity duration-200 ease-out",
+              "h-full transition-opacity duration-200 ease-out",
+              !workspaceChrome && "pt-12",
               resizable ? "w-screen md:w-(--sidebar-width)" : "w-(--sidebar-width)",
               sidebarVisible ? "opacity-100" : "opacity-0"
             )}

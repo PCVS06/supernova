@@ -1,5 +1,6 @@
 import {Effect, Layer, Stream} from "effect";
 import type {SessionStreamEvent} from "@supernova/contracts/session-runtime/procedures";
+import {GetSessionControlsError, UpdateSessionControlsError, SteerSessionError} from "@supernova/contracts/session-runtime/procedures";
 import {PiModelCatalog, PiModelCatalogLive} from "@supernova/agent-runtime/layers/shared/internal/pi-model-catalog";
 import {PiResourceCatalog, PiResourceCatalogLive} from "@supernova/agent-runtime/layers/shared/internal/pi-resource-catalog";
 import {PiSessionStore, PiSessionStoreLive} from "@supernova/agent-runtime/layers/shared/internal/pi-session-store";
@@ -29,11 +30,25 @@ export const PiSessionRuntimeFromInternal = Layer.effect(
       compactSession: (input) => Effect.promise(() => pool.compactSession(input)),
       deleteSessionCheckpoints: (projectRoot, sessionId) => Effect.promise(() => pool.deleteSessionCheckpoints(projectRoot, sessionId)),
       getCommittedSession: (sessionId) => Effect.sync(() => pool.getCommittedSession(sessionId)),
+      getSessionControls: (sessionId) =>
+        Effect.tryPromise({
+          try: () => pool.getSessionControls(sessionId),
+          catch: (error) => new GetSessionControlsError({message: error instanceof Error ? error.message : "Could not read session controls."}),
+        }),
+      updateSessionControls: (input) =>
+        Effect.tryPromise({
+          try: () => pool.updateSessionControls(input),
+          catch: (error) => new UpdateSessionControlsError({message: error instanceof Error ? error.message : "Could not update session controls."}),
+        }),
       redoCheckpoint: (input) => Effect.tryPromise({try: () => pool.redoCheckpoint(input), catch: asCheckpointNavigationError}),
       releaseSession: (sessionId) => Effect.promise(() => pool.releaseSession(sessionId)),
       revertToMessage: (input) => Effect.tryPromise({try: () => pool.revertToMessage(input), catch: asCheckpointNavigationError}),
       sendMessage: (input) => Effect.promise(() => pool.sendMessage(input)),
-      steerSession: (input) => Effect.promise(() => pool.steerSession(input)),
+      steerSession: (input) =>
+        Effect.tryPromise({
+          try: () => pool.steerSession(input),
+          catch: (error) => new SteerSessionError({message: error instanceof Error ? error.message : "Steering was not accepted."}),
+        }),
       undoCheckpoint: (input) => Effect.tryPromise({try: () => pool.undoCheckpoint(input), catch: asCheckpointNavigationError}),
       watchEvents: () => Stream.concat(Stream.make({type: "connected"} satisfies SessionStreamEvent), eventBus.stream()),
     };

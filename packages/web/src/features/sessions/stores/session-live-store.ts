@@ -147,8 +147,8 @@ interface SessionLiveStoreState {
   readonly redoCheckpoint: (input: CheckpointNavigationInput) => Promise<CheckpointNavigationOutcome>;
   readonly resetRevisions: () => void;
   readonly revertToMessage: (input: RevertToMessageInput) => Promise<CheckpointNavigationOutcome>;
-  readonly sendMessage: (input: SendSessionMessageInput) => void;
-  readonly steerSession: (input: SteerSessionInput) => void;
+  readonly sendMessage: (input: SendSessionMessageInput) => Promise<boolean>;
+  readonly steerSession: (input: SteerSessionInput) => Promise<boolean>;
   readonly undoCheckpoint: (input: CheckpointNavigationInput) => Promise<CheckpointNavigationOutcome>;
 }
 
@@ -198,10 +198,10 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
     }));
   };
 
-  const sendMessage = (input: SendSessionMessageInput): void => {
+  const sendMessage = async (input: SendSessionMessageInput): Promise<boolean> => {
     const {contentParts, modelReference, queryClient, rpcClient, sessionId} = input;
     const current = get().sessions[sessionId];
-    if (current && current.status !== "idle") return;
+    if (current && current.status !== "idle") return false;
 
     const liveTurn = createInitialStreamTurn({contentParts, modelReference});
     const previousSession = queryClient.getQueryData<Session>(sessionQueryKey(sessionId));
@@ -212,11 +212,12 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
       return {sessions: {...state.sessions, [sessionId]: {...entry, error: null, liveContext: null, liveTurn, status: "streaming"}}};
     });
 
-    void rpcClient
+    return rpcClient
       .run((rpc) => rpc.sendMessage({captureCheckpoints: useGeneralSettingsStore.getState().captureCheckpoints, contentParts, modelReference, sessionId}))
+      .then(() => true)
       .catch((cause: unknown) => {
         const entry = get().sessions[sessionId];
-        if (!entry || entry.revision !== previousRevision) return;
+        if (!entry || entry.revision !== previousRevision) return false;
 
         if (previousSession) queryClient.setQueryData(sessionQueryKey(sessionId), previousSession);
         set((state) => {
@@ -229,28 +230,31 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
             },
           };
         });
+        return false;
       });
   };
 
-  const steerSession = (input: SteerSessionInput): void => {
+  const steerSession = async (input: SteerSessionInput): Promise<boolean> => {
     const {rpcClient, sessionId, text} = input;
     const steeringText = text.trim();
     const stream = get().sessions[sessionId];
-    if (steeringText.length === 0 || !stream || (stream.status !== "streaming" && stream.status !== "compacting")) return;
+    if (steeringText.length === 0 || !stream || stream.status !== "streaming") return false;
 
     // Steering has no optimistic projection: the running turn reports the
     // interruption through the normal live-turn events.
-    void rpcClient
+    return rpcClient
       .run((rpc) => rpc.steerSession({sessionId, text: steeringText}))
+      .then(() => true)
       .catch((cause: unknown) => {
         showToast("Unable to steer this turn", errorMessage(cause, "The running step did not accept the steering message."));
+        return false;
       });
   };
 
   const abortSession = (input: {rpcClient: RpcClient; sessionId: string}): void => {
     const {rpcClient, sessionId} = input;
     const stream = get().sessions[sessionId];
-    if (!stream || (stream.status !== "streaming" && stream.status !== "stopping")) return;
+    if (!stream || (stream.status !== "streaming" && stream.status !== "stopping" && stream.status !== "compacting")) return;
 
     const liveTurn = stream.liveTurn
       ? {...stream.liveTurn, completedAt: stream.liveTurn.completedAt ?? stream.liveTurn.events.at(-1)?.timestamp ?? new Date().toISOString(), status: "completed" as const}
@@ -264,7 +268,8 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
 
     void rpcClient
       .run((rpc) => rpc.abortSession({sessionId}))
-      .catch(() => {
+      .catch((cause: unknown) => {
+        showToast("Unable to stop this turn", errorMessage(cause, "The agent may still be working. Try stopping again."));
         set((state) => {
           const entry = state.sessions[sessionId];
           if (!entry || entry.status !== "stopping") return state;

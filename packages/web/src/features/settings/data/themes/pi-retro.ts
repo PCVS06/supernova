@@ -4,15 +4,15 @@ const dark = {
   codeThemeId: "github-dark",
   theme: {
     accent: "#bcbcbc",
-    contrast: 68,
+    contrast: 60,
     fonts: {code: null, ui: null},
-    ink: "#ededed",
+    ink: "#e8e9eb",
     opaqueWindows: true,
     semanticColors: {
       diffAdded: "#00a240",
       diffRemoved: "#e02e2a",
     },
-    surface: "#000000",
+    surface: "#111213",
   },
   variant: "dark",
 } as const satisfies ThemeVariant;
