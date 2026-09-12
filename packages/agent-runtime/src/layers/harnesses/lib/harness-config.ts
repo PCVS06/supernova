@@ -125,7 +125,7 @@ export function normalizeHarnessHierarchy(library: HarnessLibrary): HarnessLibra
   const projects = library.projects.map((project) => {
     const head = harnesses.find((harness) => harness.id === project.harnessId)?.coordinatorProjectId;
     const parentProjectId = head && head !== project.id ? head : undefined;
-    return {
+    const persisted = {
       ...project,
       parentProjectId,
       orchestratorPrompt:
@@ -134,6 +134,9 @@ export function normalizeHarnessHierarchy(library: HarnessLibrary): HarnessLibra
           ? "You are this lab's orchestrator. Work inside this lab, use its specialist team, and report results and uncertainties to Science Space. Do not assume authority over other labs."
           : undefined),
     };
+    // Folder availability is computed on every read and must never reach the saved file.
+    delete persisted.folderMissing;
+    return persisted;
   });
   return {...library, harnesses, projects};
 }

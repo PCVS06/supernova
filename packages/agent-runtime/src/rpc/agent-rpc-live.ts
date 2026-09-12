@@ -30,9 +30,11 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       getHarnessMemory: ({harnessId, projectId}) => configurationEffect(() => getHarnessMemory(harnessId, projectId)),
       getToolCredentials: () => configurationEffect(() => toolCredentials.status()),
       saveToolCredential: ({name, value}) => configurationEffect(() => toolCredentials.save(name, value)),
-      getHarnessLibrary: () => configurationEffect(() => harnessStore.list()),
+      getHarnessLibrary: () => configurationEffect(() => harnessStore.describe()),
       updateHarnessView: ({projectId, beforeProjectId, expectedRevision}) =>
-        configurationEffect(async () => harnessStore.updateView(await harnessStore.resolveProject(projectId), {projectId, beforeProjectId}, expectedRevision)),
+        configurationEffect(async () =>
+          harnessStore.withFolderStatus(await harnessStore.updateView(await harnessStore.resolveProject(projectId), {projectId, beforeProjectId}, expectedRevision))
+        ),
       getChatHarness: ({sessionId}) =>
         configurationEffect(async () => {
           const session = await Effect.runPromise(sessions.get(sessionId));
@@ -65,9 +67,11 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
           return harnessRunStore.getWorkflowRun(sessionId, runId);
         }),
       getHarnessSkills: ({harnessId}) => configurationEffect(async () => (await harnessStore.listSkills(harnessId)).map(({name, description}) => ({name, description}))),
-      saveHarness: ({harness, expectedRevision}) => configurationEffect(() => harnessStore.save(harness, expectedRevision)),
-      saveHarnessProject: ({project, expectedRevision}) => configurationEffect(() => harnessStore.saveProject(project, expectedRevision)),
-      importScienceHarness: ({packagePath, rootPath, expectedRevision}) => configurationEffect(() => harnessStore.importScience(packagePath, rootPath, expectedRevision)),
+      saveHarness: ({harness, expectedRevision}) => configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.save(harness, expectedRevision))),
+      saveHarnessProject: ({project, expectedRevision}) =>
+        configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.saveProject(project, expectedRevision))),
+      importScienceHarness: ({packagePath, rootPath, expectedRevision}) =>
+        configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.importScience(packagePath, rootPath, expectedRevision))),
       createHarnessSession: ({projectId}) =>
         configurationEffect(async () => {
           const snapshot = await harnessStore.resolveProject(projectId);

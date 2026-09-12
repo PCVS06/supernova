@@ -17,6 +17,23 @@ describe("harness persistence and isolation", () => {
     await rm(root, {recursive: true, force: true});
   });
 
+  it("reports a missing project folder without persisting the flag or failing the reader", async () => {
+    await store.save(createDefaultHarness(), 0);
+    const project = {id: "project-a", harnessId: "coding", name: "Project A", path: join(root, "project"), systemPrompt: "", contextInstructions: "", agents: []};
+    await store.saveProject({...project, folderMissing: true}, 1);
+    expect(await readFile(join(root, "config", "harnesses.json"), "utf8")).not.toContain("folderMissing");
+    expect((await store.describe()).projects[0]?.folderMissing).toBeUndefined();
+
+    await rm(join(root, "project"), {recursive: true});
+    expect((await store.describe()).projects[0]?.folderMissing).toBe(true);
+    expect((await store.list()).projects[0]?.folderMissing).toBeUndefined();
+    await expect(store.resolveProject("project-a")).rejects.toThrow("The project folder is missing");
+    // The project stays editable so its plan and instructions survive until the folder returns.
+    await store.saveProject({...project, name: "Renamed"}, 2);
+    expect((await store.list()).projects[0]?.name).toBe("Renamed");
+    await expect(store.saveProject({...project, id: "project-b", path: join(root, "elsewhere")}, 3)).rejects.toThrow();
+  });
+
   it("rejects lost updates and retains a valid atomic configuration", async () => {
     await store.save({...createDefaultHarness(), systemPrompt: "First"}, 0);
     await expect(store.save({...createDefaultHarness(), systemPrompt: "Stale"}, 0)).rejects.toThrow("changed elsewhere");

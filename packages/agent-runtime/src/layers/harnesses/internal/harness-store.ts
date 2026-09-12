@@ -25,6 +25,19 @@ async function directory(path: string): Promise<string> {
   return canonical;
 }
 
+/** True when the path is an existing directory. A vanished project folder is reported to the UI, not thrown at every reader. */
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function missingFolderError(path: string): Error {
+  return new Error(`The project folder is missing: ${path}. Restore the folder, or remove the project and add it again, before starting a chat.`);
+}
+
 /** Server-owned, revision-checked configuration store. Never writes into imported projects. */
 export class HarnessStore {
   private queue: Promise<unknown> = Promise.resolve();
@@ -34,6 +47,17 @@ export class HarnessStore {
   public async list(): Promise<HarnessLibrary> {
     const contents = await optionalText(join(this.root, "harnesses.json"));
     return normalizeHarnessHierarchy(contents ? Schema.decodeUnknownSync(HarnessLibrary)(JSON.parse(contents)) : {revision: 0, harnesses: [createDefaultHarness()], projects: []});
+  }
+
+  /** Marks projects whose folder disappeared so the UI can warn before a chat fails. */
+  public async withFolderStatus(library: HarnessLibrary): Promise<HarnessLibrary> {
+    const projects = await Promise.all(library.projects.map(async (project) => ((await isDirectory(project.path)) ? project : {...project, folderMissing: true})));
+    return {...library, projects};
+  }
+
+  /** The library as the UI should see it: persisted configuration plus folder availability. */
+  public async describe(): Promise<HarnessLibrary> {
+    return this.withFolderStatus(await this.list());
   }
 
   private async update(expectedRevision: number, mutate: (library: HarnessLibrary) => Promise<HarnessLibrary>): Promise<HarnessLibrary> {
@@ -90,9 +114,10 @@ export class HarnessStore {
       const harness = library.harnesses.find((item) => item.id === project.harnessId);
       if (!harness) throw new Error("Harness not found.");
       if (!/^[a-zA-Z0-9_-]{1,100}$/.test(project.id) || !project.name.trim()) throw new Error("A project needs a valid ID and name.");
-      const path = await directory(project.path);
-      if (library.projects.some((item) => item.id !== project.id && item.path === path)) throw new Error("This folder is already linked to a harness project.");
       const existing = library.projects.find((item) => item.id === project.id);
+      // A linked project stays editable while its folder is unavailable; reassigning the folder is refused below either way.
+      const path = existing && !(await isDirectory(existing.path)) ? existing.path : await directory(project.path);
+      if (library.projects.some((item) => item.id !== project.id && item.path === path)) throw new Error("This folder is already linked to a harness project.");
       if (existing && (existing.path !== path || existing.harnessId !== project.harnessId)) throw new Error("An existing project's folder and harness cannot be reassigned.");
       const saved = {...project, path};
       resolveHarnessProject(harness, saved, library.revision);
@@ -195,6 +220,7 @@ export class HarnessStore {
     const project = library.projects.find((item) => item.id === projectId);
     const harness = library.harnesses.find((item) => item.id === project?.harnessId);
     if (!project || !harness) throw new Error("Harness project not found.");
+    if (!(await isDirectory(project.path))) throw missingFolderError(project.path);
     await directory(project.path);
     const snapshot = resolveHarnessProject(harness, project, library.revision);
     return harness.coordinatorProjectId === project.id

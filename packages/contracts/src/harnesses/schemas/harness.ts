@@ -58,6 +58,8 @@ export const HarnessProject = Schema.Struct({
   order: Schema.optional(Schema.Number),
   /** Project-relative Markdown files that extend the project instructions: plans, goals, roadmaps agents must see. */
   planningDocuments: Schema.optional(Schema.Array(Schema.String)),
+  /** Computed when the library is read: the project folder no longer exists on disk, so chats cannot start. Never persisted. */
+  folderMissing: Schema.optional(Schema.Boolean),
 });
 
 export const HarnessLibrary = Schema.Struct({

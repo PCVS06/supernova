@@ -71,8 +71,9 @@ export default function NewSessionPage(props: NewSessionPageProps) {
     createSessionMutation.mutate(
       {projectPath, harnessProjectId},
       {
-        onError: () => {
-          showToast("Unable to create the session", "Please try again.");
+        onError: (error) => {
+          // The API explains configuration failures such as a missing project folder; surface that instead of a generic retry hint.
+          showToast("Unable to create the session", error instanceof Error && error.message ? error.message : "Please try again.");
         },
         onSuccess: (session) => {
           queryClient.setQueryData(sessionQueryKey(session.id), session);
