@@ -4,12 +4,20 @@ export type DesktopTheme = "dark" | "light" | "system";
 
 export type DesktopUpdateStatus = "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
 
+/** Why an update cannot be installed in place, with where to fetch it by hand instead. */
+export interface DesktopUpdateInstallBlock {
+  readonly reason: string;
+  readonly downloadUrl: string;
+}
+
 export interface DesktopUpdateState {
   readonly status: DesktopUpdateStatus;
   /** Version offered by the update feed, kept across download and error states. */
   readonly version: string | null;
   readonly downloadPercent: number | null;
   readonly message: string | null;
+  /** Set when the running copy can never be replaced by the updater, such as an unsigned macOS build. */
+  readonly installBlocked: DesktopUpdateInstallBlock | null;
 }
 
 export interface DesktopApi {

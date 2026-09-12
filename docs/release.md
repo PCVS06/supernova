@@ -74,6 +74,6 @@ Before running a release:
 3. Open GitHub Actions and run the `Release` workflow.
 4. Enter the release version.
 5. Set `prerelease` only for preview builds.
-6. Leave `signed` enabled for production; disable it only for an intentional unsigned build. Signed builds fail when required signing secrets are missing.
+6. Leave `signed` enabled for production; disable it only for an intentional unsigned build. When signing secrets are missing the workflow warns and builds unsigned rather than failing; an unsigned macOS build can never update itself in place, so the app offers those users a manual download instead.
 7. Wait for the workflow to complete and confirm the release-prep commit reached the triggering branch.
 8. Download and sanity-check the published artifacts.

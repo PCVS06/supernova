@@ -1,13 +1,13 @@
 import {expect, test} from "bun:test";
 import type {DesktopUpdateState} from "@supernova/contracts/desktop/api";
 import type {UpdaterEvent} from "@/updates/state";
-import {INITIAL_UPDATE_STATE, reduceUpdateState} from "@/updates/state";
+import {INITIAL_UPDATE_STATE, isAdhocSignature, isSignatureValidationFailure, reduceUpdateState, releasesUrlFrom} from "@/updates/state";
 
-const checkingState: DesktopUpdateState = {status: "checking", version: null, downloadPercent: null, message: null};
-const availableState: DesktopUpdateState = {status: "available", version: "0.1.0", downloadPercent: null, message: null};
-const downloadingState: DesktopUpdateState = {status: "downloading", version: "0.1.0", downloadPercent: 40, message: null};
-const downloadedState: DesktopUpdateState = {status: "downloaded", version: "0.1.0", downloadPercent: null, message: null};
-const errorState: DesktopUpdateState = {status: "error", version: "0.1.0", downloadPercent: null, message: "network unreachable"};
+const checkingState: DesktopUpdateState = {installBlocked: null, status: "checking", version: null, downloadPercent: null, message: null};
+const availableState: DesktopUpdateState = {installBlocked: null, status: "available", version: "0.1.0", downloadPercent: null, message: null};
+const downloadingState: DesktopUpdateState = {installBlocked: null, status: "downloading", version: "0.1.0", downloadPercent: 40, message: null};
+const downloadedState: DesktopUpdateState = {installBlocked: null, status: "downloaded", version: "0.1.0", downloadPercent: null, message: null};
+const errorState: DesktopUpdateState = {installBlocked: null, status: "error", version: "0.1.0", downloadPercent: null, message: "network unreachable"};
 
 interface ReducerCase {
   readonly name: string;
@@ -37,3 +37,55 @@ for (const {name, state, event, want} of cases) {
     expect(reduceUpdateState(state, event)).toEqual(want);
   });
 }
+
+const block = {reason: "This copy is not code-signed.", downloadUrl: "https://github.com/example/app/releases"};
+const blockedCases: ReadonlyArray<ReducerCase> = [
+  {
+    name: "a blocked install is recorded without changing the update status",
+    state: availableState,
+    event: {type: "install-blocked", ...block},
+    want: {...availableState, installBlocked: block},
+  },
+  {
+    name: "an offered update keeps the block",
+    state: {...INITIAL_UPDATE_STATE, installBlocked: block},
+    event: {type: "available", version: "0.2.0"},
+    want: {...availableState, version: "0.2.0", installBlocked: block},
+  },
+  {
+    name: "a missing update keeps the block",
+    state: {...availableState, installBlocked: block},
+    event: {type: "not-available"},
+    want: {...INITIAL_UPDATE_STATE, installBlocked: block},
+  },
+  {
+    name: "an error keeps the block",
+    state: {...availableState, installBlocked: block},
+    event: {type: "error", message: "boom"},
+    want: {...errorState, message: "boom", installBlocked: block},
+  },
+];
+
+for (const {name, state, event, want} of blockedCases) {
+  test(name, () => {
+    expect(reduceUpdateState(state, event)).toEqual(want);
+  });
+}
+
+test("recognises Squirrel's signature validation failure", () => {
+  expect(isSignatureValidationFailure("Code signature at URL file:///x/Supernova.app/ did not pass validation: Die angegebenen Code-Anforderungen wurden nicht erfüllt.")).toBe(
+    true
+  );
+  expect(isSignatureValidationFailure("net::ERR_INTERNET_DISCONNECTED")).toBe(false);
+});
+
+test("recognises an ad-hoc signed bundle from codesign output", () => {
+  expect(isAdhocSignature("Identifier=dev.supernova.app\nCodeDirectory v=20400 size=426 flags=0x2(adhoc)\nSignature=adhoc\nTeamIdentifier=not set\n")).toBe(true);
+  expect(isAdhocSignature("Identifier=dev.supernova.app\nAuthority=Developer ID Application: Example (ABCDE12345)\nTeamIdentifier=ABCDE12345\n")).toBe(false);
+});
+
+test("reads the releases page from the bundled feed description", () => {
+  expect(releasesUrlFrom("provider: github\nowner: example\nrepo: app\nupdaterCacheDirName: app-updater\n")).toBe("https://github.com/example/app/releases");
+  expect(releasesUrlFrom("provider: generic\nurl: https://updates.example.com\n")).toBe("https://github.com/mattiacerutti/supernova/releases");
+  expect(releasesUrlFrom("")).toBe("https://github.com/mattiacerutti/supernova/releases");
+});

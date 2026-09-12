@@ -16,6 +16,7 @@ export interface DesktopUpdate {
 export function useDesktopUpdate(): DesktopUpdate {
   const [state, setState] = useState<DesktopUpdateState>();
   const reportedStatus = useRef<DesktopUpdateState["status"] | undefined>(undefined);
+  const reportedBlock = useRef(false);
 
   useMountEffect(() => {
     const api = window.desktopApi;
@@ -25,8 +26,12 @@ export function useDesktopUpdate(): DesktopUpdate {
 
     const applyState = (next: DesktopUpdateState): void => {
       // Updater failures arrive as pushed state rather than rejected calls, so
-      // surface them here, once per transition into the error status.
-      if (next.status === "error" && next.message && reportedStatus.current !== "error") {
+      // surface them here, once per transition into the error status. A blocked
+      // install explains itself instead of repeating the raw signature error.
+      if (next.installBlocked && !reportedBlock.current) {
+        showToast("Update needs a manual download", next.installBlocked.reason);
+        reportedBlock.current = true;
+      } else if (next.status === "error" && next.message && reportedStatus.current !== "error" && !next.installBlocked) {
         showToast("Update failed", next.message);
       }
       reportedStatus.current = next.status;

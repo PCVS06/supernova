@@ -1,10 +1,11 @@
-import {existsSync} from "node:fs";
-import {join} from "node:path";
+import {execFile} from "node:child_process";
+import {existsSync, readFileSync} from "node:fs";
+import {join, resolve} from "node:path";
 import {app} from "electron";
 import {autoUpdater} from "electron-updater";
 import type {DesktopUpdateState} from "@supernova/contracts/desktop/api";
 import type {UpdaterEvent} from "@/updates/state";
-import {INITIAL_UPDATE_STATE, reduceUpdateState} from "@/updates/state";
+import {INITIAL_UPDATE_STATE, isAdhocSignature, isSignatureValidationFailure, reduceUpdateState, releasesUrlFrom} from "@/updates/state";
 
 const STARTUP_CHECK_DELAY_MS = 15_000;
 const CHECK_INTERVAL_MS = 60 * 60 * 1_000;
@@ -27,6 +28,28 @@ function isAutoUpdateSupported(): boolean {
   if (process.platform === "linux" && !process.env.APPIMAGE) return false;
   return existsSync(join(process.resourcesPath, "app-update.yml"));
 }
+
+function releasesUrl(): string {
+  try {
+    return releasesUrlFrom(readFileSync(join(process.resourcesPath, "app-update.yml"), "utf8"));
+  } catch {
+    return releasesUrlFrom("");
+  }
+}
+
+/** Squirrel.Mac validates a downloaded app against the running one, and an ad-hoc signed copy can never pass. */
+function detectAdhocBundle(): Promise<boolean> {
+  if (process.platform !== "darwin" || !app.isPackaged) return Promise.resolve(false);
+  const bundle = resolve(process.execPath, "../../..");
+  return new Promise((done) => {
+    execFile("/usr/bin/codesign", ["-dv", "--verbose=2", bundle], (error, stdout, stderr) => {
+      done(!error && isAdhocSignature(`${stdout}\n${stderr}`));
+    });
+  });
+}
+
+const adhocReason = "This copy of pi+ is not code-signed, so macOS refuses to replace it in place. Download the new version and replace the app yourself.";
+const mismatchReason = "macOS refused to install the update because its code signature does not match this copy of pi+. Download the new version and replace the app yourself.";
 
 /**
  * Creates the desktop auto-updater with two-step semantics: updates are never downloaded or
@@ -72,7 +95,14 @@ export function createDesktopUpdater({nightly, onStateChange}: CreateDesktopUpda
       autoUpdater.on("update-not-available", () => applyEvent({type: "not-available"}));
       autoUpdater.on("download-progress", (progress) => applyEvent({type: "download-progress", percent: Math.round(progress.percent)}));
       autoUpdater.on("update-downloaded", (info) => applyEvent({type: "downloaded", version: info.version}));
-      autoUpdater.on("error", (error) => applyEvent({type: "error", message: error.message}));
+      autoUpdater.on("error", (error) => {
+        applyEvent({type: "error", message: error.message});
+        if (isSignatureValidationFailure(error.message)) applyEvent({type: "install-blocked", reason: mismatchReason, downloadUrl: releasesUrl()});
+      });
+
+      void detectAdhocBundle().then((adhoc) => {
+        if (adhoc) applyEvent({type: "install-blocked", reason: adhocReason, downloadUrl: releasesUrl()});
+      });
 
       setTimeout(checkForUpdates, STARTUP_CHECK_DELAY_MS);
       setInterval(checkForUpdates, CHECK_INTERVAL_MS);
@@ -80,9 +110,10 @@ export function createDesktopUpdater({nightly, onStateChange}: CreateDesktopUpda
 
     download: async () => {
       const canDownload = state.status === "available" || (state.status === "error" && state.version !== null);
-      if (!supported || !canDownload) return;
+      // A blocked copy is replaced by hand from the releases page; downloading here would only fail at install.
+      if (!supported || !canDownload || state.installBlocked) return;
 
-      setState({status: "downloading", version: state.version, downloadPercent: 0, message: null});
+      setState({status: "downloading", version: state.version, downloadPercent: 0, message: null, installBlocked: null});
       // Failures surface through the updater "error" event.
       await autoUpdater.downloadUpdate().catch(() => undefined);
     },

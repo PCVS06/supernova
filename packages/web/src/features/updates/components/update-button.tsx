@@ -23,13 +23,18 @@ export default function UpdateButton(props: UpdateButtonProps) {
   if (!actionable && !downloading) return null;
 
   const version = state.version ?? "";
-  const label = downloading
-    ? `Downloading update ${state.downloadPercent ?? 0}%`
-    : state.status === "downloaded"
-      ? `Restart to install ${version}`.trim()
-      : state.status === "error"
-        ? "Retry the update download"
-        : `Download update ${version}`.trim();
+  const blocked = state.installBlocked;
+  const label = blocked
+    ? version
+      ? `Download ${version} from the releases page`
+      : "Download the update from the releases page"
+    : downloading
+      ? `Downloading update ${state.downloadPercent ?? 0}%`
+      : state.status === "downloaded"
+        ? `Restart to install ${version}`.trim()
+        : state.status === "error"
+          ? "Retry the update download"
+          : `Download update ${version}`.trim();
 
   const runUpdateAction = (action: () => Promise<void>, failureTitle: string): void => {
     setPending(true);
@@ -39,6 +44,11 @@ export default function UpdateButton(props: UpdateButtonProps) {
   };
 
   const handleClick = (): void => {
+    if (blocked) {
+      // The main process routes http(s) window opens to the system browser.
+      window.open(blocked.downloadUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
     if (state.status === "downloaded") {
       setInstallDialogOpen(true);
       return;
