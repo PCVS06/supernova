@@ -36,6 +36,7 @@ export type IconName =
   | "gauge"
   | "git-branch"
   | "globe"
+  | "help"
   | "key"
   | "image"
   | "loader"
@@ -107,6 +108,7 @@ const icons = {
   gauge: getStaticIcon(lucideIcons, "gauge"),
   "git-branch": getStaticIcon(lucideIcons, "git-branch"),
   globe: getStaticIcon(lucideIcons, "globe"),
+  help: getStaticIcon(lucideIcons, "circle-help"),
   image: getStaticIcon(lucideIcons, "image"),
   key: getStaticIcon(lucideIcons, "key-round"),
   loader: getStaticIcon(lucideIcons, "loader-circle"),

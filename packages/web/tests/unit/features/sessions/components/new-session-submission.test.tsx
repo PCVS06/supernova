@@ -1,7 +1,7 @@
 import type {ComponentProps} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import {createMemoryHistory, createRootRoute, createRouter, RouterContextProvider} from "@tanstack/react-router";
+import {createMemoryHistory, createRootRoute, createRoute, createRouter, RouterContextProvider} from "@tanstack/react-router";
 import type {Session} from "@supernova/contracts/sessions/schemas";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import NewSessionPage from "@/features/sessions/pages/new-session-page";
@@ -48,7 +48,13 @@ const draftKey = newSessionComposerDraftKey("/work");
 const attachment = {id: "note", type: "attachment", name: "note.md", kind: "text", mime: "text/markdown", size: 4, contentBase64: "dGVzdA=="} as const;
 
 function renderNewChat() {
-  const router = createRouter({routeTree: createRootRoute(), history: createMemoryHistory({initialEntries: ["/"]})});
+  const rootRoute = createRootRoute();
+  const routeTree = rootRoute.addChildren([
+    createRoute({getParentRoute: () => rootRoute, path: "/session/new"}),
+    createRoute({getParentRoute: () => rootRoute, path: "/session/$sessionId"}),
+    createRoute({getParentRoute: () => rootRoute, path: "/settings"}),
+  ]);
+  const router = createRouter({routeTree, history: createMemoryHistory({initialEntries: ["/session/new"]})});
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
@@ -57,7 +63,7 @@ function renderNewChat() {
       </RouterContextProvider>
     </QueryClientProvider>
   );
-  return calls.composer!;
+  return {composer: calls.composer!, router};
 }
 
 describe("new-chat goal delivery", () => {
@@ -72,7 +78,7 @@ describe("new-chat goal delivery", () => {
   });
 
   it("creates and names the chat before starting the goal, without sending the slash command", async () => {
-    const composer = renderNewChat();
+    const {composer} = renderNewChat();
     expect(await composer.onStartGoal!("Finish docs")).toBe(true);
     expect(calls.create).toHaveBeenCalledExactlyOnceWith({projectPath: "/work", harnessProjectId: undefined});
     expect(calls.rename).toHaveBeenCalledExactlyOnceWith({sessionId: "new-chat", title: "Finish docs"});
@@ -93,7 +99,7 @@ describe("new-chat goal delivery", () => {
 
   it.each(["creation", "title", "goal"])("retains the draft when %s fails and retries without duplicating a created chat", async (failure) => {
     ({creation: calls.create, title: calls.rename, goal: calls.controls})[failure]!.mockRejectedValueOnce(new Error("Request rejected"));
-    const composer = renderNewChat();
+    const {composer} = renderNewChat();
     const before = useComposerDraftsStore.getState().drafts[draftKey];
     await expect(composer.onStartGoal!("Finish docs")).rejects.toThrow("Request rejected");
     expect(useComposerDraftsStore.getState().drafts[draftKey]).toEqual(before);
@@ -101,5 +107,15 @@ describe("new-chat goal delivery", () => {
     expect(await composer.onStartGoal!("Finish docs")).toBe(true);
     expect(calls.create).toHaveBeenCalledTimes(failure === "creation" ? 2 : 1);
     expect(calls.controls).toHaveBeenLastCalledWith(expect.objectContaining({sessionId: "new-chat"}));
+  });
+
+  it("does not reopen an accepted chat after the user navigates elsewhere", async () => {
+    const {composer, router} = renderNewChat();
+    expect(await composer.onStartGoal!("Finish docs")).toBe(true);
+    await router.navigate({to: "/settings"});
+
+    composer.onAccepted!();
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
   });
 });

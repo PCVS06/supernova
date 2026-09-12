@@ -15,6 +15,12 @@ const desktopApi = {
 
   openDirectory: (path) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.openDirectory, path),
   setNativeTheme: (theme) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setNativeTheme, theme),
+  showWorkspaceBrowser: (request) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.showWorkspaceBrowser, request),
+  hideWorkspaceBrowser: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideWorkspaceBrowser),
+  navigateWorkspaceBrowser: (url) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.navigateWorkspaceBrowser, url),
+  goBackWorkspaceBrowser: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.goBackWorkspaceBrowser),
+  goForwardWorkspaceBrowser: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.goForwardWorkspaceBrowser),
+  reloadWorkspaceBrowser: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.reloadWorkspaceBrowser),
 
   getUpdateState: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.getUpdateState),
   downloadUpdate: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.downloadUpdate),

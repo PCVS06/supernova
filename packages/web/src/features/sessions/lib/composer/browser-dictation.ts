@@ -38,11 +38,11 @@ export interface BrowserDictationSession {
   readonly stop: () => void;
 }
 
-function recognitionErrorMessage(error: string): string {
+function recognitionErrorMessage(error: string): string | null {
+  if (error === "aborted" || error === "no-speech") return null;
   if (error === "not-allowed" || error === "service-not-allowed") return "Microphone access was denied.";
   if (error === "audio-capture") return "No working microphone was found.";
-  if (error === "no-speech") return "No speech was detected. Try again when you are ready.";
-  return "Dictation stopped before speech could be recognized.";
+  return "Dictation is unavailable.";
 }
 
 function speechRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
@@ -75,7 +75,8 @@ export function startBrowserDictation(options: BrowserDictationOptions): Browser
   };
   recognition.onerror = (event) => {
     onListeningChange(false);
-    onError(recognitionErrorMessage(event.error));
+    const message = recognitionErrorMessage(event.error);
+    if (message) onError(message);
   };
   recognition.onend = () => onListeningChange(false);
 

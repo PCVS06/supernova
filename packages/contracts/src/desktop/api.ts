@@ -4,6 +4,18 @@ export type DesktopTheme = "dark" | "light" | "system";
 
 export type DesktopUpdateStatus = "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
 
+export interface DesktopBrowserBounds {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface DesktopBrowserShowRequest {
+  readonly bounds: DesktopBrowserBounds;
+  readonly url: string;
+}
+
 /** Why an update cannot be installed in place, with where to fetch it by hand instead. */
 export interface DesktopUpdateInstallBlock {
   readonly reason: string;
@@ -27,6 +39,12 @@ export interface DesktopApi {
   readonly nightly: boolean;
   readonly openDirectory: (path: string) => Promise<void>;
   readonly setNativeTheme: (theme: DesktopTheme) => Promise<void>;
+  readonly showWorkspaceBrowser: (request: DesktopBrowserShowRequest) => Promise<void>;
+  readonly hideWorkspaceBrowser: () => Promise<void>;
+  readonly navigateWorkspaceBrowser: (url: string) => Promise<void>;
+  readonly goBackWorkspaceBrowser: () => Promise<void>;
+  readonly goForwardWorkspaceBrowser: () => Promise<void>;
+  readonly reloadWorkspaceBrowser: () => Promise<void>;
   readonly getUpdateState: () => Promise<DesktopUpdateState>;
   readonly downloadUpdate: () => Promise<void>;
   readonly installUpdate: () => Promise<void>;

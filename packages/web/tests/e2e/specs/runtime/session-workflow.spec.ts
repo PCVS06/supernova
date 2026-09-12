@@ -435,7 +435,7 @@ test("steering is applied to the active run and the accepted draft clears", asyn
   await expect(sessionTimeline(page).getByText("Runtime response: Focus on the acceptance criteria", {exact: true})).toHaveCount(1);
 });
 
-test("a first-message goal pauses, survives reload and stops at its pass limit", async ({page}) => {
+test("a first-message goal pauses, survives reload and stops at its limit", async ({page}) => {
   await openProject(page);
   resetControl("goal-acceptance");
   const editor = page.locator('[contenteditable="true"]').first();
@@ -449,16 +449,15 @@ test("a first-message goal pauses, survives reload and stops at its pass limit",
   await editor.press("Enter");
   await expect.poll(() => existsSync(controlPath("started-goal-acceptance"))).toBe(true);
   const tray = page.getByRole("region", {name: "Goal and queued messages"});
-  await expect(tray.getByText(/Active goal/)).toBeVisible();
+  await expect(tray.getByText("Active", {exact: true})).toBeVisible();
   await tray.getByRole("button", {name: "Pause", exact: true}).click();
-  await expect(tray.getByText(/Paused goal/)).toBeVisible();
+  await expect(tray.getByText("Paused", {exact: true})).toBeVisible();
   await page.reload();
-  await expect(tray.getByText(/Paused goal/)).toBeVisible();
+  await expect(tray.getByText("Paused", {exact: true})).toBeVisible();
   writeFileSync(controlPath("release-goal-acceptance"), "");
   await expect(page.getByRole("button", {name: "Start dictation", exact: true})).toBeVisible();
-  await expect(tray.getByText(/1 of 10 passes/, {exact: false}).first()).toBeVisible();
   await tray.getByRole("button", {name: "Resume", exact: true}).click();
-  await expect(tray.getByText(/Paused goal · 10 of 10 passes/)).toBeVisible({timeout: 30_000});
+  await expect(tray.getByText("Paused", {exact: true})).toBeVisible({timeout: 30_000});
   await expect(tray.getByRole("button", {name: "Resume", exact: true})).toHaveCount(0);
 });
 

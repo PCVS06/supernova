@@ -1,7 +1,7 @@
 import {Link} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
-import InstructionReceipt, {ContextDisclosure} from "@/features/harnesses/components/instruction-receipt";
+import InstructionReceipt, {ContextDisclosure, ContextGroup} from "@/features/harnesses/components/instruction-receipt";
 import {useChatHarness} from "@/features/harnesses/hooks/api/use-harness-runs";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
@@ -21,7 +21,7 @@ function WorkspaceProjectFiles(props: WorkspaceProjectFilesProps) {
   if (paths.length === 0) return null;
 
   return (
-    <ContextDisclosure count={paths.length} label="Project files">
+    <ContextDisclosure count={paths.length} icon="folder" label="Project files">
       <ul className="space-y-0.5">
         {paths.map((path) => (
           <li key={path}>
@@ -68,8 +68,14 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border-muted py-3 text-xs text-ink-muted">
-        <p className="min-w-0 truncate">{projectName ? agentLabel(projectName) : "This chat"}</p>
+      <div className="flex shrink-0 items-center gap-3 border-b border-border-muted py-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl border border-border-muted bg-surface-control text-ink-muted">
+          <Icon name="sliders" size="sm" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-ink-strong">Context</p>
+          <p className="truncate text-xs text-ink-faint">{projectName ? agentLabel(projectName) : "This chat"}</p>
+        </div>
         {harnessId && projectId && (
           <Link
             aria-label="Project settings"
@@ -96,9 +102,11 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
         </div>
       )}
       {context.data && (
-        <div className="workspace-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto py-3">
-          <WorkspaceProjectFiles paths={projectDocuments} />
-          <InstructionReceipt captured={context.data.captured} layers={context.data.instructions} runtime={context.data.runtime} />
+        <div className="min-h-0 flex-1 overflow-y-auto py-3">
+          <ContextGroup>
+            <WorkspaceProjectFiles paths={projectDocuments} />
+            <InstructionReceipt captured={context.data.captured} layers={context.data.instructions} runtime={context.data.runtime} unframed />
+          </ContextGroup>
         </div>
       )}
     </div>

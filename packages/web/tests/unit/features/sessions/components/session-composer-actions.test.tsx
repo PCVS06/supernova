@@ -88,6 +88,7 @@ describe("session composer primary action", () => {
     expect(html).not.toContain('aria-label="Steer now"');
     expect(html).toContain('aria-label="Goal draft"');
     expect(html).not.toContain("Pi+ continues in bounded passes");
+    expect(html).not.toContain("bounded continuation");
   });
 
   it("allows queueing during compaction while steering is unavailable", () => {

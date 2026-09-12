@@ -67,7 +67,7 @@ export default function ComposerEditor(props: ComposerEditorProps) {
   // Goal is local and available even before remote skills/prompts finish loading.
   const goalMatches = onGoal && suggestionMatch?.kind === "slash" && "goal".includes(suggestionMatch.query.toLowerCase());
   const goalSuggestions: ComposerSuggestionItem[] = goalMatches
-    ? [{id: "goal", kind: "slash-command", icon: "gauge", title: "Goal", subtitle: "Work toward an outcome in bounded passes", onSelect: onGoal}]
+    ? [{id: "goal", kind: "slash-command", icon: "gauge", title: "Goal", subtitle: "Keep working toward an outcome", onSelect: onGoal}]
     : [];
   const query = goalMatches
     ? {...suggestionQuery, data: [...goalSuggestions, ...(suggestionQuery.data ?? [])], isLoading: false, isError: false, isSuccess: true}

@@ -1,11 +1,12 @@
 import {useState} from "react";
-import {Link, useLocation} from "@tanstack/react-router";
+import {useLocation} from "@tanstack/react-router";
 import PiBrand from "@/components/brand/pi-brand";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import {showToast} from "@/components/ui/toast-manager";
 import OpenProjectDialog from "@/features/projects/components/open-project-dialog";
 import SearchSessionsDialog from "@/features/projects/components/search-sessions-dialog";
+import SidebarFooter from "@/features/sidebar/components/sidebar-footer";
 import {useProjectList} from "@/features/projects/hooks/use-project-list";
 import {useProjectsStore} from "@/features/projects/stores/projects-store";
 import {useSidebarSections} from "@/features/sidebar/hooks/use-sidebar-sections";
@@ -14,11 +15,6 @@ import {useHarnessLibrary, useSaveHarnessProject} from "@/features/harnesses/hoo
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import {sidebarSessionId} from "@/features/sidebar/lib/ledger-navigation";
 import {pinnedFirst} from "@/features/projects/lib/pinned-first";
-import {cn} from "@/lib/cn";
-
-/** Settings is one destination; harness-specific controls stay with their group. */
-const footerRowClassName =
-  "flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-xs text-ink-muted transition-colors hover:bg-overlay-hover hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong";
 
 export default function Sidebar() {
   const {expandProject, expandedProjects, toggleProject} = useSidebarSections();
@@ -112,17 +108,7 @@ export default function Sidebar() {
           </p>
         )}
       </nav>
-      <nav aria-label="Workspace settings" className="space-y-0.5 border-t border-border-muted px-2 py-2">
-        <Link
-          aria-current={location.pathname.startsWith("/settings") ? "page" : undefined}
-          className={cn(footerRowClassName, location.pathname.startsWith("/settings") && "bg-overlay-pressed text-ink")}
-          to="/settings"
-        >
-          <Icon name="settings" size="sm" />
-          <span className="flex-1">Settings</span>
-          {window.desktopApi?.nightly && <span className="text-xs text-ink-faint">Nightly</span>}
-        </Link>
-      </nav>
+      <SidebarFooter settingsActive={location.pathname.startsWith("/settings")} />
       <OpenProjectDialog onClose={() => setAddingToHarness(undefined)} onOpenProject={handleOpenProject} open={!!addingToHarness} />
       <SearchSessionsDialog onClose={() => setSearchOpen(false)} open={searchOpen} />
     </aside>

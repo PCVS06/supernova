@@ -77,7 +77,7 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
         <WorkspacePanelHeader />
 
         {pickerVisible && <WorkspaceViewPicker />}
-        {!pickerVisible && activeView === "browser" && <WorkspaceBrowserView appEnvironment={appEnvironment} />}
+        {visible && !pickerVisible && activeView === "browser" && <WorkspaceBrowserView appEnvironment={appEnvironment} />}
         {!pickerVisible && activeView === "terminal" && <WorkspaceTerminalView />}
         {!pickerVisible &&
           activeView === "context" &&

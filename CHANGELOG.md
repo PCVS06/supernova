@@ -8,6 +8,8 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
+- Changed the dark workspace to pure-black surfaces with hidden scrollbar chrome, a compact grouped Context inspector, and icon-only settings, theme and help controls.
+- Simplified Goal and dictation feedback by removing pass-count terminology, redundant continuation copy and empty-speech errors.
 - Changed the primary chat to a headerless workspace, with Split View beside the right-sidebar control and secondary panes retaining compact identity headers.
 - Changed the right workspace access to one hide/show control and closeable browser-style tabs for Files, Browser, Terminal and Context, with a plus button for opening another tool. Its default width now matches the main sidebar.
 - Changed project files to open in a wide reader beside a persistent project tree, with rendered Markdown, source view and a compact Add to chat action.
@@ -31,6 +33,8 @@ All notable changes to Supernova are documented in this file.
 
 ### Fixed
 
+- Fixed desktop Browser stability by replacing the embedded webview with an isolated native browser surface that survives workspace tab changes.
+- Fixed late first-message acceptance from reopening its chat after the user had already navigated away, and aligned the Goal tray with the full composer width.
 - Fixed workspace tabs so their focus treatment and hidden tab-strip scrollbar no longer distort or overlap the tab row.
 - Fixed project and chat pinning so pinned items move to the top without moving the pin control on hover.
 - Fixed chat context to include configured and conventional project documents such as `GOAL.md`, without revision or capture-time noise.

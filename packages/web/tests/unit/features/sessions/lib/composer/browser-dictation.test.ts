@@ -58,4 +58,17 @@ describe("browser dictation", () => {
     expect(onListeningChange).toHaveBeenLastCalledWith(false);
     expect(FakeRecognition.current!.stop).toHaveBeenCalledOnce();
   });
+
+  it.each(["aborted", "no-speech"])("ends quietly when recognition reports %s", (error) => {
+    vi.stubGlobal("window", {SpeechRecognition: FakeRecognition});
+    vi.stubGlobal("navigator", {language: "en-US"});
+    const onError = vi.fn();
+    const onListeningChange = vi.fn();
+
+    startBrowserDictation({onError, onListeningChange, onText: vi.fn()});
+    FakeRecognition.current!.onerror?.({error});
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(onListeningChange).toHaveBeenLastCalledWith(false);
+  });
 });

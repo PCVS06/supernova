@@ -57,14 +57,16 @@ describe("authoritative goal and queue tray", () => {
     expect(html).toContain("Including this second line");
     expect(html).toContain("Then verify every finding");
     expect(html).toContain("<details");
-    expect(html).toContain("2 of 10 passes");
+    expect(html).not.toContain("passes");
+    expect(html).toContain("w-full");
+    expect(html).not.toContain("mx-1");
   });
 
   it.each([
-    {status: "paused", used: 2, resumes: true, label: "Paused goal"},
-    {status: "blocked", used: 2, resumes: true, label: "Goal needs attention"},
-    {status: "blocked", used: 10, resumes: false, label: "Goal needs attention"},
-    {status: "completed", used: 2, resumes: false, label: "Completed goal"},
+    {status: "paused", used: 2, resumes: true, label: "Paused"},
+    {status: "blocked", used: 2, resumes: true, label: "Needs attention"},
+    {status: "blocked", used: 10, resumes: false, label: "Needs attention"},
+    {status: "completed", used: 2, resumes: false, label: "Done"},
   ] as const)("$status goal with $used passes has valid continuation controls", ({status, used, resumes, label}) => {
     const onAction = vi.fn(async () => true);
     const html = renderToStaticMarkup(

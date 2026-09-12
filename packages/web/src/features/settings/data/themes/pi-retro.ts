@@ -12,7 +12,7 @@ const dark = {
       diffAdded: "#00a240",
       diffRemoved: "#e02e2a",
     },
-    surface: "#111213",
+    surface: "#000000",
   },
   variant: "dark",
 } as const satisfies ThemeVariant;

@@ -15,7 +15,7 @@ function GoalRow(props: GoalRowProps) {
   const {goal, pending, onAction} = props;
   const active = goal.status === "active";
   const canResume = (goal.status === "paused" || goal.status === "blocked") && goal.turnsUsed < goal.maxTurns;
-  const status = {active: "Active goal", paused: "Paused goal", completed: "Completed goal", blocked: "Goal needs attention"}[goal.status];
+  const status = {active: "Active", paused: "Paused", completed: "Done", blocked: "Needs attention"}[goal.status];
 
   return (
     <div className="flex items-start gap-2 px-3 py-2.5">
@@ -24,17 +24,12 @@ function GoalRow(props: GoalRowProps) {
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm [&::-webkit-details-marker]:hidden">
           <span className="min-w-0 flex-1">
             <span className="line-clamp-2 wrap-anywhere font-medium text-ink">{goal.objective}</span>
-            <span className="mt-0.5 block text-xs text-ink-muted">
-              {status} · {goal.turnsUsed} of {goal.maxTurns} passes
-            </span>
+            <span className="mt-0.5 block text-xs text-ink-muted">{status}</span>
           </span>
           <Icon className="ml-auto text-ink-faint transition-transform group-open:rotate-90" name="chevron-right" size="xs" />
         </summary>
         <p className="mt-2 whitespace-pre-wrap wrap-anywhere text-sm text-ink">{goal.objective}</p>
         {goal.message && <p className="mt-1 whitespace-pre-wrap wrap-anywhere text-xs text-ink-muted">{goal.message}</p>}
-        <p className="mt-1 text-xs text-ink-faint">
-          {goal.turnsUsed} of {goal.maxTurns} passes used. The goal stops at its limit.
-        </p>
         {goal.status !== "completed" && (
           <Button className="mt-2 text-xs" disabled={pending} onClick={() => void onAction({type: "complete_goal"})} variant="ghost">
             Mark complete
@@ -46,7 +41,7 @@ function GoalRow(props: GoalRowProps) {
           className="shrink-0 text-xs"
           disabled={pending}
           onClick={() => void onAction({type: active ? "pause_goal" : "resume_goal"})}
-          title={active ? "Pause goal continuation; the current turn can finish" : "Continue this goal within its remaining limit"}
+          title={active ? "Pause goal" : "Resume goal"}
           variant="ghost"
         >
           {active ? "Pause" : "Resume"}
@@ -143,7 +138,7 @@ export default function SessionControlsTray(props: SessionControlsTrayProps) {
   const controlsDisabled = pending || !!state?.error;
 
   return (
-    <section aria-label="Goal and queued messages" className="mx-1 overflow-hidden rounded-t-xl border border-b-0 border-border bg-surface-drawer">
+    <section aria-label="Goal and queued messages" className="w-full overflow-hidden rounded-t-xl border border-b-0 border-border bg-surface-drawer">
       {state && state.queue.length > 0 && (
         <>
           <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-2 text-xs text-ink-muted">

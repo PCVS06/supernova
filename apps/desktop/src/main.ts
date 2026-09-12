@@ -2,6 +2,7 @@ import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import type {BrowserWindow} from "electron";
 import {app, shell, dialog, ipcMain, nativeImage, nativeTheme, net, protocol} from "electron";
+import type {DesktopBrowserShowRequest} from "@supernova/contracts/desktop/api";
 import {electronApp, optimizer} from "@electron-toolkit/utils";
 import installExtension, {REACT_DEVELOPER_TOOLS} from "electron-devtools-installer";
 import {startServerProcess} from "@supernova/server/process";
@@ -12,6 +13,8 @@ import {syncShellEnvironment} from "@/shell";
 import {isNightlyVersion} from "@/updates/state";
 import {createDesktopUpdater} from "@/updates/updater";
 import {createWindow, WINDOWS_TITLE_BAR_OVERLAY} from "@/window";
+import {createWorkspaceBrowser} from "@/workspace-browser";
+import type {WorkspaceBrowserController} from "@/workspace-browser";
 
 declare const SUPERNOVA_IS_DEV: boolean;
 declare const SUPERNOVA_SERVER_ENTRY: string;
@@ -22,6 +25,7 @@ const ICONS_DIR = app.isPackaged ? join(process.resourcesPath, "icons") : join(_
 const NIGHTLY = isNightlyVersion(app.getVersion());
 
 let mainWindow: BrowserWindow | undefined;
+let workspaceBrowser: WorkspaceBrowserController | undefined;
 let server: ServerProcess | undefined;
 let serverUrl: string;
 let quitting = false;
@@ -46,6 +50,21 @@ function registerDesktopIpc(): void {
     if (error) throw new Error(error);
   });
 
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.showWorkspaceBrowser, async (_, request: DesktopBrowserShowRequest) => {
+    if (!request || typeof request.url !== "string" || !request.bounds || Object.values(request.bounds).some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+      throw new Error("Valid browser bounds and URL are required.");
+    }
+    await workspaceBrowser?.show(request);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.hideWorkspaceBrowser, () => workspaceBrowser?.hide());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.navigateWorkspaceBrowser, async (_, url: unknown) => {
+    if (typeof url !== "string") throw new Error("A browser URL is required.");
+    await workspaceBrowser?.navigate(url);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.goBackWorkspaceBrowser, () => workspaceBrowser?.goBack());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.goForwardWorkspaceBrowser, () => workspaceBrowser?.goForward());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.reloadWorkspaceBrowser, () => workspaceBrowser?.reload());
+
   ipcMain.handle(DESKTOP_IPC_CHANNELS.getUpdateState, () => updater.getState());
   ipcMain.handle(DESKTOP_IPC_CHANNELS.downloadUpdate, () => updater.download());
 
@@ -69,7 +88,10 @@ async function openWindow(): Promise<void> {
 
   const window = createWindow({serverUrl, rendererUrl, iconsDir: ICONS_DIR});
   mainWindow = window;
+  workspaceBrowser = createWorkspaceBrowser(window);
   window.once("closed", () => {
+    workspaceBrowser?.dispose();
+    workspaceBrowser = undefined;
     mainWindow = undefined;
   });
 

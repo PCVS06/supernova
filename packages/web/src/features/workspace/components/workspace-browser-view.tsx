@@ -5,7 +5,7 @@ import IconButton from "@/components/ui/icon-button";
 import Input from "@/components/ui/input";
 import type {AppEnvironment} from "@/lib/app-environment";
 import {isDesktopEnvironment} from "@/lib/app-environment";
-import type {ElectronWebViewElement} from "@/features/workspace/types/webview";
+import {useMountEffect} from "@/lib/use-mount-effect";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
 
 /** Accepts what people actually type into an address field. */
@@ -25,10 +25,37 @@ export default function WorkspaceBrowserView(props: WorkspaceBrowserViewProps) {
   const {appEnvironment} = props;
   const browserUrl = useWorkspacePanelStore((state) => state.browserUrl);
   const setBrowserUrl = useWorkspacePanelStore((state) => state.setBrowserUrl);
-  const webViewRef = useRef<ElectronWebViewElement | null>(null);
+  const nativeHostRef = useRef<HTMLDivElement | null>(null);
   const [draftUrl, setDraftUrl] = useState(browserUrl);
   const [reloadToken, setReloadToken] = useState(0);
+  const [nativeError, setNativeError] = useState<string | null>(null);
   const embedded = !isDesktopEnvironment(appEnvironment);
+
+  useMountEffect(() => {
+    if (embedded) return;
+    const host = nativeHostRef.current;
+    const api = window.desktopApi;
+    if (!host || !api) {
+      setNativeError("Browser unavailable.");
+      return;
+    }
+
+    const show = (): void => {
+      const bounds = host.getBoundingClientRect();
+      void api
+        .showWorkspaceBrowser({bounds: {x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height}, url: browserUrl})
+        .then(() => setNativeError(null))
+        .catch(() => setNativeError("Browser unavailable."));
+    };
+    const observer = new ResizeObserver(show);
+    observer.observe(host);
+    show();
+
+    return () => {
+      observer.disconnect();
+      void api.hideWorkspaceBrowser();
+    };
+  });
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -37,13 +64,14 @@ export default function WorkspaceBrowserView(props: WorkspaceBrowserViewProps) {
 
     setDraftUrl(nextUrl);
     setBrowserUrl(nextUrl);
+    if (!embedded) void window.desktopApi?.navigateWorkspaceBrowser(nextUrl).catch(() => setNativeError("Page unavailable."));
   };
 
   // Remounting the frame is the only reload an embedded page can be given, and
   // it is also the cheapest one for the desktop view.
   const handleReload = (): void => {
-    if (webViewRef.current) {
-      webViewRef.current.reload();
+    if (!embedded) {
+      void window.desktopApi?.reloadWorkspaceBrowser().catch(() => setNativeError("Page unavailable."));
       return;
     }
 
@@ -51,11 +79,11 @@ export default function WorkspaceBrowserView(props: WorkspaceBrowserViewProps) {
   };
 
   const handleBack = (): void => {
-    webViewRef.current?.goBack();
+    if (!embedded) void window.desktopApi?.goBackWorkspaceBrowser();
   };
 
   const handleForward = (): void => {
-    webViewRef.current?.goForward();
+    if (!embedded) void window.desktopApi?.goForwardWorkspaceBrowser();
   };
 
   return (
@@ -94,7 +122,9 @@ export default function WorkspaceBrowserView(props: WorkspaceBrowserViewProps) {
             title="Workspace browser"
           />
         ) : (
-          <webview className="size-full" key={browserUrl} ref={webViewRef} src={browserUrl} />
+          <div aria-label="Browser page" className="grid size-full place-items-center" ref={nativeHostRef}>
+            {nativeError && <p className="text-xs text-ink-faint">{nativeError}</p>}
+          </div>
         )}
       </div>
     </div>

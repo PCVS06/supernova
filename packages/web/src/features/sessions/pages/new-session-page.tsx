@@ -1,7 +1,7 @@
 import type {Session, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
 import {useRef} from "react";
 import {useQueryClient} from "@tanstack/react-query";
-import {useNavigate} from "@tanstack/react-router";
+import {useNavigate, useRouter} from "@tanstack/react-router";
 import PiOrb from "@/components/brand/pi-orb";
 import ChatRoleBadge from "@/features/sessions/components/chat-role-badge";
 import AttachmentDropOverlay from "@/features/sessions/components/attachments/attachment-drop-overlay";
@@ -37,6 +37,7 @@ function NewProjectSession(props: NewSessionPageProps) {
   const {harnessProjectId, projectName, projectPath} = props;
 
   const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const rpcClient = useRpcClient();
   const createSessionMutation = useCreateSession();
@@ -44,6 +45,7 @@ function NewProjectSession(props: NewSessionPageProps) {
   const controlsMutation = useUpdateSessionControls();
   const createdSession = useRef<Session | null>(null);
   const acceptedSession = useRef<string | null>(null);
+  const acceptedLocation = useRef<string | null>(null);
   const sendMessage = useSessionLiveStore((state) => state.sendMessage);
   const library = useHarnessLibrary();
   const project = library.data?.projects.find((item) => item.id === harnessProjectId);
@@ -78,6 +80,7 @@ function NewProjectSession(props: NewSessionPageProps) {
   const handleSubmit = async (contentParts: readonly UserMessageContentPart[], objective?: string): Promise<boolean> => {
     const modelReference = modelSelection.modelReference;
     if (!modelReference) return false;
+    const submittedFrom = router.state.location.href;
     // A failed send can retry in the chat already created; never create another empty chat.
     if (acceptedSession.current) throw new Error("This chat has already started. Open it from the sidebar; your new draft has been kept.");
     const session = createdSession.current ?? (await createSessionMutation.mutateAsync({projectPath, harnessProjectId}));
@@ -99,6 +102,7 @@ function NewProjectSession(props: NewSessionPageProps) {
       });
     } else if (!(await sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId: session.id}))) return false;
     acceptedSession.current = session.id;
+    acceptedLocation.current = submittedFrom;
     return true;
   };
 
@@ -111,6 +115,7 @@ function NewProjectSession(props: NewSessionPageProps) {
     const parts = [...(remaining?.editableContentParts ?? []), ...(remaining?.attachments ?? [])];
     if (parts.length > 0) drafts.setDraftContentParts(sessionComposerDraftKey(sessionId), parts);
     drafts.clearDraft(composerDraftKey);
+    if (router.state.location.href !== acceptedLocation.current) return;
     void navigate({params: {sessionId}, to: "/session/$sessionId"}).catch(() => {
       showToast("Chat started", "The message was accepted, but this chat could not be opened. Open it from the sidebar; do not resend it.");
     });

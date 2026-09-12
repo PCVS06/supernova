@@ -411,8 +411,7 @@ export default function SessionComposer(props: SessionComposerProps) {
           {goalMode && (
             <div aria-label="Goal draft" className="mb-1 flex items-center gap-1.5 px-1 text-xs text-ink-muted">
               <Icon name="gauge" size="xs" />
-              <span className="font-medium text-ink">Goal</span>
-              <span className="min-w-0 flex-1 truncate">bounded continuation</span>
+              <span className="min-w-0 flex-1 font-medium text-ink">Goal</span>
               <IconButton className="size-6" disabled={pending} label="Cancel goal mode" onClick={cancelGoalInput} title="Send this as a normal message instead">
                 <Icon name="x" size="xs" />
               </IconButton>
