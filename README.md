@@ -5,8 +5,8 @@
 <h1 align="center">Supernova</h1>
 
 <p align="center">
-  <a href="https://github.com/mattiacerutti/supernova/actions/workflows/ci.yml"><img src="https://github.com/mattiacerutti/supernova/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/mattiacerutti/supernova/stargazers"><img src="https://img.shields.io/github/stars/mattiacerutti/supernova?style=flat&logo=github" alt="GitHub stars" /></a>
+  <a href="https://github.com/PCVS06/supernova/actions/workflows/ci.yml"><img src="https://github.com/PCVS06/supernova/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/PCVS06/supernova/stargazers"><img src="https://img.shields.io/github/stars/PCVS06/supernova?style=flat&logo=github" alt="GitHub stars" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
 </p>
 
@@ -28,14 +28,14 @@ Supernova is built for developers who want to move quickly without giving up con
 
 ## Install
 
-Download the latest desktop app for macOS, Linux, or Windows from [GitHub Releases](https://github.com/mattiacerutti/supernova/releases/latest).
+Download the latest desktop app for macOS, Linux, or Windows from [GitHub Releases](https://github.com/PCVS06/supernova/releases/latest).
 
 ### From source
 
 Requires [Bun](https://bun.sh) 1.3.13 and Git.
 
 ```bash
-git clone https://github.com/mattiacerutti/supernova.git
+git clone https://github.com/PCVS06/supernova.git
 cd supernova
 bun install
 bun run dev:desktop

@@ -74,7 +74,7 @@ const config = {
   npmRebuild: false,
   publish: {
     provider: "github",
-    owner: "mattiacerutti",
+    owner: "PCVS06",
     repo: "supernova",
     releaseType: nightly ? "prerelease" : "release",
     ...(nightly && {channel: "nightly"}),

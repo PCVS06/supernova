@@ -22,7 +22,7 @@ export function isAdhocSignature(codesignOutput: string): boolean {
 }
 
 /** Reads the GitHub releases page from electron-builder's bundled feed description, falling back to the project's page. */
-export function releasesUrlFrom(appUpdateYml: string, fallback = "https://github.com/mattiacerutti/supernova/releases"): string {
+export function releasesUrlFrom(appUpdateYml: string, fallback = "https://github.com/PCVS06/supernova/releases"): string {
   const read = (key: string): string | undefined => appUpdateYml.match(new RegExp(`^${key}:\\s*['"]?([^'"\\s]+)`, "m"))?.[1];
   const owner = read("owner");
   const repo = read("repo");

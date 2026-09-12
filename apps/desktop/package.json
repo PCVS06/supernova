@@ -3,7 +3,7 @@
   "productName": "Supernova",
   "private": true,
   "version": "0.1.1",
-  "homepage": "https://github.com/mattiacerutti/supernova",
+  "homepage": "https://github.com/PCVS06/supernova",
   "main": "./out/main/index.js",
   "scripts": {
     "lint": "eslint --cache .",

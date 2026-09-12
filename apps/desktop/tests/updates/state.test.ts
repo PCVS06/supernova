@@ -86,6 +86,6 @@ test("recognises an ad-hoc signed bundle from codesign output", () => {
 
 test("reads the releases page from the bundled feed description", () => {
   expect(releasesUrlFrom("provider: github\nowner: example\nrepo: app\nupdaterCacheDirName: app-updater\n")).toBe("https://github.com/example/app/releases");
-  expect(releasesUrlFrom("provider: generic\nurl: https://updates.example.com\n")).toBe("https://github.com/mattiacerutti/supernova/releases");
-  expect(releasesUrlFrom("")).toBe("https://github.com/mattiacerutti/supernova/releases");
+  expect(releasesUrlFrom("provider: generic\nurl: https://updates.example.com\n")).toBe("https://github.com/PCVS06/supernova/releases");
+  expect(releasesUrlFrom("")).toBe("https://github.com/PCVS06/supernova/releases");
 });
