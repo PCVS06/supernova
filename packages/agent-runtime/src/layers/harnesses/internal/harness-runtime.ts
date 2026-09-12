@@ -13,6 +13,7 @@ import {HarnessConfigurationFailure} from "@supernova/agent-runtime/layers/harne
 import {captureHarnessContext} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-context";
 import {createHarnessViewTool} from "@supernova/agent-runtime/layers/harnesses/internal/harness-view-tool";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
+import {curatorScheduler} from "@supernova/agent-runtime/layers/curator/curator-scheduler";
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
 import {resolveHarnessProject} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 import {toPiThinkingLevel} from "@supernova/agent-runtime/layers/session-runtime/lib/models/thinking-levels";
@@ -276,6 +277,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
           throw new Error(`Specialist ${name} did not complete: ${answer?.errorMessage || answer?.stopReason || "no response"}`);
         update({status: "completed", output: text, activity: "Completed", finishedAt: new Date().toISOString()});
         await writes;
+        // Only a run with a receipt is evidence, so only that run arms the curator's after-run pass.
+        if (trace) void curatorScheduler.noteRunFinished({harnessId: child.harness.id, projectId: child.project.id, piSdk});
         if (writeError) throw new Error(`Worker finished but its activity could not be saved: ${String(writeError)}`);
         const usage = answers.reduce(
           (total, message) => ({
@@ -295,6 +298,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
       const message = error instanceof Error ? error.message : String(error);
       update({status: signal?.aborted ? "cancelled" : "failed", error: message, activity: message, finishedAt: new Date().toISOString()});
       await writes;
+      // A failed run is the evidence the curator most needs, so it arms the same after-run pass a completed one does.
+      if (trace) void curatorScheduler.noteRunFinished({harnessId: child.harness.id, projectId: child.project.id, piSdk});
       throw error;
     }
   };

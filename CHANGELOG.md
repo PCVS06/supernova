@@ -14,6 +14,7 @@ All notable changes to Supernova are documented in this file.
 
 ### Added
 
+- Added the Curator, a background role per harness that keeps instructions, planning documents and the memory ledger correct and short from evidence only: run receipts, user steers and ledger records. It files minimal find/replace proposals into a new Inbox tab (approve, edit, reject, roll back), can supersede or retract memory records and append a dated plan log by itself when those switches are on, keeps a version history of every instruction piece, records steers, and runs a memory-only pass 15 minutes after a project's last run. Off until enabled under Agents → Curator; spend is capped per review and per day.
 - Projects can be removed from a harness, from the project's Setup tab or the sidebar menu. The folder stays on disk, existing chats keep their settings, and a coordinating project cannot be removed while it still has labs.
 
 ### Fixed

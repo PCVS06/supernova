@@ -27,6 +27,17 @@ import {
   SaveToolCredentialPayload,
   HarnessMemoryPayload,
   HarnessMemoryResult,
+  ListCurationPayload,
+  ListCurationResult,
+  DecideCurationPayload,
+  DecideCurationResult,
+  RollbackCurationPayload,
+  RunCuratorReviewPayload,
+  RunCuratorReviewResult,
+  ListInstructionVersionsPayload,
+  ListInstructionVersionsResult,
+  ReadInstructionVersionPayload,
+  ReadInstructionVersionResult,
 } from "@supernova/contracts/harnesses/procedures";
 
 export const HarnessRpcs = [
@@ -47,4 +58,10 @@ export const HarnessRpcs = [
   Rpc.make("removeHarnessProject", {payload: RemoveHarnessProjectPayload, success: GetHarnessLibraryResult, error: HarnessConfigurationError}),
   Rpc.make("importScienceHarness", {payload: ImportScienceHarnessPayload, success: GetHarnessLibraryResult, error: HarnessConfigurationError}),
   Rpc.make("createHarnessSession", {payload: CreateHarnessSessionPayload, success: CreateHarnessSessionResult, error: HarnessConfigurationError}),
+  Rpc.make("listCuration", {payload: ListCurationPayload, success: ListCurationResult, error: HarnessConfigurationError}),
+  Rpc.make("decideCuration", {payload: DecideCurationPayload, success: DecideCurationResult, error: HarnessConfigurationError}),
+  Rpc.make("rollbackCuration", {payload: RollbackCurationPayload, success: DecideCurationResult, error: HarnessConfigurationError}),
+  Rpc.make("runCuratorReview", {payload: RunCuratorReviewPayload, success: RunCuratorReviewResult, error: HarnessConfigurationError}),
+  Rpc.make("listInstructionVersions", {payload: ListInstructionVersionsPayload, success: ListInstructionVersionsResult, error: HarnessConfigurationError}),
+  Rpc.make("readInstructionVersion", {payload: ReadInstructionVersionPayload, success: ReadInstructionVersionResult, error: HarnessConfigurationError}),
 ] as const;

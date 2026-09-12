@@ -4,6 +4,8 @@ import type {HarnessConfig, HarnessLibrary, HarnessProject} from "@supernova/con
 import SettingsShell from "@/features/settings/components/settings-shell";
 import AgentRoleMap from "@/features/harnesses/components/agent-role-map";
 import AgentsEditor from "@/features/harnesses/components/agents-editor";
+import CurationInbox from "@/features/harnesses/components/curation-inbox";
+import CuratorEditor from "@/features/harnesses/components/curator-editor";
 import EditorTabs from "@/features/harnesses/components/editor-tabs";
 import HarnessConfigHeader from "@/features/harnesses/components/harness-config-header";
 import LeadsEditor from "@/features/harnesses/components/leads-editor";
@@ -11,10 +13,11 @@ import ProjectConfigEditor from "@/features/harnesses/components/project-config-
 import ResourcesEditor from "@/features/harnesses/components/resources-editor";
 import RunLimitsEditor from "@/features/harnesses/components/run-limits-editor";
 import WorkflowsEditor from "@/features/harnesses/components/workflows-editor";
+import {useCuration} from "@/features/harnesses/hooks/api/use-curation";
 import {useHarnessLibrary, useRemoveHarnessProject, useSaveHarness, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
 import type {HarnessSectionId} from "@/features/harnesses/lib/harness-sections";
-import {harnessTabs, resolveHarnessSection} from "@/features/harnesses/lib/harness-sections";
+import {harnessTabItems, harnessTabs, resolveHarnessSection} from "@/features/harnesses/lib/harness-sections";
 import {saveWorkspaceDraft} from "@/features/harnesses/lib/save-workspace-draft";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import type {AppEnvironment} from "@/lib/app-environment";
@@ -38,6 +41,7 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
   const saveHarness = useSaveHarness();
   const saveProject = useSaveHarnessProject();
   const removeProject = useRemoveHarnessProject();
+  const curation = useCuration(harness.id);
   const navigate = useNavigate();
   const selectProject = useHarnessNavigationStore((state) => state.selectProject);
   const tab = harnessTabs.find((item) => item.sections.some((candidate) => candidate.id === section))!;
@@ -46,6 +50,7 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
   const savePending = saveProject.isPending || saveHarness.isPending;
   const saveError = saveProject.error ?? saveHarness.error;
   const projects = library.projects.filter((item) => item.harnessId === harness.id);
+  const pendingProposals = curation.data?.proposals.filter((proposal) => proposal.status === "pending").length ?? 0;
   const head = projects.find((item) => item.id === harness.coordinatorProjectId);
   const isHead = !!project && project.id === head?.id;
   const effectiveAgents = new Map(draft.agents.map((agent) => [agent.name, agent]));
@@ -131,7 +136,7 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
         <EditorTabs
           label="Harness configuration tabs"
           value={tab.id}
-          items={harnessTabs.map((item) => ({value: item.id, label: item.label}))}
+          items={harnessTabItems(pendingProposals)}
           onChange={(value) => {
             const target = harnessTabs.find((item) => item.id === value)!.sections[0]!.id;
             changeScope(target === "orchestrator" ? undefined : project?.id, target);
@@ -208,6 +213,8 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
       )}
       {tab.id === "resources" && <ResourcesEditor harness={draft} section={section} onChangeHarness={(change) => setDraft({...draft, ...change})} />}
       {section === "workflows" && <WorkflowsEditor harness={effectiveHarness} onChange={(change) => setDraft({...draft, ...change})} />}
+      {section === "curator" && <CuratorEditor harness={draft} onChangeHarness={(change) => setDraft({...draft, ...change})} onOpenInbox={() => changeScope(undefined, "inbox")} />}
+      {section === "inbox" && <CurationInbox harnessId={harness.id} projects={projects} />}
       {section === "limits" && <RunLimitsEditor harness={draft} onChange={(change) => setDraft({...draft, ...change})} />}
       {section === "projects" && (
         <ProjectConfigEditor
@@ -233,7 +240,7 @@ interface HarnessConfigPageProps {
   agentName?: string;
 }
 
-/** Harness configuration inside settings: one shell, one breadcrumb, one header, four tabs. */
+/** Harness configuration inside settings: one shell, one breadcrumb, one header, five tabs. */
 export default function HarnessConfigPage(props: HarnessConfigPageProps) {
   const {appEnvironment, harnessId, section, projectId, agentName} = props;
   const library = useHarnessLibrary();
@@ -251,8 +258,8 @@ export default function HarnessConfigPage(props: HarnessConfigPageProps) {
   const projects = library.data.projects.filter((item) => item.harnessId === harnessId).toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const labs = projects.filter((item) => item.id !== harness.coordinatorProjectId);
   const requested = projectId ? projects.find((item) => item.id === projectId) : undefined;
-  // Workflows, limits and resources belong to the harness, so those panels never run inside a project scope.
-  const harnessScoped = resolved.tab.id === "workflows" || resolved.tab.id === "resources";
+  // Workflows, limits, resources, the curator and the inbox belong to the harness, so those panels never run inside a project scope.
+  const harnessScoped = ["workflows", "resources", "inbox"].includes(resolved.tab.id) || resolved.section.id === "curator";
   const defaultOwnerId =
     resolved.section.id === "orchestrator"
       ? harness.coordinatorProjectId

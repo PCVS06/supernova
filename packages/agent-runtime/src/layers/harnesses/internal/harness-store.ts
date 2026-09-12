@@ -5,7 +5,7 @@ import {basename, isAbsolute, join, resolve} from "node:path";
 import {getAgentDir, loadSkills, parseFrontmatter} from "@earendil-works/pi-coding-agent";
 import {Schema} from "effect";
 import {HarnessLibrary, HarnessSnapshot} from "@supernova/contracts/harnesses/schemas";
-import type {HarnessAgent, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
+import type {CurationTarget, HarnessAgent, HarnessConfig, HarnessProject, InstructionVersion} from "@supernova/contracts/harnesses/schemas";
 import {createDefaultHarness, normalizeHarnessHierarchy, resolveHarnessProject, validateHarness} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 
 async function optionalText(path: string): Promise<string> {
@@ -36,6 +36,33 @@ async function isDirectory(path: string): Promise<boolean> {
 
 function missingFolderError(path: string): Error {
   return new Error(`The project folder is missing: ${path}. Restore the folder, or remove the project and add it again, before starting a chat.`);
+}
+
+/** Keeps an identifier usable as one path segment; project and agent identifiers are already narrow, legacy ones are not. */
+function safeSegment(value: string): string {
+  const safe = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
+  if (!safe || safe === "." || safe === "..") throw new Error("Invalid instruction version key.");
+  return safe;
+}
+
+/** The folder one instruction artefact's history lives in, derived from the target the curator addresses it by. */
+export function instructionVersionKey(target: CurationTarget): string {
+  switch (target.kind) {
+    case "harness":
+      return "harness";
+    case "context":
+      return "context";
+    case "project":
+      if (!target.projectId) throw new Error("A project instruction version needs a project.");
+      return `project-${safeSegment(target.projectId)}`;
+    case "role": {
+      if (!target.agentName) throw new Error("A role instruction version needs an agent name.");
+      const role = `role-${safeSegment(target.agentName)}`;
+      return target.projectId ? `project-${safeSegment(target.projectId)}-${role}` : role;
+    }
+    default:
+      throw new Error("Only instruction texts have a version history.");
+  }
 }
 
 /** Server-owned, revision-checked configuration store. Never writes into imported projects. */
@@ -77,6 +104,7 @@ export class HarnessStore {
           const current = await this.list();
           if (current.revision !== expectedRevision) throw new Error("Configuration changed elsewhere. Reload before saving.");
           const next = normalizeHarnessHierarchy({...(await mutate(current)), revision: current.revision + 1});
+          await this.archiveInstructions(current, next);
           const temporary = join(this.root, `harnesses-${randomUUID()}.tmp`);
           await writeFile(temporary, JSON.stringify(next, null, 2), {mode: 0o600});
           await rename(temporary, join(this.root, "harnesses.json"));
@@ -87,6 +115,76 @@ export class HarnessStore {
       });
     this.queue = operation;
     return operation;
+  }
+
+  private versionDirectory(target: CurationTarget): string {
+    return join(this.root, "versions", safeSegment(target.harnessId), instructionVersionKey(target));
+  }
+
+  /**
+   * Keeps the text every changed instruction artefact had at `current.revision`, so an applied curation or a hand
+   * edit can be read back and restored. Unchanged text is never written, and text that was empty has nothing to keep.
+   */
+  private async archiveInstructions(current: HarnessLibrary, next: HarnessLibrary): Promise<void> {
+    const changes: {target: CurationTarget; text: string}[] = [];
+    const keep = (target: CurationTarget, before: string, after: string | undefined) => {
+      if (before && before !== after) changes.push({target, text: before});
+    };
+    for (const harness of current.harnesses) {
+      const after = next.harnesses.find((item) => item.id === harness.id);
+      keep({kind: "harness", harnessId: harness.id}, harness.systemPrompt, after?.systemPrompt);
+      keep({kind: "context", harnessId: harness.id}, harness.context.instructions, after?.context.instructions);
+      for (const agent of harness.agents) {
+        keep({kind: "role", harnessId: harness.id, agentName: agent.name}, agent.systemPrompt, after?.agents.find((item) => item.name === agent.name)?.systemPrompt);
+      }
+    }
+    for (const project of current.projects) {
+      const after = next.projects.find((item) => item.id === project.id);
+      keep({kind: "project", harnessId: project.harnessId, projectId: project.id}, project.systemPrompt, after?.systemPrompt);
+      for (const agent of project.agents) {
+        keep(
+          {kind: "role", harnessId: project.harnessId, projectId: project.id, agentName: agent.name},
+          agent.systemPrompt,
+          after?.agents.find((item) => item.name === agent.name)?.systemPrompt
+        );
+      }
+    }
+    for (const change of changes) {
+      const directory = this.versionDirectory(change.target);
+      await mkdir(directory, {recursive: true, mode: 0o700});
+      const temporary = join(directory, `${randomUUID()}.tmp`);
+      await writeFile(temporary, change.text, {mode: 0o600});
+      await rename(temporary, join(directory, `${current.revision}.md`));
+    }
+  }
+
+  /** The saved previous texts of one instruction artefact, newest first. */
+  public async listVersions(target: CurationTarget): Promise<InstructionVersion[]> {
+    const directory = this.versionDirectory(target);
+    let names: string[];
+    try {
+      names = await readdir(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const versions: InstructionVersion[] = [];
+    for (const name of names.filter((name) => /^\d+\.md$/.test(name))) {
+      const info = await stat(join(directory, name));
+      versions.push({target, revision: Number(name.slice(0, -3)), savedAt: info.mtime.toISOString(), size: info.size});
+    }
+    return versions.sort((a, b) => b.revision - a.revision);
+  }
+
+  /** The exact text one instruction artefact had at the given library revision. */
+  public async readVersion(target: CurationTarget, revision: number): Promise<string> {
+    if (!Number.isInteger(revision) || revision < 0) throw new Error("A version is addressed by its library revision.");
+    try {
+      return await readFile(join(this.versionDirectory(target), `${revision}.md`), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("No saved version of this instruction text at that revision.");
+      throw error;
+    }
   }
 
   /** Saves one shared harness without changing any project overrides. */
@@ -281,6 +379,15 @@ export class HarnessStore {
   public async hasSnapshot(sessionId: string): Promise<boolean> {
     if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid session ID.");
     return Boolean(await optionalText(join(this.root, "sessions", `${sessionId}.json`)));
+  }
+
+  /** The project a chat was pinned to, without the folder checks a full snapshot read performs. */
+  public async projectOfSession(sessionId: string): Promise<{id: string; path: string} | undefined> {
+    if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid session ID.");
+    const saved = await optionalText(join(this.root, "sessions", `${sessionId}.json`));
+    if (!saved) return undefined;
+    const snapshot = Schema.decodeUnknownSync(HarnessSnapshot)(JSON.parse(saved));
+    return {id: snapshot.project.id, path: snapshot.project.path};
   }
 
   /** Loads a chat's pinned configuration, or current defaults for an imported legacy chat. */

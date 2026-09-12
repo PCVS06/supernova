@@ -8,6 +8,7 @@ import SettingsPageShell from "@/features/settings/components/settings-page-shel
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import AgentIdentityPicker from "@/features/harnesses/components/agent-identity-picker";
 import EditorTabs from "@/features/harnesses/components/editor-tabs";
+import InstructionHistory from "@/features/harnesses/components/instruction-history";
 import PlanningDocumentsEditor from "@/features/harnesses/components/planning-documents-editor";
 import ProjectConfigList from "@/features/harnesses/components/project-config-list";
 import ProjectOverridesEditor from "@/features/harnesses/components/project-overrides-editor";
@@ -91,6 +92,7 @@ export default function ProjectConfigEditor(props: ProjectConfigEditorProps) {
                   <SettingsRow description={`Added to ${harness.name}'s shared instructions for this project's chats only.`} title="Project instructions">
                     <PromptEditor label="Project system instructions" value={project.systemPrompt} onChange={(systemPrompt) => onChangeProject({systemPrompt})} />
                   </SettingsRow>
+                  <InstructionHistory target={{kind: "project", harnessId: harness.id, projectId: project.id}} onRestore={(systemPrompt) => onChangeProject({systemPrompt})} />
                 </SettingsGroup>
                 <ProjectOverridesEditor harness={harness} overrides={project.agents} onChange={(agents) => onChangeProject({agents})} onOpenSpecialists={onOpenSpecialists} />
               </SettingsPageShell>

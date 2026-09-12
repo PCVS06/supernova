@@ -14,6 +14,17 @@ export const HarnessAgent = Schema.Struct({
   color: Schema.optional(Schema.String),
 });
 
+export const CuratorAutoApply = Schema.Struct({memory: Schema.Boolean, planningLog: Schema.Boolean});
+
+/** The background curator of a harness: what it may apply by itself and how much it may spend. */
+export const CuratorConfig = Schema.Struct({
+  enabled: Schema.Boolean,
+  execution: Schema.optional(HarnessExecution),
+  maxCostUsdPerRun: Schema.Number,
+  maxCostUsdPerDay: Schema.Number,
+  autoApply: CuratorAutoApply,
+});
+
 export const HarnessConfig = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -22,6 +33,7 @@ export const HarnessConfig = Schema.Struct({
   orchestratorPrompt: Schema.optional(Schema.String),
   execution: Schema.optional(HarnessExecution),
   coordinatorProjectId: Schema.optional(Schema.String),
+  curator: Schema.optional(CuratorConfig),
   enabledSkills: Schema.optional(Schema.Array(Schema.String)),
   agents: Schema.Array(HarnessAgent),
   extensions: Schema.Array(Schema.String),
@@ -133,6 +145,8 @@ export type HarnessConfig = typeof HarnessConfig.Type;
 export type HarnessProject = typeof HarnessProject.Type;
 export type HarnessLibrary = typeof HarnessLibrary.Type;
 export type HarnessSnapshot = typeof HarnessSnapshot.Type;
+export type CuratorConfig = typeof CuratorConfig.Type;
+export type CuratorAutoApply = typeof CuratorAutoApply.Type;
 export type HarnessPromptLayer = typeof HarnessPromptLayer.Type;
 export type HarnessRunSummary = typeof HarnessRunSummary.Type;
 export type HarnessRun = typeof HarnessRun.Type;

@@ -1,8 +1,8 @@
 import {randomUUID} from "node:crypto";
-import {mkdir, readFile, readdir, rename, writeFile} from "node:fs/promises";
+import {appendFile, mkdir, readFile, readdir, rename, writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {Schema} from "effect";
-import {HarnessRun, HarnessRunSummary, HarnessRuntimeContext, WorkflowRun, WorkflowRunSummary} from "@supernova/contracts/harnesses/schemas";
+import {HarnessRun, HarnessRunSummary, HarnessRuntimeContext, SteerRecord, WorkflowRun, WorkflowRunSummary} from "@supernova/contracts/harnesses/schemas";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 
 function safeId(id: string): string {
@@ -19,11 +19,15 @@ function alive(pid: number): boolean {
   }
 }
 
+/** How a chat is mapped to the project it belongs to when its receipts do not name one. */
+export type ChatProjectResolver = (chatId: string) => Promise<{readonly id: string; readonly path: string} | undefined>;
+
 /** Durable, chat-owned execution receipts. Definitions never become runs until invoked. */
 export class HarnessRunStore {
   public constructor(
     private readonly root: string,
-    private readonly isAlive = alive
+    private readonly isAlive = alive,
+    private readonly projectOfChat: ChatProjectResolver = (chatId) => harnessStore.projectOfSession(chatId)
   ) {}
 
   private async write(chatId: string, file: string, value: unknown): Promise<void> {
@@ -129,6 +133,90 @@ export class HarnessRunStore {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
       throw error;
     }
+  }
+
+  /** Records one user correction typed while a turn was running, beside that chat's receipts. */
+  public async appendSteer(chatId: string, text: string, at = new Date().toISOString()): Promise<void> {
+    const directory = join(this.root, safeId(chatId));
+    await mkdir(directory, {recursive: true, mode: 0o700});
+    const record = Schema.decodeUnknownSync(SteerRecord)({chatId, at, text});
+    // One line, one O_APPEND write: concurrent steers from different chats never interleave inside a line.
+    await appendFile(join(directory, "steers.jsonl"), `${JSON.stringify(record)}\n`, {mode: 0o600});
+  }
+
+  /** This chat's recorded steers, newest first. Malformed lines are skipped rather than hiding the rest. */
+  public async listSteers(chatId: string): Promise<SteerRecord[]> {
+    let contents: string;
+    try {
+      contents = await readFile(join(this.root, safeId(chatId), "steers.jsonl"), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const records: SteerRecord[] = [];
+    for (const line of contents.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const record = Schema.decodeUnknownSync(SteerRecord)(JSON.parse(line));
+        if (record.chatId === chatId) records.push(record);
+      } catch {
+        continue;
+      }
+    }
+    return records.sort((a, b) => b.at.localeCompare(a.at));
+  }
+
+  /** The chat identifiers that have receipts or steers of their own. */
+  private async chats(): Promise<string[]> {
+    try {
+      return (await readdir(this.root, {withFileTypes: true})).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+  }
+
+  /** The project of a chat: its pinned snapshot, or the project its own receipts name. Empty for a chat outside any harness. */
+  public async chatProject(chatId: string): Promise<{id?: string; path?: string}> {
+    const pinned = await this.projectOfChat(chatId).catch(() => undefined);
+    if (pinned) return pinned;
+    const [run] = await this.list(chatId);
+    return {id: run?.projectId};
+  }
+
+  /** Every steer typed in the chats of one project, newest first. */
+  public async listSteersForProject(project: {readonly id?: string; readonly path?: string}): Promise<SteerRecord[]> {
+    const records: SteerRecord[] = [];
+    for (const chatId of await this.chats()) {
+      const steers = await this.listSteers(chatId);
+      if (!steers.length) continue;
+      const owner = await this.chatProject(chatId);
+      if ((project.id && owner.id === project.id) || (project.path && owner.path === project.path)) records.push(...steers);
+    }
+    return records.sort((a, b) => b.at.localeCompare(a.at));
+  }
+
+  /** Receipts across all chats, newest first: the run history a review reads as evidence. */
+  public async listRecentRuns(input: {readonly projectId?: string; readonly failedOnly?: boolean; readonly limit?: number} = {}): Promise<HarnessRunSummary[]> {
+    const runs: HarnessRunSummary[] = [];
+    for (const chatId of await this.chats()) {
+      for (const run of await this.list(chatId)) {
+        if (input.projectId && run.projectId !== input.projectId) continue;
+        if (input.failedOnly && run.status !== "failed" && run.status !== "interrupted" && run.status !== "cancelled") continue;
+        runs.push(run);
+      }
+    }
+    return runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, input.limit ?? 50);
+  }
+
+  /** The workflow failure kind recorded for each specialist run of one chat, keyed by run id. */
+  public async workflowFailureKinds(chatId: string): Promise<Map<string, string>> {
+    const kinds = new Map<string, string>();
+    for (const run of await this.listWorkflowRuns(chatId)) {
+      const record = await this.getWorkflowRun(chatId, run.id);
+      for (const step of record.steps) if (step.runId && step.failureKind) kinds.set(step.runId, step.failureKind);
+    }
+    return kinds;
   }
 }
 

@@ -2,6 +2,7 @@ import {useState} from "react";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import ChatContextBar from "@/features/harnesses/components/chat-context-bar";
+import {useChatHarness} from "@/features/harnesses/hooks/api/use-harness-runs";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
 import {pathFileName} from "@/features/workspace/lib/workspace-paths";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
@@ -41,7 +42,9 @@ export default function SessionContextStrip(props: SessionContextStripProps) {
   const {projectPath, sessionId} = props;
   const [expanded, setExpanded] = useState(false);
   const library = useHarnessLibrary();
+  const context = useChatHarness(sessionId);
   const project = library.data?.projects.find((item) => item.path === projectPath);
+  const revision = context.data?.snapshot?.revision;
   const planningDocuments = project?.planningDocuments ?? [];
   const visibleDocuments = expanded ? planningDocuments : planningDocuments.slice(0, COLLAPSED_DOCUMENT_COUNT);
   const hiddenDocumentCount = planningDocuments.length - visibleDocuments.length;
@@ -62,6 +65,11 @@ export default function SessionContextStrip(props: SessionContextStripProps) {
           )}
           {hiddenDocumentCount > 0 && <span className="shrink-0 text-xs text-ink-faint">+{hiddenDocumentCount}</span>}
         </div>
+        {revision !== undefined && (
+          <span className="shrink-0 font-mono text-xs text-ink-faint" title="Instructions revision this chat runs on">
+            rev {revision}
+          </span>
+        )}
         <Button
           aria-expanded={expanded}
           className="flex shrink-0 items-center gap-1 text-xs text-ink-muted hover:text-ink"

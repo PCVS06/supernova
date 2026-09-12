@@ -1,7 +1,7 @@
 /** Top-level areas of harness configuration. One tab bar, one URL section per panel. */
-export type HarnessTabId = "agents" | "resources" | "workflows" | "projects";
+export type HarnessTabId = "agents" | "resources" | "workflows" | "projects" | "inbox";
 
-export type HarnessSectionId = "orchestrator" | "leads" | "specialists" | "skills" | "tools" | "connectors" | "context" | "workflows" | "limits" | "projects";
+export type HarnessSectionId = "orchestrator" | "leads" | "specialists" | "curator" | "skills" | "tools" | "connectors" | "context" | "workflows" | "limits" | "projects" | "inbox";
 
 export interface HarnessSection {
   id: HarnessSectionId;
@@ -24,6 +24,7 @@ export const harnessTabs: readonly HarnessTab[] = [
     ["orchestrator", "Main orchestrator"],
     ["leads", "Project leads"],
     ["specialists", "Specialists"],
+    ["curator", "Curator"],
   ]),
   tab("resources", "Resources", [
     ["skills", "Skills"],
@@ -36,6 +37,7 @@ export const harnessTabs: readonly HarnessTab[] = [
     ["limits", "Limits"],
   ]),
   tab("projects", "Projects", [["projects", "Projects"]]),
+  tab("inbox", "Inbox", [["inbox", "Inbox"]]),
 ];
 
 const harnessSections: readonly HarnessSection[] = harnessTabs.flatMap((item) => item.sections);
@@ -63,4 +65,9 @@ export function resolveHarnessSection(section?: string): {section: HarnessSectio
   const id = section && (legacySections[section] ?? section);
   const resolved = harnessSections.find((candidate) => candidate.id === id) ?? harnessSections[0]!;
   return {section: resolved, tab: harnessTabs.find((candidate) => candidate.id === resolved.tab)!};
+}
+
+/** Tab bar items of the harness workspace. The inbox carries the number of proposals waiting for a decision. */
+export function harnessTabItems(pendingProposals: number): readonly {value: HarnessTabId; label: string; count?: number}[] {
+  return harnessTabs.map((item) => ({value: item.id, label: item.label, count: item.id === "inbox" && pendingProposals > 0 ? pendingProposals : undefined}));
 }

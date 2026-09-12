@@ -7,6 +7,10 @@ import {SessionRuntimeService} from "@supernova/agent-runtime/services/session-r
 import {SessionsService} from "@supernova/agent-runtime/services/sessions-service";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 import {harnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
+import {PiSdkService} from "@supernova/agent-runtime/layers/pi-sdk";
+import {curatorStore} from "@supernova/agent-runtime/layers/curator/curator-store";
+import {decideCuration, rollbackCuration} from "@supernova/agent-runtime/layers/curator/curator-decisions";
+import {runCuratorReview} from "@supernova/agent-runtime/layers/curator/curator-run";
 import {harnessPromptLayers} from "@supernova/agent-runtime/layers/harnesses/lib/harness-prompts";
 import {getHarnessResources, getHarnessMemory} from "@supernova/agent-runtime/layers/harnesses/internal/harness-resources";
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
@@ -24,6 +28,7 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
     const projects = yield* ProjectsService;
     const sessionRuntime = yield* SessionRuntimeService;
     const sessions = yield* SessionsService;
+    const piSdk = yield* PiSdkService;
 
     return {
       getHarnessResources: ({harnessId, projectId}) => configurationEffect(() => getHarnessResources(harnessId, projectId)),
@@ -74,6 +79,15 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
         configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.saveProject(project, expectedRevision))),
       importScienceHarness: ({packagePath, rootPath, expectedRevision}) =>
         configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.importScience(packagePath, rootPath, expectedRevision))),
+      listCuration: ({harnessId}) =>
+        configurationEffect(async () => ({proposals: await curatorStore.listProposals(harnessId), reviews: await curatorStore.listReviews(harnessId)})),
+      decideCuration: ({proposalId, decision, replace, reason, expectedRevision}) =>
+        configurationEffect(() => decideCuration({proposalId, decision, replace, reason, expectedRevision})),
+      rollbackCuration: ({proposalId, expectedRevision}) => configurationEffect(() => rollbackCuration({proposalId, expectedRevision})),
+      // One review is one model session, so this call takes as long as the review does.
+      runCuratorReview: ({harnessId, projectId}) => configurationEffect(() => runCuratorReview({harnessId, projectId, trigger: "manual", scope: "full", piSdk})),
+      listInstructionVersions: ({target}) => configurationEffect(async () => ({versions: await harnessStore.listVersions(target)})),
+      readInstructionVersion: ({target, revision}) => configurationEffect(async () => ({content: await harnessStore.readVersion(target, revision)})),
       createHarnessSession: ({projectId}) =>
         configurationEffect(async () => {
           const snapshot = await harnessStore.resolveProject(projectId);

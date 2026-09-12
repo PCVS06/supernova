@@ -13,21 +13,23 @@ interface StoredSession {
   updatedAt: string;
 }
 
-const state = vi.hoisted(() => ({sessions: [] as StoredSession[]}));
+const state = vi.hoisted(() => ({sessions: [] as StoredSession[], pendingProposals: 0}));
 
 function MockLink(props: {
   readonly "aria-label"?: string;
   readonly children: ReactNode;
   readonly className?: string;
   readonly params?: Record<string, string>;
+  readonly search?: Record<string, string>;
   readonly title?: string;
   readonly to: string;
 }) {
-  const {children, className, params, title, to} = props;
-  const href = Object.entries(params ?? {}).reduce((path, [key, value]) => path.replace(`$${key}`, value), to);
+  const {children, className, params, search, title, to} = props;
+  const path = Object.entries(params ?? {}).reduce((current, [key, value]) => current.replace(`$${key}`, value), to);
+  const query = new URLSearchParams(search ?? {}).toString();
 
   return (
-    <a aria-label={props["aria-label"]} className={className} href={href} title={title}>
+    <a aria-label={props["aria-label"]} className={className} href={query ? `${path}?${query}` : path} title={title}>
       {children}
     </a>
   );
@@ -42,6 +44,9 @@ vi.mock("@tanstack/react-query", () => ({useQueryClient: () => ({prefetchQuery: 
 vi.mock("@/features/harnesses/hooks/api/use-harnesses", () => ({
   useHarnessLibrary: () => ({data: {revision: 1, harnesses: [], projects: []}}),
   useRemoveHarnessProject: () => ({mutate: () => undefined}),
+}));
+vi.mock("@/features/harnesses/hooks/api/use-curation", () => ({
+  useCuration: () => ({data: {proposals: Array.from({length: state.pendingProposals}, () => ({status: "pending"})), reviews: []}}),
 }));
 vi.mock("@/components/ui/menu", () => ({
   default: (props: {children: ReactNode; trigger: (triggerProps: {readonly "aria-label": string}) => ReactNode; triggerLabel: string}) => (
@@ -150,6 +155,7 @@ function renderHarnessSection(projects: ProjectListProject[], configuredProjects
 describe("sidebar rows", () => {
   beforeEach(() => {
     state.sessions = [];
+    state.pendingProposals = 0;
     vi.stubGlobal("window", {});
   });
 
@@ -207,6 +213,17 @@ describe("sidebar rows", () => {
     expect(html).toContain("uppercase");
     // Rings identify projects, so the group header carries none.
     expect(html).not.toContain("pi-orb");
+  });
+
+  it("carries waiting proposals into the harness inbox and stays invisible at zero", () => {
+    const quiet = renderHarnessSection([project()], [configuredProject()]);
+    state.pendingProposals = 2;
+    const waiting = renderHarnessSection([project()], [configuredProject()]);
+
+    expect(quiet).not.toContain("proposals waiting");
+    expect(waiting).toContain('aria-label="2 proposals waiting in Science Pi"');
+    expect(waiting).toContain('href="/settings/harness/science?section=inbox"');
+    expect(waiting).toContain(">2<");
   });
 
   it("invites a first project when a harness is empty", () => {

@@ -4,6 +4,7 @@ import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
+import {useCuration} from "@/features/harnesses/hooks/api/use-curation";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import SortableProjectList from "@/features/projects/components/project-list/sortable-project-list";
 import type {ProjectListProject} from "@/features/projects/types/project-list";
@@ -21,7 +22,9 @@ export default function HarnessSidebarSection(props: {
 }) {
   const {harness, projects, configuredProjects, activeSessionId, expandedProjectIds, onToggleProject, onAddProject} = props;
   const selectHarness = useHarnessNavigationStore((state) => state.selectHarness);
+  const curation = useCuration(harness.id);
   const [open, setOpen] = useState(true);
+  const pendingProposals = curation.data?.proposals.filter((proposal) => proposal.status === "pending").length ?? 0;
   // A project whose folder vanished cannot start chats; the row has to say so before it is clicked.
   const missingFolderProjectIds = new Set(configuredProjects.filter((project) => project.folderMissing).map((project) => project.id));
   const head = projects.find((project) => project.isCoordinator);
@@ -49,6 +52,19 @@ export default function HarnessSidebarSection(props: {
           <Icon name="chevron-down" className={cn("transition-transform duration-150", !open && "-rotate-90")} size="xs" />
           <span className="truncate">{harness.name}</span>
         </Button>
+        {pendingProposals > 0 && (
+          <Link
+            aria-label={`${pendingProposals} proposals waiting in ${harness.name}`}
+            className="shrink-0 rounded-full border border-border px-1.5 text-[10px] leading-4 text-ink-muted hover:border-border-strong hover:text-ink"
+            onClick={() => selectHarness(harness.id)}
+            params={{harnessId: harness.id}}
+            search={{section: "inbox"}}
+            title="Proposals waiting for review"
+            to="/settings/harness/$harnessId"
+          >
+            {pendingProposals}
+          </Link>
+        )}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/harness:opacity-100 group-focus-within/harness:opacity-100">
           <IconButton
             className="size-6 rounded-md text-ink-faint hover:bg-overlay-hover hover:text-ink"

@@ -14,6 +14,7 @@ vi.mock("@/features/harnesses/components/execution-editor", () => ({
   },
 }));
 vi.mock("@/features/harnesses/components/skills-editor", () => ({default: () => <div>Skills</div>}));
+vi.mock("@/features/harnesses/components/instruction-history", () => ({default: () => <div>History</div>}));
 
 const harness: HarnessConfig = {
   id: "science",

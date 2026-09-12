@@ -6,4 +6,7 @@ import {PiProjectsLive} from "@supernova/agent-runtime/layers/projects/pi-projec
 import {PiSessionRuntimeLive} from "@supernova/agent-runtime/layers/session-runtime/pi-session-runtime-live";
 import {PiSessionsLive} from "@supernova/agent-runtime/layers/sessions/pi-sessions-live";
 
-export const AgentRuntimeServicesLive = Layer.mergeAll(FileSystemFoldersLive, PiProjectsLive, PiProvidersLive, PiSessionRuntimeLive, PiSessionsLive).pipe(Layer.provide(PiSdkLive));
+/** The Pi SDK stays available to the RPC layer itself: a curator review creates a session without a chat behind it. */
+export const AgentRuntimeServicesLive = Layer.mergeAll(FileSystemFoldersLive, PiProjectsLive, PiProvidersLive, PiSessionRuntimeLive, PiSessionsLive).pipe(
+  Layer.provideMerge(PiSdkLive)
+);

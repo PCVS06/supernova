@@ -7,6 +7,7 @@ import type {AgentEditorSection} from "@/features/harnesses/components/agent-wor
 import AgentIdentityPicker from "@/features/harnesses/components/agent-identity-picker";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import AgentMemoryPanel from "@/features/harnesses/components/agent-memory-panel";
+import InstructionHistory from "@/features/harnesses/components/instruction-history";
 import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import SkillsEditor from "@/features/harnesses/components/skills-editor";
@@ -130,9 +131,12 @@ export default function LeadsEditor(props: LeadsEditorProps) {
         <>
           <SettingsGroup title="Shared operating manual">
             {isHead || !project ? (
-              <SettingsRow description="Every project of this harness inherits these instructions." title="Shared instructions · all projects">
-                <PromptEditor label="Shared operating instructions" value={harness.systemPrompt} onChange={(systemPrompt) => onChangeHarness({systemPrompt})} />
-              </SettingsRow>
+              <>
+                <SettingsRow description="Every project of this harness inherits these instructions." title="Shared instructions · all projects">
+                  <PromptEditor label="Shared operating instructions" value={harness.systemPrompt} onChange={(systemPrompt) => onChangeHarness({systemPrompt})} />
+                </SettingsRow>
+                <InstructionHistory target={{kind: "harness", harnessId: harness.id}} onRestore={(systemPrompt) => onChangeHarness({systemPrompt})} />
+              </>
             ) : (
               <SettingsRow
                 control={

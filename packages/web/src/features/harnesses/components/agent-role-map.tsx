@@ -11,7 +11,7 @@ interface AgentRoleMapProps {
   onSelect: (projectId: string | undefined, section: HarnessSectionId) => void;
 }
 
-/** Sub-navigation of the Agents tab: the main orchestrator, the project leads, the specialists. */
+/** Sub-navigation of the Agents tab: the main orchestrator, the project leads, the specialists, the curator. */
 export default function AgentRoleMap(props: AgentRoleMapProps) {
   const {harness, project, projects, section, onSelect} = props;
   const head = projects.find((item) => item.id === harness.coordinatorProjectId);
@@ -42,6 +42,13 @@ export default function AgentRoleMap(props: AgentRoleMapProps) {
       count: harness.agents.length,
       icon: <AgentMark name="specialist-roles" className="size-7" />,
       action: () => onSelect(project?.id, "specialists"),
+    },
+    {
+      value: "curator" as HarnessSectionId,
+      label: "Curator",
+      icon: <AgentMark name="curator" color="#a3a3a3" className="size-7" />,
+      // The curator belongs to the harness, never to one project, so it drops the project scope.
+      action: () => onSelect(undefined, "curator"),
     },
   ];
 

@@ -1,5 +1,5 @@
 import {isAbsolute} from "node:path";
-import type {HarnessConfig, HarnessLibrary, HarnessProject, HarnessSnapshot, HarnessWorkflow} from "@supernova/contracts/harnesses/schemas";
+import type {CuratorConfig, HarnessConfig, HarnessLibrary, HarnessProject, HarnessSnapshot, HarnessWorkflow} from "@supernova/contracts/harnesses/schemas";
 
 /** Adds the existing Science workspace's explicit head/lab relationship without changing imported prompts. */
 const identifier = /^[a-zA-Z0-9_-]{1,80}$/;
@@ -188,9 +188,23 @@ export function validateHarness(harness: HarnessConfig): void {
     if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${label} must be an integer between ${min} and ${max}.`);
   }
   if (harness.context.files.length > 20) throw new Error("Choose at most 20 context files.");
-  for (const execution of [harness.execution, ...harness.agents.map((agent) => agent.execution)]) {
+  for (const execution of [harness.execution, harness.curator?.execution, ...harness.agents.map((agent) => agent.execution)]) {
     if (execution?.effort && !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(execution.effort)) throw new Error("Unsupported reasoning effort.");
   }
+  if (harness.curator) {
+    const {maxCostUsdPerRun, maxCostUsdPerDay} = harness.curator;
+    if (!(maxCostUsdPerRun >= 0.01 && maxCostUsdPerRun <= 50)) throw new Error("The curator's cost limit per review must be between 0.01 and 50 USD.");
+    if (!(maxCostUsdPerDay >= 0.1 && maxCostUsdPerDay <= 500)) throw new Error("The curator's daily cost limit must be between 0.1 and 500 USD.");
+    if (maxCostUsdPerRun > maxCostUsdPerDay) throw new Error("The curator cannot be allowed to spend more on one review than on a whole day.");
+  }
+}
+
+/**
+ * What the Curator settings page starts from. An absent `curator` means disabled, so these defaults are
+ * never injected into a saved library: the user has to switch the Curator on deliberately.
+ */
+export function defaultCuratorConfig(): CuratorConfig {
+  return {enabled: false, maxCostUsdPerRun: 0.5, maxCostUsdPerDay: 2, autoApply: {memory: false, planningLog: false}};
 }
 
 /** Validates named workflows: references resolve, every read precedes its reader, and contracts are well formed. */

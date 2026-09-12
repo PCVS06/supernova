@@ -1,7 +1,7 @@
 import {createMemoryHistory, createRouter} from "@tanstack/react-router";
 import {describe, expect, it} from "vitest";
 import {routeTree} from "@/app/router";
-import {defaultHarnessSection, harnessTabs, resolveHarnessSection} from "@/features/harnesses/lib/harness-sections";
+import {defaultHarnessSection, harnessTabItems, harnessTabs, resolveHarnessSection} from "@/features/harnesses/lib/harness-sections";
 import {getSettingsSection, settingsSections} from "@/features/settings/data/settings-sections";
 
 interface ResolvedRedirect {
@@ -49,13 +49,21 @@ describe("settings harness surfaces", () => {
     expect(href).toBe("/settings/harness/science?section=workflows");
   });
 
+  it("counts waiting proposals on the inbox tab only", () => {
+    expect(harnessTabItems(0).map((item) => item.count)).toEqual([undefined, undefined, undefined, undefined, undefined]);
+    const counted = harnessTabItems(3);
+    expect(counted.find((item) => item.value === "inbox")).toEqual({value: "inbox", label: "Inbox", count: 3});
+    expect(counted.filter((item) => item.count !== undefined)).toHaveLength(1);
+  });
+
   it("maps a legacy section onto its new panel and falls back for unknown ones", () => {
-    expect(harnessTabs.map((tab) => tab.label)).toEqual(["Agents", "Resources", "Workflows", "Projects"]);
+    expect(harnessTabs.map((tab) => tab.label)).toEqual(["Agents", "Resources", "Workflows", "Projects", "Inbox"]);
     // Memory is no longer a section; it is a tab of every agent page.
     expect(harnessTabs.flatMap((tab) => tab.sections.map((section) => section.id))).toEqual([
       "orchestrator",
       "leads",
       "specialists",
+      "curator",
       "skills",
       "tools",
       "connectors",
@@ -63,6 +71,7 @@ describe("settings harness surfaces", () => {
       "workflows",
       "limits",
       "projects",
+      "inbox",
     ]);
     expect(harnessTabs.flatMap((tab) => tab.sections).find((section) => section.id === "limits")?.label).toBe("Limits");
     const cases = [
@@ -77,6 +86,8 @@ describe("settings harness surfaces", () => {
       {name: "legacy_run_limits", from: "Run limits", section: "limits", tab: "workflows"},
       {name: "current_context", from: "context", section: "context", tab: "resources"},
       {name: "current_projects", from: "projects", section: "projects", tab: "projects"},
+      {name: "current_curator", from: "curator", section: "curator", tab: "agents"},
+      {name: "current_inbox", from: "inbox", section: "inbox", tab: "inbox"},
     ];
     for (const each of cases) {
       const resolved = resolveHarnessSection(each.from);
