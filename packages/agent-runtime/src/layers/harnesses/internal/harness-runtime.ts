@@ -15,6 +15,7 @@ import {WorkerTranscript} from "@supernova/agent-runtime/layers/harnesses/intern
 import {createHarnessViewTool} from "@supernova/agent-runtime/layers/harnesses/internal/harness-view-tool";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 import {curatorScheduler} from "@supernova/agent-runtime/layers/curator/curator-scheduler";
+import {createCurationRequestTool} from "@supernova/agent-runtime/layers/curator/curator-request-tool";
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
 import {resolveHarnessProject} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 import {toPiThinkingLevel} from "@supernova/agent-runtime/layers/session-runtime/lib/models/thinking-levels";
@@ -429,5 +430,6 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
     },
   };
   const view = createHarnessViewTool(snapshot, harnessStore);
-  return snapshot.delegation?.projects.length ? [delegate, workflow, lab, view] : [delegate, workflow, view];
+  const curation = trace ? [createCurationRequestTool(snapshot, trace.chatId)] : [];
+  return snapshot.delegation?.projects.length ? [delegate, workflow, lab, view, ...curation] : [delegate, workflow, view, ...curation];
 }

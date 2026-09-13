@@ -29,7 +29,7 @@ export const CurationMemoryChange = Schema.Struct({
 export const CurationLogChange = Schema.Struct({type: Schema.Literal("log"), line: Schema.String});
 export const CurationChange = Schema.Union([CurationTextChange, CurationMemoryChange, CurationLogChange]);
 
-export const CurationEvidenceKind = Schema.Literals(["run", "steer", "record", "document"]);
+export const CurationEvidenceKind = Schema.Literals(["run", "steer", "record", "document", "request"]);
 export const CurationEvidence = Schema.Struct({kind: CurationEvidenceKind, ref: Schema.String, quote: Schema.String});
 
 /** silent: applied at once. notify: applied at once and listed. approval: waits in the inbox. */
@@ -55,7 +55,7 @@ export const CurationProposal = Schema.Struct({
   error: Schema.optional(Schema.String),
 });
 
-export const CuratorReviewTrigger = Schema.Literals(["manual", "after-run"]);
+export const CuratorReviewTrigger = Schema.Literals(["manual", "after-run", "daily"]);
 export const CuratorReviewStatus = Schema.Literals(["running", "completed", "failed"]);
 export const CuratorReview = Schema.Struct({
   id: Schema.String,
@@ -70,7 +70,43 @@ export const CuratorReview = Schema.Struct({
   proposals: Schema.Number,
   applied: Schema.Number,
   spentUsd: Schema.optional(Schema.Number),
+  /** Assembled instruction size at review time, so the size trend can be read off the review history. */
+  instructionChars: Schema.optional(Schema.Number),
   error: Schema.optional(Schema.String),
+});
+
+/** Evidence filed from a chat by the orchestrator: a decision the plan should record, or a repeated problem with an agent. */
+export const CurationRequestKind = Schema.Literals(["decision", "problem"]);
+export const CurationRequest = Schema.Struct({
+  id: Schema.String,
+  harnessId: Schema.String,
+  projectId: Schema.String,
+  chatId: Schema.String,
+  kind: CurationRequestKind,
+  agentName: Schema.optional(Schema.String),
+  text: Schema.String,
+  at: Schema.String,
+});
+
+export const CuratorAgentFailures = Schema.Struct({
+  agentName: Schema.String,
+  runs: Schema.Number,
+  failed: Schema.Number,
+  previousRuns: Schema.Number,
+  previousFailed: Schema.Number,
+});
+
+/** The signals section 9 of the design note measures, over the current window and the one before it. */
+export const CuratorMetrics = Schema.Struct({
+  windowDays: Schema.Number,
+  proposals: Schema.Struct({pending: Schema.Number, applied: Schema.Number, rejected: Schema.Number, rolledBack: Schema.Number}),
+  /** The latest rejection reasons, newest first, at most five. */
+  rejectionReasons: Schema.Array(Schema.String),
+  failures: Schema.Array(CuratorAgentFailures),
+  steersPerChat: Schema.Struct({current: Schema.Number, previous: Schema.Number}),
+  instructionChars: Schema.Struct({current: Schema.Number, previous: Schema.optional(Schema.Number)}),
+  spend: Schema.Struct({today: Schema.Number, window: Schema.Number, maxPerDay: Schema.Number}),
+  requests: Schema.Number,
 });
 
 /** A user correction typed while a turn was running. */
@@ -90,3 +126,7 @@ export type CuratorReview = typeof CuratorReview.Type;
 export type CuratorReviewTrigger = typeof CuratorReviewTrigger.Type;
 export type SteerRecord = typeof SteerRecord.Type;
 export type InstructionVersion = typeof InstructionVersion.Type;
+export type CurationRequest = typeof CurationRequest.Type;
+export type CurationRequestKind = typeof CurationRequestKind.Type;
+export type CuratorAgentFailures = typeof CuratorAgentFailures.Type;
+export type CuratorMetrics = typeof CuratorMetrics.Type;

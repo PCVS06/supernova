@@ -6,9 +6,12 @@ import {showToast} from "@/components/ui/toast-manager";
 import SettingsPageShell from "@/features/settings/components/settings-page-shell";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import ConfigCard from "@/features/harnesses/components/config-card";
+import CuratorRequests from "@/features/harnesses/components/curator-requests";
+import CuratorSchedule from "@/features/harnesses/components/curator-schedule";
+import CuratorSignals from "@/features/harnesses/components/curator-signals";
 import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import {useCuration, useRunCuratorReview} from "@/features/harnesses/hooks/api/use-curation";
-import {relativeTime, spendLabel} from "@/features/harnesses/lib/curation-format";
+import {compactChars, relativeTime, spendLabel} from "@/features/harnesses/lib/curation-format";
 import {curatorConfigPatch, defaultCuratorConfig} from "@/features/harnesses/lib/curator-config";
 
 const REVIEW_LIMIT = 20;
@@ -114,6 +117,10 @@ export default function CuratorEditor(props: CuratorEditorProps) {
         />
       </SettingsGroup>
 
+      <CuratorSchedule config={limits} onChange={patch} />
+
+      <CuratorSignals metrics={curation.data?.metrics} />
+
       <SettingsGroup title="Spend limits">
         <SettingsRow
           control={
@@ -154,6 +161,7 @@ export default function CuratorEditor(props: CuratorEditorProps) {
               <p className="text-xs text-ink-muted">
                 {relativeTime(review.startedAt)} · {review.trigger} · {review.status} · {review.proposals} proposals · {review.applied} applied
                 {spendLabel(review.spentUsd) && ` · ${spendLabel(review.spentUsd)}`}
+                {review.instructionChars !== undefined && ` · ${compactChars(review.instructionChars)} chars`}
               </p>
               {review.status === "failed" && (
                 <p className="truncate text-xs text-danger-ink" title={review.error ?? undefined}>
@@ -165,6 +173,8 @@ export default function CuratorEditor(props: CuratorEditorProps) {
           {!reviews.length && <ConfigCard className="text-sm text-ink-muted">No reviews yet.</ConfigCard>}
         </div>
       </SettingsGroup>
+
+      <CuratorRequests requests={curation.data?.requests ?? []} />
     </SettingsPageShell>
   );
 }

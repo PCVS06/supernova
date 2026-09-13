@@ -121,6 +121,10 @@ Each phase ships on its own and is useful without the next.
 
 **Phase 4, the daily sweep and budgets.** Scheduler with quiet hours, caps, the 80% budget rule, batching of prompt edits, the Curator settings page. Acceptance: a week of sweeps stays under the cost cap and the assembled instruction size does not grow.
 
+## 8a. Implementation status
+
+Phases 1 to 4 are implemented (September 2026): `packages/agent-runtime/src/layers/curator/`, the curation contracts, and the Curator, Inbox and history screens in `packages/web`. Deviations from the plan above: a role prompt may also be changed without three failures when the change does not grow it and cites that role's own text (an overlap or duplicate); the daily sweep is due at the most recent occurrence of its time, so one that falls inside quiet hours runs when the window ends; a memory transition cannot be rolled back because the ledger's terminal states have no inverse, and a pure text removal is restored from the version history instead.
+
 ## 9. How we will know it works
 
 Measured on new chats only, since old chats keep their snapshot (`proposed`):

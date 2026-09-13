@@ -11,6 +11,8 @@ import {PiSdkService} from "@supernova/agent-runtime/layers/pi-sdk";
 import {curatorStore} from "@supernova/agent-runtime/layers/curator/curator-store";
 import {decideCuration, rollbackCuration} from "@supernova/agent-runtime/layers/curator/curator-decisions";
 import {runCuratorReview} from "@supernova/agent-runtime/layers/curator/curator-run";
+import {curatorScheduler} from "@supernova/agent-runtime/layers/curator/curator-scheduler";
+import {curatorMetrics} from "@supernova/agent-runtime/layers/curator/lib/curator-metrics";
 import {harnessPromptLayers} from "@supernova/agent-runtime/layers/harnesses/lib/harness-prompts";
 import {getHarnessResources, getHarnessMemory} from "@supernova/agent-runtime/layers/harnesses/internal/harness-resources";
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
@@ -29,6 +31,7 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
     const sessionRuntime = yield* SessionRuntimeService;
     const sessions = yield* SessionsService;
     const piSdk = yield* PiSdkService;
+    curatorScheduler.start(piSdk);
 
     return {
       getHarnessResources: ({harnessId, projectId}) => configurationEffect(() => getHarnessResources(harnessId, projectId)),
@@ -80,7 +83,12 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       importScienceHarness: ({packagePath, rootPath, expectedRevision}) =>
         configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.importScience(packagePath, rootPath, expectedRevision))),
       listCuration: ({harnessId}) =>
-        configurationEffect(async () => ({proposals: await curatorStore.listProposals(harnessId), reviews: await curatorStore.listReviews(harnessId)})),
+        configurationEffect(async () => ({
+          proposals: await curatorStore.listProposals(harnessId),
+          reviews: await curatorStore.listReviews(harnessId),
+          requests: await curatorStore.listRequests(harnessId),
+          metrics: await curatorMetrics({harnessId}),
+        })),
       decideCuration: ({proposalId, decision, replace, reason, expectedRevision}) =>
         configurationEffect(() => decideCuration({proposalId, decision, replace, reason, expectedRevision})),
       rollbackCuration: ({proposalId, expectedRevision}) => configurationEffect(() => rollbackCuration({proposalId, expectedRevision})),

@@ -10,6 +10,8 @@ describe("curator prompt", () => {
     expect(prompt.trimEnd().endsWith("Scope: project Enzymes")).toBe(true);
     // Eight rules and a four-step procedure, with no room for anything else.
     expect(prompt.match(/^\d\. /gm)).toHaveLength(12);
+    expect(prompt).toContain("4. A role change needs the same failure in at least three runs; read_failures shows which groups qualify.");
+    expect(prompt).toContain("1. read_instructions, then read_failures, read_receipts (failed and steered runs first), read_steers, read_requests, read_ledger.");
   });
 
   it("names the scope a review is allowed to touch", () => {

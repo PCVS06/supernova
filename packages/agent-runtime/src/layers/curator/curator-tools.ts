@@ -1,12 +1,24 @@
 import {randomUUID} from "node:crypto";
 import {Type} from "typebox";
 import type {ToolDefinition} from "@earendil-works/pi-coding-agent";
-import type {CurationEvidence, CurationProposal, CurationTarget, CuratorAutoApply, HarnessProject} from "@supernova/contracts/harnesses/schemas";
+import type {CurationEvidence, CurationProposal, CurationRequest, CurationTarget, CuratorAutoApply, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import type {HarnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
 import type {HarnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 import type {CuratorStore} from "@supernova/agent-runtime/layers/curator/curator-store";
-import {buildEvidenceIndex, instructionReport, ledgerReport, receiptReport, steerReport, unresolvedEvidence} from "@supernova/agent-runtime/layers/curator/lib/curator-evidence";
+import {
+  buildEvidenceIndex,
+  evidenceNewerThan,
+  instructionRef,
+  instructionReport,
+  ledgerReport,
+  receiptReport,
+  requestReport,
+  steerReport,
+  unresolvedEvidence,
+} from "@supernova/agent-runtime/layers/curator/lib/curator-evidence";
 import type {EvidenceIndex} from "@supernova/agent-runtime/layers/curator/lib/curator-evidence";
+import {failureGroupKey, groupFailures, minGroupRuns, readFailureReceipts, requiredFailureRuns} from "@supernova/agent-runtime/layers/curator/lib/curator-failures";
+import type {FailureReceipt} from "@supernova/agent-runtime/layers/curator/lib/curator-failures";
 import {appendCuratorLog, curatorLogDocument, curatorLogEntry} from "@supernova/agent-runtime/layers/curator/lib/curator-log";
 import {sentenceCount} from "@supernova/agent-runtime/layers/curator/lib/curator-prompt";
 import {assertWithinBudget, locateOnce, readTargetText, replaceAt, targetKey, targetLabel} from "@supernova/agent-runtime/layers/curator/lib/curator-targets";
@@ -18,6 +30,11 @@ const maxRationaleChars = 300;
 const maxRationaleSentences = 2;
 /** What one document read hands to the curator. */
 const maxDocumentChars = 60000;
+/** Above this share of the instruction budget only removals and merges are accepted, whatever the review intends. */
+const budgetGatePercent = 80;
+/** Days an artefact rests after a decision, unless the evidence is newer than that decision. */
+const defaultCooldownDays = 7;
+const dayMs = 24 * 60 * 60 * 1000;
 
 export interface CuratorSessionContext {
   readonly harnessId: string;
@@ -26,6 +43,8 @@ export interface CuratorSessionContext {
   /** Set when the review is limited to one project; otherwise every project of the harness is in scope. */
   readonly projectId?: string;
   readonly autoApply: CuratorAutoApply;
+  /** How full the instruction budget was at the start of the review; above 80 nothing may grow. */
+  readonly budgetPercent?: number;
   readonly actor: MemoryActor;
   readonly store: HarnessStore;
   readonly curation: CuratorStore;
@@ -50,7 +69,7 @@ function json(value: unknown) {
 
 const evidenceSchema = Type.Array(
   Type.Object({
-    kind: Type.Union([Type.Literal("run"), Type.Literal("steer"), Type.Literal("record"), Type.Literal("document")]),
+    kind: Type.Union([Type.Literal("run"), Type.Literal("steer"), Type.Literal("record"), Type.Literal("document"), Type.Literal("request")]),
     ref: Type.String({minLength: 1, maxLength: 300}),
     quote: Type.String({minLength: 1, maxLength: 2000}),
   }),
@@ -81,6 +100,8 @@ const logParameters = Type.Object({projectId: Type.String(), line: Type.String({
 const instructionParameters = Type.Object({projectId: Type.Optional(Type.String())});
 const receiptParameters = Type.Object({projectId: Type.Optional(Type.String()), status: Type.Optional(Type.Union([Type.Literal("failed"), Type.Literal("all")]))});
 const steerParameters = Type.Object({projectId: Type.Optional(Type.String())});
+const failureParameters = Type.Object({projectId: Type.Optional(Type.String())});
+const requestParameters = Type.Object({projectId: Type.Optional(Type.String())});
 const ledgerParameters = Type.Object({projectId: Type.String(), state: Type.Optional(Type.String())});
 const documentParameters = Type.Object({projectId: Type.String(), path: Type.String({minLength: 1})});
 
@@ -91,6 +112,8 @@ const documentParameters = Type.Object({projectId: Type.String(), path: Type.Str
  */
 export function createCuratorTools(context: CuratorSessionContext, tally: CuratorReviewTally): ToolDefinition[] {
   let evidenceIndex: EvidenceIndex | undefined;
+  let failureReceipts: FailureReceipt[] | undefined;
+  let requests: CurationRequest[] | undefined;
 
   const scope = async () => {
     const library = await context.store.list();
@@ -107,12 +130,42 @@ export function createCuratorTools(context: CuratorSessionContext, tally: Curato
     return project;
   };
 
+  const requestsIn = async (projects: readonly HarnessProject[]): Promise<CurationRequest[]> => {
+    if (!requests) {
+      const ids = new Set(projects.map((project) => project.id));
+      requests = (await context.curation.listRequests(context.harnessId)).filter((request) => ids.has(request.projectId));
+    }
+    return requests;
+  };
+
+  const failuresIn = async (projects: readonly HarnessProject[]): Promise<FailureReceipt[]> => {
+    if (!failureReceipts) failureReceipts = await readFailureReceipts(context.runs, {projectIds: projects.map((project) => project.id)});
+    return failureReceipts;
+  };
+
   const evidenceFor = async (projects: readonly HarnessProject[]): Promise<EvidenceIndex> => {
     if (!evidenceIndex) {
       const {harness} = await scope();
-      evidenceIndex = await buildEvidenceIndex({harness, projects, runs: context.runs});
+      evidenceIndex = await buildEvidenceIndex({harness, projects, runs: context.runs, requests: await requestsIn(projects)});
     }
     return evidenceIndex;
+  };
+
+  /**
+   * An artefact rests after it has been decided.
+   *
+   * The cooldown is what stops the curator from re-proposing what the user has just answered; new evidence is the
+   * one thing that makes the question different from the one already answered, so newer evidence lifts it.
+   */
+  const cooldown = async (input: {projects: readonly HarnessProject[]; evidence: readonly CurationEvidence[]; target: CurationTarget}): Promise<string | undefined> => {
+    const {harness} = await scope();
+    const days = harness.curator?.cooldownDays ?? defaultCooldownDays;
+    const decision = await context.curation.lastDecision(context.harnessId, targetKey(input.target));
+    if (!decision) return undefined;
+    const elapsed = Math.floor((Date.now() - Date.parse(decision.at)) / dayMs);
+    if (elapsed >= days) return undefined;
+    if (evidenceNewerThan(await evidenceFor(input.projects), input.evidence, decision.at)) return undefined;
+    return `${targetLabel(input.target)} was decided ${elapsed} days ago; cite evidence newer than ${decision.at.slice(0, 10)} or wait ${days - elapsed} days.`;
   };
 
   /** The checks every write shares: the citation resolves, and the artefact has not been proposed against yet. */
@@ -121,7 +174,40 @@ export function createCuratorTools(context: CuratorSessionContext, tally: Curato
     const unresolved = unresolvedEvidence(await evidenceFor(input.projects), input.evidence);
     if (unresolved.length) return `These citations do not resolve and cannot be evidence: ${unresolved.join(", ")}. Cite ids exactly as the read tools return them.`;
     if (tally.targets.has(targetKey(input.target))) return `This review already has a proposal for the ${targetLabel(input.target)}. One proposal per artefact per review.`;
-    return undefined;
+    return cooldown(input);
+  };
+
+  /**
+   * Rule 4, as a check rather than a request: a role prompt changes on a pattern, not on one bad run.
+   *
+   * The three runs have to be runs of that role, each actually failed, and all in one failure group, because three
+   * unrelated failures are three problems and editing the prompt for all of them at once is guesswork. A request
+   * from a chat may stand in for one of the three: a person reporting the same problem is evidence of it.
+   *
+   * Cutting text out of a role prompt while quoting that very text is the one change the rule does not govern: a
+   * sentence two roles share is visible in the text itself, and no run has to fail before a duplicate can go. A
+   * role prompt can therefore only grow on three failures, never on the curator's reading of it.
+   */
+  const roleRule = (receipts: readonly FailureReceipt[], target: CurationTarget, evidence: readonly CurationEvidence[], shrinks: boolean): string | undefined => {
+    if (shrinks && evidence.some((item) => item.kind === "document" && item.ref === instructionRef(target))) return undefined;
+    const byRun = new Map(receipts.map((receipt) => [receipt.runId, receipt]));
+    const cited = evidence
+      .filter((item) => item.kind === "run")
+      .map((item) => byRun.get(item.ref))
+      .filter(
+        (receipt): receipt is FailureReceipt => Boolean(receipt) && receipt!.agentName === target.agentName && (!target.projectId || receipt!.projectId === target.projectId)
+      );
+    const failed = cited.filter((receipt) => receipt.failed);
+    const credit = evidence.some((item) => item.kind === "request") ? 1 : 0;
+    if (failed.length + credit < requiredFailureRuns)
+      return `${failed.length} failed run${failed.length === 1 ? "" : "s"} of ${target.agentName} cited; the rule needs ${requiredFailureRuns} from one failure group.`;
+    const groups = new Map<string, number>();
+    for (const receipt of failed) {
+      const key = failureGroupKey(receipt);
+      if (key) groups.set(key, (groups.get(key) ?? 0) + 1);
+    }
+    if (Math.max(0, ...groups.values()) + credit >= requiredFailureRuns) return undefined;
+    return `${failed.length} failed runs of ${target.agentName} cited from ${groups.size} failure groups; the rule needs ${requiredFailureRuns} from one failure group.`;
   };
 
   const file = async (input: {
@@ -193,6 +279,35 @@ export function createCuratorTools(context: CuratorSessionContext, tally: Curato
     },
   };
 
+  const readFailures: ToolDefinition<typeof failureParameters> = {
+    name: "read_failures",
+    label: "Repeated failures",
+    description: "Repeated failures per agent: kind, error signature, run ids. Groups of fewer than two runs are omitted.",
+    parameters: failureParameters,
+    executionMode: "sequential",
+    async execute(_id, params) {
+      const {projects} = await scope();
+      const selected = params.projectId ? [projectIn(projects, params.projectId)] : projects;
+      const ids = new Set(selected.map((project) => project.id));
+      const groups = groupFailures((await failuresIn(projects)).filter((receipt) => ids.has(receipt.projectId)));
+      return json(groups.filter((group) => group.count >= minGroupRuns).map((group) => ({...group, meetsRule: group.count >= requiredFailureRuns})));
+    },
+  };
+
+  const readRequests: ToolDefinition<typeof requestParameters> = {
+    name: "read_requests",
+    label: "Chat requests",
+    description: "Evidence sent from chats: decisions to record and reported problems. Newest first.",
+    parameters: requestParameters,
+    executionMode: "sequential",
+    async execute(_id, params) {
+      const {projects} = await scope();
+      const selected = params.projectId ? [projectIn(projects, params.projectId)] : projects;
+      const ids = new Set(selected.map((project) => project.id));
+      return json(requestReport((await requestsIn(projects)).filter((request) => ids.has(request.projectId))));
+    },
+  };
+
   const readLedger: ToolDefinition<typeof ledgerParameters> = {
     name: "read_ledger",
     label: "Memory ledger",
@@ -247,6 +362,14 @@ export function createCuratorTools(context: CuratorSessionContext, tally: Curato
       }
       const refusal = await guard({projects, evidence: params.evidence, target});
       if (refusal) return answer(refusal);
+      if (target.kind === "role") {
+        const missing = roleRule(await failuresIn(projects), target, params.evidence, params.replace.length <= params.find.length);
+        if (missing) return answer(missing);
+      }
+      // A full instruction budget is a hard gate, not advice: over it nothing may grow except a planning document.
+      const percent = context.budgetPercent ?? 0;
+      if (percent > budgetGatePercent && target.kind !== "document" && params.replace.length > params.find.length)
+        return answer(`Budget at ${percent}%: only removals and merges.`);
       const located = locateOnce(current.text, params.find);
       if ("matches" in located) return answer(`find matched ${located.matches} times in the ${current.label}; it has to match exactly once.`);
       try {
@@ -337,5 +460,5 @@ export function createCuratorTools(context: CuratorSessionContext, tally: Curato
   // A memory review reads the same evidence but may only touch the ledger; the text tools are not even present.
   return context.scope === "memory"
     ? [readReceipts, readSteers, readLedger, applyMemoryOp]
-    : [readInstructions, readReceipts, readSteers, readLedger, readDocument, proposeChange, applyMemoryOp, appendLog];
+    : [readInstructions, readFailures, readReceipts, readSteers, readRequests, readLedger, readDocument, proposeChange, applyMemoryOp, appendLog];
 }

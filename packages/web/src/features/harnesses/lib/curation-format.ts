@@ -40,3 +40,16 @@ export function curationTargetLabel(target: CurationTarget, projectName?: string
 export function spendLabel(spentUsd?: number): string {
   return spentUsd === undefined ? "" : `$${spentUsd.toFixed(2)}`;
 }
+
+/** Character counts short enough for a tile: "999", "48.2k", "1.2M". */
+export function compactChars(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}k`;
+  return String(count);
+}
+
+/** Share of decided proposals that were applied; a dash while nothing has been decided. */
+export function percent(applied: number, rejected: number): string {
+  const decided = applied + rejected;
+  return decided ? `${Math.round((applied / decided) * 100)}%` : "—";
+}

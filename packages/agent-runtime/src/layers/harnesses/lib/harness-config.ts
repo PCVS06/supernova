@@ -9,6 +9,8 @@ export const maxInstructionChars = 400000;
 export const maxWorkflowSteps = 12;
 const maxPlanningDocuments = 12;
 const planningDocument = /\.(md|markdown)$/i;
+/** The curator's schedule is a local wall-clock time. */
+const clockTime = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 /** Turns a pre-workflow handoff list into one sequential workflow with a single string handoff per step. */
 export function migrateLegacyGraph(harness: HarnessConfig): HarnessWorkflow[] {
@@ -192,10 +194,15 @@ export function validateHarness(harness: HarnessConfig): void {
     if (execution?.effort && !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(execution.effort)) throw new Error("Unsupported reasoning effort.");
   }
   if (harness.curator) {
-    const {maxCostUsdPerRun, maxCostUsdPerDay} = harness.curator;
+    const {maxCostUsdPerRun, maxCostUsdPerDay, dailyAt, quietHours, cooldownDays} = harness.curator;
     if (!(maxCostUsdPerRun >= 0.01 && maxCostUsdPerRun <= 50)) throw new Error("The curator's cost limit per review must be between 0.01 and 50 USD.");
     if (!(maxCostUsdPerDay >= 0.1 && maxCostUsdPerDay <= 500)) throw new Error("The curator's daily cost limit must be between 0.1 and 500 USD.");
     if (maxCostUsdPerRun > maxCostUsdPerDay) throw new Error("The curator cannot be allowed to spend more on one review than on a whole day.");
+    if (dailyAt !== undefined && !clockTime.test(dailyAt)) throw new Error("The curator's daily review time must be a local time of day, such as 03:30.");
+    if (quietHours && !(clockTime.test(quietHours.from) && clockTime.test(quietHours.to)))
+      throw new Error("The curator's quiet hours must be local times of day, such as 22:00 to 07:00.");
+    if (cooldownDays !== undefined && !(Number.isInteger(cooldownDays) && cooldownDays >= 1 && cooldownDays <= 90))
+      throw new Error("The curator's cooldown must be a whole number of days between 1 and 90.");
   }
 }
 
@@ -204,7 +211,7 @@ export function validateHarness(harness: HarnessConfig): void {
  * never injected into a saved library: the user has to switch the Curator on deliberately.
  */
 export function defaultCuratorConfig(): CuratorConfig {
-  return {enabled: false, maxCostUsdPerRun: 0.5, maxCostUsdPerDay: 2, autoApply: {memory: false, planningLog: false}};
+  return {enabled: false, maxCostUsdPerRun: 0.5, maxCostUsdPerDay: 2, autoApply: {memory: false, planningLog: false}, cooldownDays: 7};
 }
 
 /** Validates named workflows: references resolve, every read precedes its reader, and contracts are well formed. */

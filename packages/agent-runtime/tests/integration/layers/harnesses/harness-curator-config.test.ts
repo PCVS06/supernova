@@ -8,7 +8,7 @@ function withCurator(curator: Partial<CuratorConfig>) {
 
 describe("curator configuration", () => {
   it("offers defaults that apply nothing and spend nothing until switched on", () => {
-    expect(defaultCuratorConfig()).toEqual({enabled: false, maxCostUsdPerRun: 0.5, maxCostUsdPerDay: 2, autoApply: {memory: false, planningLog: false}});
+    expect(defaultCuratorConfig()).toEqual({enabled: false, maxCostUsdPerRun: 0.5, maxCostUsdPerDay: 2, autoApply: {memory: false, planningLog: false}, cooldownDays: 7});
   });
 
   it("leaves a harness without a curator alone", () => {
@@ -31,5 +31,21 @@ describe("curator configuration", () => {
   it("validates the curator's own model effort", () => {
     expect(() => validateHarness(withCurator({execution: {effort: "high"}}))).not.toThrow();
     expect(() => validateHarness(withCurator({execution: {effort: "ludicrous"}}))).toThrow("Unsupported reasoning effort");
+  });
+
+  it("takes the sweep time and the quiet window as times of day", () => {
+    expect(() => validateHarness(withCurator({dailyAt: "03:30", quietHours: {from: "22:00", to: "07:00"}}))).not.toThrow();
+    expect(() => validateHarness(withCurator({dailyAt: "24:00"}))).toThrow("local time of day");
+    expect(() => validateHarness(withCurator({dailyAt: "3:30"}))).toThrow("local time of day");
+    expect(() => validateHarness(withCurator({dailyAt: "nightly"}))).toThrow("local time of day");
+    expect(() => validateHarness(withCurator({quietHours: {from: "22:00", to: "7:00"}}))).toThrow("22:00 to 07:00");
+  });
+
+  it("bounds the cooldown to whole days between one and ninety", () => {
+    expect(() => validateHarness(withCurator({cooldownDays: 1}))).not.toThrow();
+    expect(() => validateHarness(withCurator({cooldownDays: 90}))).not.toThrow();
+    expect(() => validateHarness(withCurator({cooldownDays: 0}))).toThrow("between 1 and 90");
+    expect(() => validateHarness(withCurator({cooldownDays: 91}))).toThrow("between 1 and 90");
+    expect(() => validateHarness(withCurator({cooldownDays: 1.5}))).toThrow("between 1 and 90");
   });
 });
