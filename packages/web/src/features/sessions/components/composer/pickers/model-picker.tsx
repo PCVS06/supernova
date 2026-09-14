@@ -58,7 +58,7 @@ export default function ModelPicker(props: ModelPickerProps) {
       open={open}
       sideOffset={10}
       trigger={(triggerProps) => (
-        <Button {...triggerProps} className="flex min-w-0 items-center gap-1.5  px-2.5 py-1 text-xs" disabled={disabled || models.length === 0} type="button" variant="primary">
+        <Button {...triggerProps} className="flex min-w-0 items-center gap-1 px-1.5 py-1 text-xs" disabled={disabled || models.length === 0} type="button" variant="primary">
           <span className="truncate">{selectedModel?.name ?? "Select model"}</span>
           <Icon className="shrink-0 text-ink-muted" name="chevron-down" size="xs" />
         </Button>

@@ -47,7 +47,7 @@ export const PiAgentSessionFactoryLive = Layer.effect(
             contextWrites = contextWrites
               .then(() => harnessRunStore.saveContext(sessionManager.getSessionId(), context))
               .catch((error) => {
-                console.warn("pi+ could not save the chat's runtime receipt:", error instanceof Error ? error.message : String(error));
+                console.warn("Radian could not save the chat's runtime receipt:", error instanceof Error ? error.message : String(error));
               });
           });
           return created;

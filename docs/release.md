@@ -1,6 +1,6 @@
 # Release process
 
-Supernova releases are published by the manual GitHub Actions workflow at `.github/workflows/release.yml`.
+Radian releases are published by the manual GitHub Actions workflow at `.github/workflows/release.yml`.
 
 The workflow creates a release-prep commit, builds desktop artifacts, and publishes a GitHub Release.
 

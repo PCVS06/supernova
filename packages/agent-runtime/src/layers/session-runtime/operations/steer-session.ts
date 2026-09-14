@@ -24,7 +24,7 @@ export async function steerSession(
     const project = await runs.chatProject(input.sessionId);
     if (project.id ?? project.path) await runs.appendSteer(input.sessionId, input.text);
   } catch (error) {
-    console.warn("pi+ could not record a steer for curation:", error instanceof Error ? error.message : String(error));
+    console.warn("Radian could not record a steer for curation:", error instanceof Error ? error.message : String(error));
   }
   return accepted;
 }

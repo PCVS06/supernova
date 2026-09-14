@@ -2,7 +2,6 @@ import {useState} from "react";
 import {Link} from "@tanstack/react-router";
 import type {HarnessRun} from "@supernova/contracts/harnesses/schemas";
 import Icon from "@/components/ui/icon";
-import Button from "@/components/ui/button";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import InstructionReceipt from "@/features/harnesses/components/instruction-receipt";
 import WorkerConversation from "@/features/harnesses/components/worker-run/worker-conversation";
@@ -10,6 +9,8 @@ import WorkerActivity from "@/features/harnesses/components/worker-run/worker-ac
 import WorkerRunContext from "@/features/harnesses/components/worker-run/worker-run-context";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {cn} from "@/lib/cn";
+import ChatConstellation from "@/features/sessions/components/constellation/chat-constellation";
+import ConstantOrb from "@/components/brand/constant-orb";
 
 const STATUS_LABELS = {starting: "Starting", running: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled", interrupted: "Interrupted"} as const;
 
@@ -21,12 +22,12 @@ interface WorkerRunDetailProps {
 /** A single hierarchy: worker identity, public conversation, then opt-in activity and context. */
 export default function WorkerRunDetail(props: WorkerRunDetailProps) {
   const {run, stale = false} = props;
-  const [view, setView] = useState<"conversation" | "activity" | "context">("conversation");
+  const [contextOpen, setContextOpen] = useState(false);
   const active = run.status === "running" || run.status === "starting";
   const failed = run.status === "failed" || run.status === "interrupted";
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-border-muted px-6 py-4">
+      <div className="shrink-0 px-6 py-4">
         <div className="mx-auto max-w-4xl">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
@@ -54,29 +55,6 @@ export default function WorkerRunDetail(props: WorkerRunDetailProps) {
               {stale && " · last observed"}
             </span>
           </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
-            {run.parentRunId && (
-              <Link to="/session/$sessionId/run/$runId" params={{sessionId: run.chatId, runId: run.parentRunId}} className="underline underline-offset-4">
-                View delegating worker
-              </Link>
-            )}
-            <nav aria-label="Worker detail" className="ml-auto flex gap-1">
-              {view !== "conversation" && (
-                <Button variant="primary" size="sm" className="w-auto" onClick={() => setView("conversation")}>
-                  <Icon name="arrow-left" size="xs" />
-                  Conversation
-                </Button>
-              )}
-              <Button variant="primary" size="sm" className="w-auto" aria-pressed={view === "activity"} onClick={() => setView(view === "activity" ? "conversation" : "activity")}>
-                <Icon name="gauge" size="sm" />
-                Activity
-              </Button>
-              <Button variant="primary" size="sm" className="w-auto" aria-pressed={view === "context"} onClick={() => setView(view === "context" ? "conversation" : "context")}>
-                <Icon name="sliders" size="sm" />
-                Context
-              </Button>
-            </nav>
-          </div>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
@@ -86,22 +64,39 @@ export default function WorkerRunDetail(props: WorkerRunDetailProps) {
               {run.error}
             </p>
           )}
-          {view === "conversation" && <WorkerConversation run={run} stale={stale} />}
-          {view === "activity" && <WorkerActivity run={run} />}
-          {view === "context" && (
-            <section aria-label="Worker context" className="space-y-6">
-              <WorkerRunContext run={run} />
-              <InstructionReceipt layers={run.instructions} runtime={run.runtime} />
-            </section>
-          )}
+          <WorkerConversation run={run} stale={stale} />
+          <ChatConstellation
+            key={run.id}
+            context={{sessionId: run.chatId, projectPath: run.projectPath, title: run.agentName}}
+            rootRun={run}
+            constant={run.role === "specialist" ? "e" : "phi"}
+            busy={active}
+            stale={stale}
+            anchor={<ConstantOrb constant={run.role === "specialist" ? "e" : "phi"} className="size-16" state={active && !stale ? "working" : "still"} />}
+            status={STATUS_LABELS[run.status]}
+          />
+          <details className="mt-4 text-xs">
+            <summary className="cursor-pointer py-2 text-ink-muted">Activity</summary>
+            <div className="py-3">
+              <WorkerActivity run={run} />
+            </div>
+          </details>
+          <details className="mt-2 text-xs" onToggle={(event) => setContextOpen(event.currentTarget.open)}>
+            <summary className="cursor-pointer py-2 text-ink-muted">Context</summary>
+            {contextOpen && (
+              <section aria-label="Worker context" className="space-y-6 py-3">
+                {run.parentRunId && (
+                  <Link to="/session/$sessionId/run/$runId" params={{sessionId: run.chatId, runId: run.parentRunId}} className="underline">
+                    View delegating worker
+                  </Link>
+                )}
+                <WorkerRunContext run={run} />
+                <InstructionReceipt layers={run.instructions} runtime={run.runtime} />
+              </section>
+            )}
+          </details>
         </div>
       </div>
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border-muted px-6 py-3 text-xs text-ink-muted">
-        <span>Agent conversation · read only</span>
-        <Link to="/session/$sessionId" params={{sessionId: run.chatId}} className="inline-flex items-center gap-2 hover:text-ink">
-          Steer through lead <Icon name="arrow-right" size="xs" />
-        </Link>
-      </footer>
     </div>
   );
 }

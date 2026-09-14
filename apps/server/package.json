@@ -8,7 +8,7 @@
     "./build": "./scripts/build-server.ts"
   },
   "bin": {
-    "supernova-server": "./dist/cli.js"
+    "radian-server": "./dist/cli.js"
   },
   "scripts": {
     "dev": "SUPERNOVA_SERVER_DEV=1 bun --watch src/cli.ts",

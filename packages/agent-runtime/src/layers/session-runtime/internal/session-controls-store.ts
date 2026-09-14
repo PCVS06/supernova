@@ -5,7 +5,10 @@ import {Schema} from "effect";
 import {QueuedSessionMessage, SessionControls} from "@supernova/contracts/session-runtime/schemas";
 import type {PiSessionManager} from "@supernova/agent-runtime/layers/shared/internal/pi-session-store";
 
+const runtimeOwner = randomUUID();
+
 const StoredControls = Schema.Struct({
+  runtimeOwner: Schema.optional(Schema.String),
   state: SessionControls,
   inFlight: Schema.optional(QueuedSessionMessage),
   steering: Schema.Array(Schema.Struct({message: QueuedSessionMessage, text: Schema.String})),
@@ -71,7 +74,7 @@ export class SessionControlsStore {
       try {
         const handle = await open(temporary, "wx", 0o600);
         try {
-          await handle.writeFile(JSON.stringify(value));
+          await handle.writeFile(JSON.stringify({...value, runtimeOwner}));
           await handle.sync();
         } finally {
           await handle.close();
@@ -95,4 +98,39 @@ export class SessionControlsStore {
     }
     this.records.set(value.state.sessionId, {...record, value});
   }
+}
+
+/** Reads a bounded navigation snapshot without loading a runtime or reviving abandoned work. */
+export function readControlsOverview(raw: unknown): SessionControls {
+  const stored = Schema.decodeUnknownSync(StoredControls)(raw);
+  const uncertain = stored.runtimeOwner === runtimeOwner ? [] : [...stored.steering.map((entry) => entry.message), ...(stored.inFlight ? [stored.inFlight] : [])];
+  const ids = new Set(uncertain.map((entry) => entry.id));
+  const state = stored.state;
+  return {
+    ...state,
+    queuePaused: state.queuePaused || stored.runtimeOwner !== runtimeOwner,
+    goal: state.goal
+      ? {
+          ...state.goal,
+          objective: state.goal.objective.slice(0, 600),
+          message:
+            stored.runtimeOwner !== runtimeOwner && state.goal.status === "active"
+              ? "Saved before restart. Open the chat to review and resume."
+              : state.goal.message?.slice(0, 600),
+          status: stored.runtimeOwner !== runtimeOwner && state.goal.status === "active" ? "paused" : state.goal.status,
+        }
+      : null,
+    queue: [...uncertain.map((entry) => ({...entry, deliveryStatus: "uncertain" as const})), ...state.queue.filter((entry) => !ids.has(entry.id))].map((entry) => ({
+      ...entry,
+      contentParts: [
+        {
+          type: "text",
+          text: entry.contentParts
+            .map((part) => (part.type === "text" ? part.text : "[Attachment]"))
+            .join(" ")
+            .slice(0, 300),
+        },
+      ],
+    })),
+  };
 }

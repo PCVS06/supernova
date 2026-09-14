@@ -46,9 +46,10 @@ export function useUpdateSessionControls(sessionId?: string) {
 }
 
 /** Loads authoritative goals and pending messages; initial loading never blocks a normal chat send. */
-export function useSessionControls(sessionId: string, working: boolean) {
+export function useSessionControls(sessionId: string, working: boolean, enabled = true) {
   const query = useQuery(
     eq.queryOptions({
+      enabled,
       queryKey: ["agent", "session-controls", sessionId],
       queryFn: () =>
         Effect.gen(function* () {

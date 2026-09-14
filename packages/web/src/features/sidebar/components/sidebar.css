@@ -1,0 +1,51 @@
+/* Reserve the action slots; reveal controls without moving any row text. */
+.sidebar-row-actions,
+.sidebar-row-disclosure,
+.sidebar-harness-disclosure {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.group\/ledger:hover .sidebar-row-actions,
+.group\/ledger:focus-within .sidebar-row-actions,
+.group\/ledger:has([data-popup-open]) .sidebar-row-actions,
+.group\/ledger:hover .sidebar-row-disclosure,
+.group\/ledger:focus-within .sidebar-row-disclosure,
+.group\/harness:hover .sidebar-harness-disclosure,
+.group\/harness:focus-within .sidebar-harness-disclosure {
+  opacity: 1;
+}
+@media (hover: none) {
+  .sidebar-row-actions,
+  .sidebar-row-disclosure,
+  .sidebar-harness-disclosure {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-row-actions,
+  .sidebar-row-disclosure,
+  .sidebar-harness-disclosure {
+    transition: none;
+  }
+}
+
+/* A filled, brighter pin remains distinct in the monochrome palette. */
+.sidebar-pin[aria-pressed="false"] svg {
+  opacity: 0.55;
+}
+.sidebar-pin[aria-pressed="true"] svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px #ffffff90);
+}
+.sidebar-pin:hover svg,
+.sidebar-pin:focus-visible svg {
+  opacity: 1;
+}
+
+/* Consistent small contours keep the hierarchy visible without a bright halo. */
+[aria-label="Workspace ledger"] .constant-orb {
+  --orb-glow: 0px;
+}
+[aria-label="Workspace ledger"] .constant-orb-digits {
+  filter: opacity(0.8);
+}

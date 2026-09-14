@@ -92,6 +92,8 @@ describe("curator review run", () => {
     });
 
     expect(review).toMatchObject({status: "completed", trigger: "manual", proposals: 1, applied: 0, spentUsd: 0.05});
+    // The size at review time, kept on the record so the trend is readable from the review history alone.
+    expect(review.instructionChars).toBe("Always cite the source.\nNever cite the source.".length + "This project studies fermentation.".length);
     expect(review.summary.split("\n")).toHaveLength(5);
     expect(review.summary).toContain("Proposed one removal.");
     expect(review.finishedAt).toBeDefined();
@@ -100,7 +102,18 @@ describe("curator review run", () => {
     expect(sdk.dispose).toHaveBeenCalledOnce();
 
     const options = sdk.options()!;
-    expect(options.tools).toEqual(["read_instructions", "read_receipts", "read_steers", "read_ledger", "read_document", "propose_change", "apply_memory_op", "append_curator_log"]);
+    expect(options.tools).toEqual([
+      "read_instructions",
+      "read_failures",
+      "read_receipts",
+      "read_steers",
+      "read_requests",
+      "read_ledger",
+      "read_document",
+      "propose_change",
+      "apply_memory_op",
+      "append_curator_log",
+    ]);
     expect(options.cwd).toBe(fixture.projectPath);
     const prompt = (options.resourceLoader as {getAppendSystemPrompt: () => string[]}).getAppendSystemPrompt().join("\n");
     expect(prompt).toContain("You are the Curator of the Coding harness.");

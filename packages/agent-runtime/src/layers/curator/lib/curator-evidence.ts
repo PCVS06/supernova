@@ -1,7 +1,8 @@
-import type {CurationEvidence, CurationTarget, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
+import type {CurationEvidence, CurationRequest, CurationTarget, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import type {HarnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
 import {maxInstructionChars} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 import {latestMemoryRecords, readMemoryEvents} from "@supernova/agent-runtime/layers/curator/lib/memory-ledger";
+import {roleOverlaps} from "@supernova/agent-runtime/layers/curator/lib/curator-overlap";
 import {targetLabel} from "@supernova/agent-runtime/layers/curator/lib/curator-targets";
 import {instructionVersionKey} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 
@@ -69,8 +70,22 @@ export function instructionReport(harness: HarnessConfig, projects: readonly Har
       percent: instructionBudgetPercent(harness, projects),
     },
     planningDocuments: projects.map((project) => ({projectId: project.id, documents: project.planningDocuments ?? []})),
+    overlaps: roleOverlaps(harness, projects),
     pieces,
   };
+}
+
+/** Requests as evidence rows; the ref a proposal cites is the request id. */
+export function requestReport(requests: readonly CurationRequest[]) {
+  return requests.slice(0, maxRows).map((request) => ({
+    ref: request.id,
+    kind: request.kind,
+    projectId: request.projectId,
+    chatId: request.chatId,
+    at: request.at,
+    ...(request.agentName ? {agentName: request.agentName} : {}),
+    text: request.text,
+  }));
 }
 
 export interface ReceiptRow {
@@ -140,8 +155,11 @@ export interface EvidenceIndex {
   readonly steers: ReadonlySet<string>;
   readonly records: ReadonlySet<string>;
   readonly documents: ReadonlySet<string>;
+  readonly requests: ReadonlySet<string>;
   /** Instruction text by citation ref; a quote from it is evidence only if it actually occurs there. */
   readonly instructions: ReadonlyMap<string, string>;
+  /** When each citable piece of evidence happened, keyed `kind:ref`, which is what a cooldown is measured against. */
+  readonly at: ReadonlyMap<string, string>;
 }
 
 /** Everything a proposal may cite. A ref outside this index is not evidence, whatever the curator says about it. */
@@ -149,23 +167,44 @@ export async function buildEvidenceIndex(input: {
   readonly harness?: HarnessConfig;
   readonly projects: readonly HarnessProject[];
   readonly runs: HarnessRunStore;
+  readonly requests?: readonly CurationRequest[];
 }): Promise<EvidenceIndex> {
   const runs = new Set<string>();
   const steers = new Set<string>();
   const records = new Set<string>();
   const documents = new Set<string>();
+  const requests = new Set<string>();
   const instructions = new Map<string, string>();
+  const at = new Map<string, string>();
   if (input.harness) for (const item of instructionReport(input.harness, input.projects).pieces) instructions.set(item.ref, item.text);
   const projectIds = new Set(input.projects.map((project) => project.id));
   for (const run of await input.runs.listRecentRuns({limit: 1000})) {
-    if (projectIds.has(run.projectId)) runs.add(run.id);
+    if (!projectIds.has(run.projectId)) continue;
+    runs.add(run.id);
+    at.set(`run:${run.id}`, run.startedAt);
   }
   for (const project of input.projects) {
-    for (const steer of await input.runs.listSteersForProject({id: project.id, path: project.path})) steers.add(`${steer.chatId}@${steer.at}`);
-    for (const recordId of latestMemoryRecords(await readMemoryEvents(project.path)).keys()) records.add(recordId);
+    for (const steer of await input.runs.listSteersForProject({id: project.id, path: project.path})) {
+      steers.add(`${steer.chatId}@${steer.at}`);
+      at.set(`steer:${steer.chatId}@${steer.at}`, steer.at);
+    }
+    for (const [recordId, entry] of latestMemoryRecords(await readMemoryEvents(project.path))) {
+      records.add(recordId);
+      at.set(`record:${recordId}`, entry.record.updatedAt);
+    }
     for (const document of project.planningDocuments ?? []) documents.add(document);
   }
-  return {runs, steers, records, documents, instructions};
+  for (const request of input.requests ?? []) {
+    if (!projectIds.has(request.projectId)) continue;
+    requests.add(request.id);
+    at.set(`request:${request.id}`, request.at);
+  }
+  return {runs, steers, records, documents, requests, instructions, at};
+}
+
+/** Whether any citation happened after the given moment, which is what lets a proposal through a cooldown. */
+export function evidenceNewerThan(index: EvidenceIndex, evidence: readonly CurationEvidence[], since: string): boolean {
+  return evidence.some((item) => (index.at.get(`${item.kind}:${item.ref}`) ?? "") > since);
 }
 
 /** Whitespace-insensitive comparison, so a quote survives line wrapping without letting a paraphrase through. */
@@ -175,7 +214,13 @@ function squash(text: string): string {
 
 /** The citations that are not evidence, each with the reason, so the curator can correct the citation rather than guess. */
 export function unresolvedEvidence(index: EvidenceIndex, evidence: readonly CurationEvidence[]): string[] {
-  const pools: Record<CurationEvidence["kind"], ReadonlySet<string>> = {run: index.runs, steer: index.steers, record: index.records, document: index.documents};
+  const pools: Record<CurationEvidence["kind"], ReadonlySet<string>> = {
+    run: index.runs,
+    steer: index.steers,
+    record: index.records,
+    document: index.documents,
+    request: index.requests,
+  };
   const failures: string[] = [];
   for (const item of evidence) {
     if (item.ref.startsWith("instructions:")) {

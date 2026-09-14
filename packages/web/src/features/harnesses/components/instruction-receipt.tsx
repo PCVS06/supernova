@@ -2,6 +2,8 @@ import type {HarnessPromptLayer, HarnessRuntimeContext} from "@supernova/contrac
 import type {ReactNode} from "react";
 import Icon from "@/components/ui/icon";
 import type {IconName} from "@/components/ui/icon";
+import ConstantOrb from "@/components/brand/constant-orb";
+import type {MathematicalConstant} from "@/components/brand/constant-identity";
 
 /** Names an instruction layer by the scope a user needs to reason about. */
 function instructionScope(kind: HarnessPromptLayer["kind"]): string {
@@ -9,14 +11,6 @@ function instructionScope(kind: HarnessPromptLayer["kind"]): string {
   if (kind === "project") return "Project";
   if (kind === "role") return "Role";
   return "Context";
-}
-
-/** Gives each context layer a stable visual landmark. */
-function instructionIcon(kind: HarnessPromptLayer["kind"]): IconName {
-  if (kind === "shared") return "workflow";
-  if (kind === "project") return "folder";
-  if (kind === "role") return "user";
-  return "file";
 }
 
 interface ResourceListProps {
@@ -48,18 +42,19 @@ interface ContextDisclosureProps {
   readonly children: ReactNode;
   readonly count?: number;
   readonly icon?: IconName;
+  readonly constant?: MathematicalConstant;
   readonly label: string;
   readonly owner?: string;
 }
 
 /** Groups one quiet context layer behind a closed disclosure. */
 export function ContextDisclosure(props: ContextDisclosureProps) {
-  const {children, count, icon = "file", label, owner} = props;
+  const {children, count, icon = "file", constant, label, owner} = props;
   return (
     <details className="group border-b border-border-muted last:border-b-0">
       <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-sm text-ink-muted outline-none transition-colors hover:bg-overlay-hover hover:text-ink focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-strong">
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-overlay-hover text-ink-muted">
-          <Icon name={icon} size="xs" />
+        <span className="grid size-7 shrink-0 place-items-center text-ink-muted">
+          {constant ? <ConstantOrb constant={constant} className="size-7" state="idle" /> : <Icon name={icon} size="xs" />}
         </span>
         <span className="font-medium text-ink-strong">{label}</span>
         {count !== undefined && <span className="text-xs text-ink-faint">{count}</span>}
@@ -85,16 +80,22 @@ interface InstructionReceiptProps {
   readonly runtime?: HarnessRuntimeContext;
   readonly captured?: boolean;
   readonly unframed?: boolean;
+  readonly roleConstant?: MathematicalConstant;
 }
 
 /** Presents every captured context layer as a closed, independently scrollable disclosure. */
 export default function InstructionReceipt(props: InstructionReceiptProps) {
-  const {layers, runtime, unframed = false} = props;
+  const {layers, runtime, unframed = false, roleConstant = "e"} = props;
   const resourceCount = runtime ? runtime.skills.length + runtime.contextFiles.length + runtime.tools.length : 0;
   const rows = (
     <div aria-label="Context details">
       {layers.map((layer, index) => (
-        <ContextDisclosure icon={instructionIcon(layer.kind)} key={layer.kind + ":" + index} label={instructionScope(layer.kind)} owner={layer.owner}>
+        <ContextDisclosure
+          constant={layer.kind === "shared" ? "pi" : layer.kind === "project" ? "phi" : layer.kind === "role" ? roleConstant : undefined}
+          key={layer.kind + ":" + index}
+          label={instructionScope(layer.kind)}
+          owner={layer.owner}
+        >
           <h3 className="mb-2 text-xs font-medium text-ink">{layer.label}</h3>
           <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-ink-muted">{layer.content || "No additional instructions."}</pre>
         </ContextDisclosure>

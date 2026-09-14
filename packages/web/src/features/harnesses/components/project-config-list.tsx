@@ -52,7 +52,7 @@ export default function ProjectConfigList(props: ProjectConfigListProps) {
                 selectedId === item.id && "bg-surface-control"
               )}
             >
-              <AgentMark name={item.id} color={item.color ?? (item.id === coordinatorId ? "#ffffff" : undefined)} kind="lead" className="size-10 shrink-0" />
+              <AgentMark name={item.id} color={item.color} kind={item.id === coordinatorId ? "orchestrator" : "lead"} className="size-10 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="line-clamp-2 text-sm leading-5" title={agentLabel(item.name)}>
                   {agentLabel(item.name)}

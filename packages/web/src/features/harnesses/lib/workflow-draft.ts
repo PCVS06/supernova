@@ -41,6 +41,7 @@ export function createWorkflow(workflows: readonly HarnessWorkflow[], agent?: st
     id: uniqueId(`workflow-${workflows.length + 1}`, new Set(workflows.map((item) => item.id)), "workflow"),
     name: `Workflow ${workflows.length + 1}`,
     description: "",
+    maxParallel: 3,
     steps: agent ? [createWorkflowStep(agent, [])] : [],
     limits: {maxWallClockSeconds: defaultWallClockSeconds},
   };
@@ -61,18 +62,16 @@ export function insertWorkflowStep(steps: readonly WorkflowStep[], index: number
 
 /** Removes a step and drops every read that pointed at it, so no step waits for output that can no longer arrive. */
 export function removeWorkflowStep(steps: readonly WorkflowStep[], id: string): readonly WorkflowStep[] {
-  return steps.filter((step) => step.id !== id).map((step) => (step.reads.includes(id) ? {...step, reads: step.reads.filter((read) => read !== id)} : step));
+  return steps
+    .filter((step) => step.id !== id)
+    .map((step) => ({...step, reads: step.reads.filter((read) => read !== id), dependsOn: step.dependsOn?.filter((dependency) => dependency !== id)}));
 }
 
-/** Moves a step one position and prunes reads that would otherwise point forward, which the runtime rejects. */
+/** Changes presentation order without changing the dependency graph. */
 export function moveWorkflowStep(steps: readonly WorkflowStep[], index: number, offset: number): readonly WorkflowStep[] {
   const target = index + offset;
   if (index < 0 || target < 0 || index >= steps.length || target >= steps.length) return steps;
   const reordered = [...steps];
   [reordered[index], reordered[target]] = [reordered[target]!, reordered[index]!];
-  return reordered.map((step, position) => {
-    const allowed = new Set(reordered.slice(0, position).map((earlier) => earlier.id));
-    const reads = step.reads.filter((read) => allowed.has(read));
-    return reads.length === step.reads.length ? step : {...step, reads};
-  });
+  return reordered;
 }

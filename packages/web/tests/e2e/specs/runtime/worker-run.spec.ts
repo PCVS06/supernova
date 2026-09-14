@@ -66,7 +66,16 @@ test("inspects a saved worker conversation, polls public updates, and returns to
   await page.goto(`/session/${sessionId}/run/${runId}`);
   await expect(page.getByRole("heading", {name: "Source verifier", exact: true})).toBeVisible();
   const conversation = page.getByRole("region", {name: "Worker conversation"});
+  await expect(conversation.getByText("Verify the cited claim.", {exact: true})).not.toBeVisible();
+  await conversation
+    .locator("summary")
+    .filter({hasText: /^Assignment$/})
+    .click();
   await expect(conversation.getByText("Verify the cited claim.", {exact: true})).toBeVisible();
+  await conversation
+    .locator("summary")
+    .filter({hasText: /^Conversation$/})
+    .click();
   await expect(conversation.getByText("Checking the primary source.", {exact: true})).toBeVisible();
   await conversation.getByRole("button", {name: "read Running", exact: true}).click();
   await expect(conversation.getByRole("region", {name: "Tool input"})).toContainText("evidence.md");
@@ -80,20 +89,34 @@ test("inspects a saved worker conversation, polls public updates, and returns to
   await expect(conversation.getByRole("region", {name: "Tool output"})).toContainText("Source verified");
   await expect(conversation.getByText("Output shortened in this recording.", {exact: true})).toBeVisible();
 
-  await page.getByRole("button", {name: "Activity", exact: true}).click();
+  await page
+    .locator("summary")
+    .filter({hasText: /^Activity$/})
+    .click();
   await expect(page.getByRole("region", {name: "Worker activity"})).toContainText("Using read");
-  await page.getByRole("button", {name: "Context", exact: true}).click();
+  await page
+    .locator("summary")
+    .filter({hasText: /^Context$/})
+    .click();
   await expect(page.getByRole("region", {name: "Worker context"})).toContainText("Prefer primary sources.");
-  await page.getByRole("button", {name: "Resources", exact: true}).click();
-  await expect(page.getByLabel("resources details")).toContainText("source-verification");
-  await page.getByRole("button", {name: "Runtime", exact: true}).click();
-  await expect(page.getByLabel("runtime details")).toContainText("Recorded worker instructions");
-  await page.getByRole("link", {name: "Steer through lead"}).click();
+  await page
+    .locator("summary")
+    .filter({hasText: /^Resources/})
+    .click();
+  await expect(page.getByText("source-verification", {exact: true})).toBeVisible();
+  await page
+    .locator("summary")
+    .filter({hasText: /^Runtime/})
+    .click();
+  await expect(page.getByText("Recorded worker instructions", {exact: true})).toBeVisible();
+  await page.getByRole("link", {name: "Back to chat"}).click();
   await expect(page).toHaveURL(`/session/${sessionId}`);
 
   save({...run, status: "completed", transcript: undefined, output: "Historical final result"});
   await page.goto(`/session/${sessionId}/run/${runId}`);
   await page.reload();
-  await expect(page.getByText("No transcript recorded for this run.", {exact: false})).toBeVisible();
+  await expect(page.getByText("No transcript recorded for this run.", {exact: false})).not.toBeVisible();
+  await expect(page.getByText("Verify the cited claim.", {exact: true})).not.toBeVisible();
+  await page.screenshot({path: "/tmp/radian-context-20260913/agent-result.png"});
   await expect(page.getByText("Historical final result", {exact: true})).toBeVisible();
 });

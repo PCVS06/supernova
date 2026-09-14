@@ -4,11 +4,12 @@ import {eq} from "@/rpc/effect-query";
 import {RpcProtocolClientService} from "@/rpc/transport/client";
 
 /** Polls only open or actively streaming chats, never the saved workflow definition. */
-export function useWorkflowRuns(sessionId: string, live = false) {
+export function useWorkflowRuns(sessionId: string, live = false, enabled = true) {
   return useQuery(
     eq.queryOptions({
+      enabled,
       queryKey: ["agent", "workflow-runs", sessionId],
-      refetchInterval: live ? 1200 : false,
+      refetchInterval: (query) => (live || query.state.data?.some((run) => run.status === "running") ? 1200 : 8000),
       queryFn: () => Effect.flatMap(Effect.service(RpcProtocolClientService), (rpc) => rpc.listWorkflowRuns({sessionId})),
     })
   );

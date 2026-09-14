@@ -1,6 +1,7 @@
 import type {UseQueryResult} from "@tanstack/react-query";
-import type {KeyboardEvent, ReactNode} from "react";
-import {useState} from "react";
+import type {KeyboardEvent, ReactNode, RefObject} from "react";
+import {useRef, useState} from "react";
+import {Popover} from "@base-ui/react/popover";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import {MenuLabel} from "@/components/ui/menu";
@@ -36,17 +37,45 @@ function SuggestionIcon(props: {readonly item: ComposerSuggestionItem}) {
 interface SuggestionPanelProps {
   readonly children: ReactNode;
   readonly className?: string;
+  readonly anchor: RefObject<HTMLDivElement | null>;
+  readonly onDismiss: () => void;
 }
 
 function SuggestionPanel(props: SuggestionPanelProps) {
-  const {children, className} = props;
+  const {children, className, anchor, onDismiss} = props;
 
   return (
-    <div className={cn("absolute -inset-x-3 bottom-full z-40 mb-4", className)}>
-      <div className="overflow-hidden rounded-xl border border-border bg-surface-drawer text-ink">
-        <div className="scroll-fade-y max-h-64 overflow-y-auto p-1">{children}</div>
-      </div>
-    </div>
+    <Popover.Root
+      open
+      modal={false}
+      onOpenChange={(open) => {
+        if (!open) onDismiss();
+      }}
+    >
+      <Popover.Portal>
+        <Popover.Positioner
+          anchor={() => anchor.current?.closest('[aria-label="Message composer"]') ?? anchor.current}
+          side="top"
+          align="start"
+          sideOffset={8}
+          collisionPadding={12}
+          positionMethod="fixed"
+          className="z-50"
+          style={{width: "var(--anchor-width)"}}
+        >
+          <Popover.Popup
+            initialFocus={false}
+            finalFocus={false}
+            aria-label="Composer suggestions"
+            className={cn("overflow-hidden rounded-xl border border-border bg-surface-drawer text-ink", className)}
+          >
+            <div data-suggestion-scroll className="overflow-y-auto overscroll-contain p-1" style={{maxHeight: "min(16rem, var(--available-height))"}}>
+              {children}
+            </div>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -70,7 +99,12 @@ function ComposerSuggestionItemRow(props: ComposerSuggestionItemRowProps) {
       onPointerMove={onPointerHover}
       ref={(element) => {
         if (shouldScrollIntoView && element) {
-          element.scrollIntoView({block: "center"});
+          const viewport = element.closest<HTMLElement>("[data-suggestion-scroll]");
+          if (!viewport) return;
+          const row = element.getBoundingClientRect();
+          const bounds = viewport.getBoundingClientRect();
+          if (row.top < bounds.top) viewport.scrollTop -= bounds.top - row.top;
+          else if (row.bottom > bounds.bottom) viewport.scrollTop += row.bottom - bounds.bottom;
         }
       }}
     >
@@ -94,12 +128,14 @@ interface ComposerSuggestionMenuProps {
   readonly children: ReactNode;
   readonly onSelect: (item: ComposerSuggestionItem) => void;
   readonly onSubmit: () => void;
+  readonly onDismiss: () => void;
   readonly open: boolean;
   readonly query: Pick<UseQueryResult<readonly ComposerSuggestionItem[]>, "data" | "isLoading" | "isError" | "isSuccess" | "error">;
 }
 
 export default function ComposerSuggestionMenu(props: ComposerSuggestionMenuProps) {
-  const {children, onSelect, onSubmit, open, query} = props;
+  const {children, onSelect, onSubmit, onDismiss, open, query} = props;
+  const anchor = useRef<HTMLDivElement>(null);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [hoveredSuggestionIndex, setHoveredSuggestionIndex] = useState<number | null>(null);
   const [selectionSource, setSelectionSource] = useState<"keyboard" | "mouse">("keyboard");
@@ -127,6 +163,13 @@ export default function ComposerSuggestionMenu(props: ComposerSuggestionMenuProp
   };
 
   const handleKeyDownCapture = (event: KeyboardEvent<HTMLElement>): void => {
+    if (open && event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onDismiss();
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.shiftKey) return;
     if (open && items.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
       event.preventDefault();
       event.stopPropagation();
@@ -155,14 +198,14 @@ export default function ComposerSuggestionMenu(props: ComposerSuggestionMenuProp
   };
 
   return (
-    <div className="relative" onKeyDownCapture={handleKeyDownCapture}>
+    <div className="relative" ref={anchor} onKeyDownCapture={handleKeyDownCapture}>
       {showLoadingPanel && (
-        <SuggestionPanel className="opacity-100 delay-200 starting:opacity-0">
+        <SuggestionPanel anchor={anchor} onDismiss={onDismiss} className="opacity-100 delay-200 starting:opacity-0">
           <p className="px-3 py-2 text-sm text-ink-faint">Loading suggestions...</p>
         </SuggestionPanel>
       )}
       {showSettledPanel && (
-        <SuggestionPanel>
+        <SuggestionPanel anchor={anchor} onDismiss={onDismiss}>
           {query.isError && <p className="px-3 py-2 text-sm text-danger-ink">{query.error instanceof Error ? query.error.message : "Unable to load suggestions."}</p>}
           {!query.isError && items.length === 0 && <p className="px-3 py-2 text-sm text-ink-faint">No items</p>}
 

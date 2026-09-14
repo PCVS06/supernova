@@ -4,6 +4,9 @@ import {join} from "node:path";
 import {Schema} from "effect";
 import {HarnessRun, HarnessRunSummary, HarnessRuntimeContext, SteerRecord, WorkflowRun, WorkflowRunSummary} from "@supernova/contracts/harnesses/schemas";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
+import {workflowStepSummaries} from "@supernova/contracts/harnesses/workflow-graph";
+
+const workflowExecutions = new Map<string, Promise<WorkflowRun>>();
 
 function safeId(id: string): string {
   if (!/^[a-zA-Z0-9_-]{1,150}$/.test(id)) throw new Error("Invalid chat or run identifier.");
@@ -29,6 +32,8 @@ export class HarnessRunStore {
     private readonly isAlive = alive,
     private readonly projectOfChat: ChatProjectResolver = (chatId) => harnessStore.projectOfSession(chatId)
   ) {}
+
+  private readonly lastActivity = new Map<string, {runs: HarnessRunSummary[]; workflows: WorkflowRunSummary[]; runCount: number; workflowCount: number}>();
 
   private async write(chatId: string, file: string, value: unknown): Promise<void> {
     const directory = join(this.root, safeId(chatId));
@@ -81,10 +86,24 @@ export class HarnessRunStore {
 
   /** Saves a workflow run and its index under names the specialist receipt listing cannot pick up. */
   public async saveWorkflowRun(run: WorkflowRun): Promise<void> {
-    const record = Schema.decodeUnknownSync(WorkflowRun)(run);
+    const record = Schema.decodeUnknownSync(WorkflowRun)({
+      ...run,
+      stepStates: workflowStepSummaries(run),
+      completedCount: run.steps.filter((step) => step.status === "completed").length,
+    });
     await this.write(run.chatId, `${safeId(run.id)}.workflow.json`, {run: record, pid: process.pid});
     const summary = Schema.decodeUnknownSync(WorkflowRunSummary)(record);
     await this.write(run.chatId, `${safeId(run.id)}.workflow-summary.json`, {run: {...summary, task: summary.task.slice(0, 300)}, pid: process.pid});
+  }
+
+  /** Coalesces duplicate starts/resumes under the authoritative server's single writer per run. */
+  public executeWorkflow(chatId: string, runId: string, execute: () => Promise<WorkflowRun>): Promise<WorkflowRun> {
+    const key = join(this.root, safeId(chatId), safeId(runId));
+    const active = workflowExecutions.get(key);
+    if (active) return active;
+    const result = execute().finally(() => workflowExecutions.delete(key));
+    workflowExecutions.set(key, result);
+    return result;
   }
 
   /** Applies the same liveness rule as specialist receipts: a run whose writer is gone was interrupted. */
@@ -207,6 +226,47 @@ export class HarnessRunStore {
       }
     }
     return runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, input.limit ?? 50);
+  }
+
+  /** Compact activity across chats, preserving all unresolved runs and bounding settled history. */
+  public async workspaceActivity(): Promise<{
+    runs: HarnessRunSummary[];
+    workflows: WorkflowRunSummary[];
+    totals: Array<{sessionId: string; runs: number; workflows: number}>;
+    errors: string[];
+  }> {
+    const runs: HarnessRunSummary[] = [];
+    const workflows: WorkflowRunSummary[] = [];
+    const errors: string[] = [];
+    const totals: Array<{sessionId: string; runs: number; workflows: number}> = [];
+    const chats = await this.chats();
+    for (let offset = 0; offset < chats.length; offset += 6) {
+      await Promise.all(
+        chats.slice(offset, offset + 6).map(async (chatId) => {
+          try {
+            const [workers, graphs] = await Promise.all([this.list(chatId), this.listWorkflowRuns(chatId)]);
+            totals.push({sessionId: chatId, runs: workers.length, workflows: graphs.length});
+            const retain = <T extends HarnessRunSummary | WorkflowRunSummary>(items: T[]): T[] => {
+              const settled = items.filter((item) => ["completed", "cancelled"].includes(item.status)).toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+              return [...items.filter((item) => !["completed", "cancelled"].includes(item.status)), ...settled.slice(0, 30)];
+            };
+            const visible = {runs: retain(workers), workflows: retain(graphs), runCount: workers.length, workflowCount: graphs.length};
+            this.lastActivity.set(chatId, visible);
+            runs.push(...visible.runs);
+            workflows.push(...visible.workflows);
+          } catch {
+            errors.push(`Activity unavailable for chat ${chatId}.`);
+            const last = this.lastActivity.get(chatId);
+            if (last) {
+              runs.push(...last.runs);
+              workflows.push(...last.workflows);
+              totals.push({sessionId: chatId, runs: last.runCount, workflows: last.workflowCount});
+            }
+          }
+        })
+      );
+    }
+    return {runs, workflows, totals, errors};
   }
 
   /** The workflow failure kind recorded for each specialist run of one chat, keyed by run id. */

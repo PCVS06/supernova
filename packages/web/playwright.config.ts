@@ -11,6 +11,7 @@ const runtimeBaseURL = `http://127.0.0.1:${runtimeWebPort}`;
 const runtimeApiURL = `http://127.0.0.1:${runtimePort}`;
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL;
 const video = process.env.PLAYWRIGHT_VIDEO === "off" ? "off" : process.env.PLAYWRIGHT_VIDEO === "on" ? "on" : "retain-on-failure";
+const development = process.env.PLAYWRIGHT_DEV === "1";
 const e2eRoot = process.env.SUPERNOVA_E2E_ROOT ?? mkdtempSync(join(tmpdir(), "supernova-runtime-e2e-"));
 const timelineClientDir = `${e2eRoot}-timeline-client`;
 const runtimeClientDir = `${e2eRoot}-runtime-client`;
@@ -53,7 +54,9 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `bunx vite build --mode e2e --outDir "${timelineClientDir}" && bunx vite preview --host 127.0.0.1 --port ${timelinePort} --strictPort --outDir "${timelineClientDir}"`,
+      command: development
+        ? `bunx vite --mode e2e --host 127.0.0.1 --port ${timelinePort} --strictPort`
+        : `bunx vite build --mode e2e --outDir "${timelineClientDir}" && bunx vite preview --host 127.0.0.1 --port ${timelinePort} --strictPort --outDir "${timelineClientDir}"`,
       reuseExistingServer: false,
       timeout: 120_000,
       url: timelineBaseURL,
@@ -72,7 +75,9 @@ export default defineConfig({
       url: `${runtimeApiURL}/health`,
     },
     {
-      command: `bunx vite build --mode e2e-runtime --outDir "${runtimeClientDir}" && bunx vite preview --host 127.0.0.1 --port ${runtimeWebPort} --strictPort --outDir "${runtimeClientDir}"`,
+      command: development
+        ? `bunx vite --mode e2e-runtime --host 127.0.0.1 --port ${runtimeWebPort} --strictPort`
+        : `bunx vite build --mode e2e-runtime --outDir "${runtimeClientDir}" && bunx vite preview --host 127.0.0.1 --port ${runtimeWebPort} --strictPort --outDir "${runtimeClientDir}"`,
       env: {...process.env, SUPERNOVA_SERVER_URL: runtimeApiURL},
       reuseExistingServer: false,
       timeout: 120_000,

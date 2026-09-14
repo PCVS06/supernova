@@ -1,6 +1,7 @@
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
+import ExpandableControlRow from "@/features/sessions/components/composer/expandable-control-row";
 import type {SessionControlsAction, SessionControlsState} from "@/features/sessions/hooks/api/use-session-controls";
 import {textFromComposerContentParts} from "@/features/sessions/lib/composer/composer-content-parts";
 import {cn} from "@/lib/cn";
@@ -18,39 +19,44 @@ function GoalRow(props: GoalRowProps) {
   const status = {active: "Active", paused: "Paused", completed: "Done", blocked: "Needs attention"}[goal.status];
 
   return (
-    <div className="flex items-start gap-2 px-3 py-2.5">
-      <Icon name={goal.status === "completed" ? "check" : "gauge"} className={cn("mt-0.5 text-ink-muted", active && "text-ink")} size="sm" />
-      <details className="group min-w-0 flex-1">
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm [&::-webkit-details-marker]:hidden">
-          <span className="min-w-0 flex-1">
-            <span className="line-clamp-2 wrap-anywhere font-medium text-ink">{goal.objective}</span>
-            <span className="mt-0.5 block text-xs text-ink-muted">{status}</span>
-          </span>
-          <Icon className="ml-auto text-ink-faint transition-transform group-open:rotate-90" name="chevron-right" size="xs" />
-        </summary>
-        <p className="mt-2 whitespace-pre-wrap wrap-anywhere text-sm text-ink">{goal.objective}</p>
-        {goal.message && <p className="mt-1 whitespace-pre-wrap wrap-anywhere text-xs text-ink-muted">{goal.message}</p>}
-        {goal.status !== "completed" && (
-          <Button className="mt-2 text-xs" disabled={pending} onClick={() => void onAction({type: "complete_goal"})} variant="ghost">
-            Mark complete
-          </Button>
-        )}
-      </details>
-      {(active || canResume) && (
-        <Button
-          className="shrink-0 text-xs"
-          disabled={pending}
-          onClick={() => void onAction({type: active ? "pause_goal" : "resume_goal"})}
-          title={active ? "Pause goal" : "Resume goal"}
-          variant="ghost"
-        >
-          {active ? "Pause" : "Resume"}
+    <ExpandableControlRow
+      label={goal.objective}
+      status={status}
+      leading={<Icon name={goal.status === "completed" ? "check" : "gauge"} size="sm" />}
+      actions={
+        <>
+          {(active || canResume) && (
+            <Button
+              className="shrink-0 px-2 text-xs"
+              disabled={pending}
+              onClick={() => void onAction({type: active ? "pause_goal" : "resume_goal"})}
+              title={active ? "Pause goal" : "Resume goal"}
+              variant="ghost"
+            >
+              {active ? "Pause" : "Resume"}
+            </Button>
+          )}
+          <IconButton
+            className="grid size-8 place-items-center"
+            label="Clear goal"
+            title="Clear goal; current work is not undone"
+            disabled={pending}
+            onClick={() => void onAction({type: "clear_goal"})}
+            size="none"
+          >
+            <Icon name="trash" size="xs" />
+          </IconButton>
+        </>
+      }
+    >
+      <p className="whitespace-pre-wrap wrap-anywhere text-sm text-ink">{goal.objective}</p>
+      {goal.message && <p className="mt-1 whitespace-pre-wrap wrap-anywhere text-xs text-ink-muted">{goal.message}</p>}
+      {goal.status !== "completed" && (
+        <Button className="mt-2 text-xs" disabled={pending} onClick={() => void onAction({type: "complete_goal"})} variant="ghost">
+          Mark complete
         </Button>
       )}
-      <IconButton label="Clear goal" title="Clear goal; current work is not undone" disabled={pending} onClick={() => void onAction({type: "clear_goal"})} size="sm">
-        <Icon name="trash" size="xs" />
-      </IconButton>
-    </div>
+    </ExpandableControlRow>
   );
 }
 

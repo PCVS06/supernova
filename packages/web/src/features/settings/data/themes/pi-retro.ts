@@ -3,10 +3,10 @@ import type {ThemeVariant} from "@/features/settings/lib/themes";
 const dark = {
   codeThemeId: "github-dark",
   theme: {
-    accent: "#bcbcbc",
+    accent: "#ffffff",
     contrast: 60,
     fonts: {code: null, ui: null},
-    ink: "#e8e9eb",
+    ink: "#ffffff",
     opaqueWindows: true,
     semanticColors: {
       diffAdded: "#00a240",
@@ -34,4 +34,4 @@ const light = {
   variant: "light",
 } as const satisfies ThemeVariant;
 
-export const piRetroTheme = {id: "pi-retro", name: "Pi Retro", dark, light} as const;
+export const piRetroTheme = {id: "pi-retro", name: "Radian", dark, light} as const;

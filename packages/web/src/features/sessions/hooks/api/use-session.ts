@@ -26,7 +26,11 @@ export function useSession(sessionId: string) {
   const queryClient = useQueryClient();
   const {error} = useQuery(sessionQueryOptions(sessionId));
   const session = useSyncExternalStore(
-    (onStoreChange) => queryClient.getQueryCache().subscribe(onStoreChange),
+    (onStoreChange) =>
+      queryClient.getQueryCache().subscribe((event) => {
+        const key = event.query.queryKey;
+        if (key.length === 2 && key[0] === "session" && key[1] === sessionId && (event.type === "updated" || event.type === "removed")) onStoreChange();
+      }),
     () => queryClient.getQueryData<Session>(sessionQueryKey(sessionId)),
     () => queryClient.getQueryData<Session>(sessionQueryKey(sessionId))
   );

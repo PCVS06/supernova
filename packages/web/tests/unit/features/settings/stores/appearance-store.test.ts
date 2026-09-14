@@ -23,6 +23,8 @@ describe("appearance upgrade", () => {
       matchMedia: () => ({addEventListener: vi.fn(), matches: false}),
     });
     vi.stubGlobal("document", {
+      addEventListener: vi.fn(),
+      hidden: false,
       documentElement: {dataset: {}, style: {removeProperty: vi.fn(), setProperty: vi.fn()}},
     });
   });
@@ -31,10 +33,10 @@ describe("appearance upgrade", () => {
     vi.unstubAllGlobals();
   });
 
-  it("starts dark with glass chrome even on a light operating system", async () => {
+  it("starts dark and opaque even on a light operating system", async () => {
     const {initializeAppearance, useAppearanceStore} = await import("@/features/settings/stores/appearance-store");
     initializeAppearance();
-    expect(useAppearanceStore.getState()).toMatchObject({mode: "dark", resolvedMode: "dark", themeId: "pi-retro", translucentSidebar: true});
+    expect(useAppearanceStore.getState()).toMatchObject({mode: "dark", resolvedMode: "dark", themeId: "pi-retro", translucentSidebar: false});
   });
 
   it("upgrades the old appearance once while preserving custom fonts and unrelated storage", async () => {
@@ -52,12 +54,12 @@ describe("appearance upgrade", () => {
     expect(useAppearanceStore.getState()).toMatchObject({
       mode: "dark",
       themeId: "pi-retro",
-      translucentSidebar: true,
+      translucentSidebar: false,
       codeFont: "Menlo",
       uiFont: "Inter",
       fontSmoothing: false,
     });
-    expect(JSON.parse(localStorage.getItem(storageKey) ?? "{}").version).toBe(2);
+    expect(JSON.parse(localStorage.getItem(storageKey) ?? "{}").version).toBe(3);
     expect(localStorage.getItem("supernova-projects")).toBe(projects);
   });
 
@@ -65,10 +67,13 @@ describe("appearance upgrade", () => {
     const {useAppearanceStore} = await import("@/features/settings/stores/appearance-store");
     useAppearanceStore.getState().setMode("light");
     useAppearanceStore.getState().setTranslucentSidebar(true);
+    useAppearanceStore.getState().setMathematicalMotion("off");
+    useAppearanceStore.getState().setWhiteGlow("soft");
 
     vi.resetModules();
     const reloaded = await import("@/features/settings/stores/appearance-store");
     reloaded.initializeAppearance();
-    expect(reloaded.useAppearanceStore.getState()).toMatchObject({mode: "light", resolvedMode: "light", translucentSidebar: true});
+    expect(reloaded.useAppearanceStore.getState()).toMatchObject({mode: "light", resolvedMode: "light", translucentSidebar: true, mathematicalMotion: "off", whiteGlow: "soft"});
+    expect(document.documentElement.dataset).toMatchObject({mathematicalMotion: "off", whiteGlow: "soft"});
   });
 });

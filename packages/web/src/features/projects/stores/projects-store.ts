@@ -25,7 +25,8 @@ interface ProjectsState {
   readonly toggleSessionPinned: (projectId: string, sessionId: string) => void;
 }
 
-function toProjectId(projectPath: string): string {
+/** Stable navigation identity derived from the normalized workspace path. */
+export function toProjectId(projectPath: string): string {
   return btoa(encodeURIComponent(projectPath)).replaceAll("=", "");
 }
 

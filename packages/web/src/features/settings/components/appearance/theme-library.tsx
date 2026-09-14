@@ -1,5 +1,6 @@
 import type {CSSProperties} from "react";
 import Button from "@/components/ui/button";
+import ConstantOrb from "@/components/brand/constant-orb";
 import {appThemes} from "@/features/settings/lib/themes";
 import type {ThemeVariant} from "@/features/settings/lib/themes";
 import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
@@ -23,6 +24,7 @@ function tint(color: string, opacity: string): string {
 }
 
 function getTileFillStyle(variant: ThemeVariant): CSSProperties {
+  if (variant.variant === "dark") return {backgroundColor: "#000000"};
   const spec = TILE_SPECS[variant.variant];
   const {accent, ink, surface} = variant.theme;
 
@@ -58,6 +60,11 @@ export default function ThemeLibrary() {
               )}
             >
               <span className="absolute inset-0" style={getTileFillStyle(variant)} />
+              {resolvedMode === "dark" && (
+                <span className="absolute inset-0 grid place-items-center">
+                  <ConstantOrb className="size-12" state="still" />
+                </span>
+              )}
             </span>
             <span className={cn("text-xs transition-colors", active ? "text-ink" : "text-ink-muted group-hover:text-ink")}>{theme.name}</span>
           </Button>

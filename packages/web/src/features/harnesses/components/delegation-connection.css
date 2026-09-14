@@ -1,0 +1,67 @@
+.delegation-connection {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 0.25rem;
+}
+.delegation-path {
+  position: relative;
+  width: 2.5rem;
+  height: 1px;
+  background: rgb(255 255 255 / 40%);
+}
+.delegation-path::after {
+  position: absolute;
+  content: "";
+  right: 0;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  border-top: 1px solid white;
+  border-right: 1px solid white;
+  transform: rotate(45deg);
+}
+.delegation-pulse {
+  display: none;
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 3px;
+  height: 3px;
+  background: white;
+  box-shadow: 0 0 6px white;
+}
+.delegation-connection[data-active="true"] .delegation-pulse {
+  display: block;
+  animation: delegation-transfer 1.6s ease-in-out infinite;
+}
+.delegation-connection-compact .delegation-path {
+  width: 1rem;
+}
+@keyframes delegation-transfer {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% - 3px);
+    opacity: 0;
+  }
+}
+:root[data-mathematical-motion="off"] .delegation-pulse {
+  display: none !important;
+}
+:root[data-motion-paused="true"] .delegation-pulse {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .delegation-pulse {
+    display: none !important;
+  }
+}

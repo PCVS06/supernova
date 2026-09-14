@@ -1,5 +1,7 @@
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import {
+  WorkspaceOverviewPayload,
+  WorkspaceOverviewResult,
   CreateHarnessSessionPayload,
   CreateHarnessSessionResult,
   GetHarnessLibraryPayload,
@@ -41,6 +43,7 @@ import {
 } from "@supernova/contracts/harnesses/procedures";
 
 export const HarnessRpcs = [
+  Rpc.make("getWorkspaceOverview", {payload: WorkspaceOverviewPayload, success: WorkspaceOverviewResult, error: HarnessConfigurationError}),
   Rpc.make("getHarnessResources", {payload: HarnessResourcePayload, success: HarnessResourceResult, error: HarnessConfigurationError}),
   Rpc.make("getToolCredentials", {payload: ToolCredentialPayload, success: ToolCredentialResult, error: HarnessConfigurationError}),
   Rpc.make("saveToolCredential", {payload: SaveToolCredentialPayload, success: ToolCredentialResult, error: HarnessConfigurationError}),

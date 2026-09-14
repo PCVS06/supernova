@@ -1,4 +1,5 @@
 import type {HarnessAgent, WorkflowFieldType, WorkflowStep, WorkflowStepEffects} from "@supernova/contracts/harnesses/schemas";
+import {workflowLayers} from "@supernova/contracts/harnesses/workflow-graph";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import Input from "@/components/ui/input";
@@ -30,7 +31,15 @@ interface WorkflowStepEditorProps {
 export default function WorkflowStepEditor(props: WorkflowStepEditorProps) {
   const {step, index, steps, agents, onChange, onMove, onRemove, onClose} = props;
   const agent = agents.find((item) => item.name === step.agent);
-  const earlier = steps.slice(0, index);
+  const earlier = steps.filter((candidate) => {
+    if (candidate.id === step.id) return false;
+    try {
+      workflowLayers(steps.map((item) => (item.id === step.id ? {...item, dependsOn: [...(item.dependsOn ?? []), candidate.id]} : item)));
+      return true;
+    } catch {
+      return false;
+    }
+  });
   const fields = step.output.fields;
   const patchField = (position: number, change: Partial<(typeof fields)[number]>) =>
     onChange({output: {fields: fields.map((item, at) => (at === position ? {...item, ...change} : item))}});
@@ -85,9 +94,9 @@ export default function WorkflowStepEditor(props: WorkflowStepEditorProps) {
           </SettingsGroup>
 
           <SettingsGroup title="Reads">
-            <SettingsRow description="Only a step that runs earlier can be read." stacked title="Incoming fields">
+            <SettingsRow description="Choose the producers whose validated results this step receives. Independent steps can run together." stacked title="Incoming fields">
               {earlier.length === 0 ? (
-                <p className="text-xs text-ink-muted">Nothing runs before this step. It receives the task only.</p>
+                <p className="text-xs text-ink-muted">No eligible prerequisite. This step receives the task only.</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {earlier.map((item) => (
@@ -107,8 +116,28 @@ export default function WorkflowStepEditor(props: WorkflowStepEditorProps) {
             </SettingsRow>
           </SettingsGroup>
 
+          <SettingsGroup title="Waits for">
+            <SettingsRow title="Ordering only" description="Wait for these steps without copying their output into the context." stacked>
+              <div className="flex flex-col gap-2">
+                {earlier
+                  .filter((item) => !step.reads.includes(item.id))
+                  .map((item) => (
+                    <label className="flex items-center gap-2 text-xs" key={item.id}>
+                      <input
+                        type="checkbox"
+                        aria-label={`${step.id} waits for ${item.id}`}
+                        checked={step.dependsOn?.includes(item.id) ?? false}
+                        onChange={(event) => onChange({dependsOn: event.target.checked ? [...(step.dependsOn ?? []), item.id] : step.dependsOn?.filter((id) => id !== item.id)})}
+                      />
+                      {item.id}
+                    </label>
+                  ))}
+              </div>
+            </SettingsRow>
+          </SettingsGroup>
+
           <SettingsGroup title="Output contract">
-            <SettingsRow description="Every field is validated before the next step runs." stacked title={`${fields.length} fields`}>
+            <SettingsRow description="Every field is validated before dependent steps start." stacked title={`${fields.length} fields`}>
               <div className="space-y-2">
                 {fields.map((field, position) => (
                   <ConfigCard className="space-y-2" key={position}>
@@ -176,7 +205,7 @@ export default function WorkflowStepEditor(props: WorkflowStepEditorProps) {
                   onChange={(value) => onChange({effects: value as WorkflowStepEffects})}
                 />
               }
-              description="A step with external effects is never retried on its own."
+              description="Reads only permits read, grep, find, ls and web_fetch. File writers wait for exclusive workspace access. External actions require an explicit retry."
               stacked
               title="What this step touches"
             />

@@ -1,34 +1,31 @@
-import {useProjectsStore} from "@/features/projects/stores/projects-store";
+import {useProjectsStore, toProjectId} from "@/features/projects/stores/projects-store";
 import type {ProjectListProject} from "@/features/projects/types/project-list";
-import {useEffect} from "react";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
-import {staleMirroredProjects} from "@/features/projects/lib/stale-mirrored-projects";
 
+/** Derives configured places immediately; polling never removes a routed project through a mirror effect. */
 export function useProjectList(): ProjectListProject[] {
-  const storedProjects = useProjectsStore((state) => state.projects);
-  const addProject = useProjectsStore((state) => state.addProject);
-  const removeProject = useProjectsStore((state) => state.removeProject);
+  const stored = useProjectsStore((state) => state.projects);
   const library = useHarnessLibrary();
-  useEffect(() => {
-    if (!library.data) return;
-    for (const project of library.data.projects) addProject(project.path, project.harnessId);
-    for (const stale of staleMirroredProjects(useProjectsStore.getState().projects, library.data)) removeProject(stale.id);
-  }, [library.data, addProject, removeProject]);
-
-  return storedProjects.map((project) => {
-    const configured = library.data?.projects.find((item) => item.path === project.path);
+  const configured = library.data?.projects ?? [];
+  const places = [
+    ...configured.map((project) => ({path: project.path, name: project.name})),
+    ...stored.filter((project) => !configured.some((item) => item.path === project.path) && (!project.managedBy || !library.data)),
+  ];
+  return places.map((place) => {
+    const local = stored.find((project) => project.path === place.path);
+    const project = configured.find((item) => item.path === place.path);
     return {
-      id: project.id,
-      name: configured?.name ?? project.name,
-      harnessId: configured?.harnessId ?? "coding",
-      harnessProjectId: configured?.id,
-      isCoordinator: !!configured && library.data?.harnesses.some((harness) => harness.coordinatorProjectId === configured.id),
-      parentProjectId: configured?.parentProjectId,
-      color: configured?.color,
-      order: configured?.order,
-      path: project.path,
-      pinned: project.pinned === true,
-      pinnedSessionIds: project.pinnedSessionIds ?? [],
+      id: local?.id ?? toProjectId(place.path),
+      name: project?.name ?? place.name,
+      path: place.path,
+      harnessId: project?.harnessId ?? "coding",
+      harnessProjectId: project?.id,
+      isCoordinator: !!project && library.data?.harnesses.some((harness) => harness.coordinatorProjectId === project.id),
+      parentProjectId: project?.parentProjectId,
+      color: project?.color,
+      order: project?.order,
+      pinned: local?.pinned === true,
+      pinnedSessionIds: local?.pinnedSessionIds ?? [],
     };
   });
 }

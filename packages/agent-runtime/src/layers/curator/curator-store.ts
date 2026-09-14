@@ -4,10 +4,16 @@ import {homedir} from "node:os";
 import {join} from "node:path";
 import {setTimeout as delay} from "node:timers/promises";
 import {Schema} from "effect";
-import {CurationProposal, CuratorReview} from "@supernova/contracts/harnesses/schemas";
+import {CurationProposal, CurationRequest, CuratorReview} from "@supernova/contracts/harnesses/schemas";
+import type {CurationProposalStatus} from "@supernova/contracts/harnesses/schemas";
+import {targetKey} from "@supernova/agent-runtime/layers/curator/lib/curator-targets";
 
 /** Reviews the UI lists for one harness; older ones stay on disk but are not read back. */
 const listedReviews = 50;
+/** Requests one read returns; a chat files evidence, not a queue. */
+const listedRequests = 50;
+/** The statuses a cooldown counts from: the user has answered on this artefact, whichever way it went. */
+const decidedStatuses: readonly CurationProposalStatus[] = ["applied", "rejected", "rolled-back"];
 
 function safeId(id: string): string {
   if (!/^[a-zA-Z0-9_-]{1,150}$/.test(id)) throw new Error("Invalid curation identifier.");
@@ -116,6 +122,54 @@ export class CuratorStore {
   public async listProposals(harnessId: string): Promise<CurationProposal[]> {
     const proposals = await this.readAll(join(this.harnessDirectory(harnessId), "proposals"), (value) => Schema.decodeUnknownSync(CurationProposal)(value));
     return proposals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  /**
+   * When this artefact was last decided, and how, so a cooldown can be counted from it.
+   *
+   * Applied, rejected and rolled back all count: each is the user having answered on this artefact, and proposing
+   * against it again within the cooldown needs evidence that is newer than the answer.
+   */
+  public async lastDecision(harnessId: string, key: string): Promise<{readonly at: string; readonly status: CurationProposalStatus} | undefined> {
+    const decided = (await this.listProposals(harnessId))
+      .filter((proposal) => proposal.decidedAt && decidedStatuses.includes(proposal.status) && targetKey(proposal.target) === key)
+      .sort((left, right) => right.decidedAt!.localeCompare(left.decidedAt!));
+    const latest = decided[0];
+    return latest ? {at: latest.decidedAt!, status: latest.status} : undefined;
+  }
+
+  /** Files one request from a chat. Immutable, so the id is its file name, like a proposal. */
+  public async addRequest(request: CurationRequest): Promise<CurationRequest> {
+    const record = Schema.decodeUnknownSync(CurationRequest)(request);
+    await this.write(join(this.harnessDirectory(record.harnessId), "requests"), `${safeId(record.id)}.json`, record);
+    return record;
+  }
+
+  /** This harness's requests, newest first. */
+  public async listRequests(harnessId: string, filter: {readonly projectId?: string; readonly since?: string} = {}): Promise<CurationRequest[]> {
+    const requests = await this.readAll(join(this.harnessDirectory(harnessId), "requests"), (value) => Schema.decodeUnknownSync(CurationRequest)(value));
+    return requests
+      .filter((request) => (!filter.projectId || request.projectId === filter.projectId) && (!filter.since || request.at >= filter.since))
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, listedRequests);
+  }
+
+  /** When the daily sweep of this harness last ran, so a restart does not repeat today's. */
+  public async lastSweepAt(harnessId: string): Promise<string | undefined> {
+    try {
+      const contents = await readFile(join(this.harnessDirectory(harnessId), "sweep.json"), "utf8");
+      const value: unknown = JSON.parse(contents);
+      const at = (value as {lastSweepAt?: unknown}).lastSweepAt;
+      return typeof at === "string" ? at : undefined;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    }
+  }
+
+  /** Stamps the sweep before it runs, so a crash mid-review does not queue a second one for the same day. */
+  public async markSwept(harnessId: string, at: string): Promise<void> {
+    await this.write(this.harnessDirectory(harnessId), "sweep.json", {lastSweepAt: at});
   }
 
   /** Records one review, at its start and again when it finishes. */

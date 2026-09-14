@@ -1,6 +1,8 @@
+import "@/features/sidebar/components/sidebar.css";
 import {useState} from "react";
 import {useLocation} from "@tanstack/react-router";
-import PiBrand from "@/components/brand/pi-brand";
+import WorkspaceAttentionList from "@/features/workspace/components/workspace-attention-list";
+import IconButton from "@/components/ui/icon-button";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import {showToast} from "@/components/ui/toast-manager";
@@ -66,21 +68,17 @@ export default function Sidebar() {
 
   return (
     <aside aria-label="Workspace ledger" className="flex h-full w-full shrink-0 flex-col">
-      <PiBrand />
-      <div className="px-3 pb-5">
-        <Button
-          className="flex h-9 w-full items-center gap-2.5 rounded-lg border border-border-muted bg-surface px-2.5 text-sm text-ink-muted transition-colors hover:bg-overlay-hover hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong"
-          onClick={() => setSearchOpen(true)}
-        >
+      <div className="flex shrink-0 items-center gap-1 px-4 py-2">
+        <IconButton label="Search chats" title="Search chats" className="size-8 text-white" onClick={() => setSearchOpen(true)}>
           <Icon name="search" size="sm" />
-          <span className="flex-1 text-left">Search chats</span>
-        </Button>
+        </IconButton>
       </div>
       <nav
         aria-label="Harness workspaces"
-        className="workspace-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-2 pb-4"
+        className="workspace-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-4"
         data-testid="harness-sidebar-scroll"
       >
+        <WorkspaceAttentionList />
         {library.data?.harnesses.map((harness) => (
           <HarnessSidebarSection
             key={harness.id}

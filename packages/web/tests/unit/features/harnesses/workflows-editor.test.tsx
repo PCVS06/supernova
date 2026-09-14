@@ -62,16 +62,16 @@ describe("workflow graph", () => {
   });
   const render = (config = harness) => {
     const onChange = vi.fn();
-    const html = renderToStaticMarkup(<WorkflowsEditor harness={config} onChange={onChange} />);
+    const html = renderToStaticMarkup(<WorkflowsEditor harness={config} onChange={onChange} />).replace(/<path[^>]*>/g, "");
     return {html, onChange};
   };
   it("draws one node per step with its agent, contract, effects and overrides", () => {
     const {html} = render();
     expect(html).toContain('aria-label="Workflow"');
     expect(html).toContain("Evidence review");
-    expect(html).toContain('aria-label="Workflow steps"');
-    expect(html).toContain('aria-label="Edit step literature-scout"');
-    expect(html).toContain('aria-label="Edit step source-verifier"');
+    expect(html).toContain('aria-label="Workflow dependency graph. Scroll horizontally to explore branches."');
+    expect(html).toContain('aria-label="Inspect step literature-scout"');
+    expect(html).toContain('aria-label="Inspect step source-verifier"');
     expect(html).toContain("Literature scout");
     expect(html).toContain("Reads only");
     expect(html).toContain("External effects");
@@ -79,28 +79,26 @@ describe("workflow graph", () => {
     expect(html).toContain("verdict");
     // The step-level override is visible on the node, not only inside the inspector.
     expect(html).toContain("high");
-    expect(html).toContain("Task from the chat");
-    expect(html).toContain("Result back to the chat");
+    expect(html).toContain('aria-label="Workflow source"');
+    expect(html).toContain("Solid connections share a checked result");
   });
-  it("labels each edge with the fields that travel along it and offers an insertion point", () => {
+  it("distinguishes shared outputs and offers an independent parallel branch", () => {
     const {html} = render();
-    expect(html).toContain('aria-label="Fields into source-verifier"');
-    expect(html).toContain("literature-scout → sources");
-    expect(html).toContain('aria-label="Add a step before source-verifier"');
-    expect(html).not.toContain('aria-label="Fields into literature-scout"');
-    expect(html).not.toContain('aria-label="Add a step before literature-scout"');
+    expect(html).toContain("literature-scout: validated output shared with source-verifier");
+    expect(html).toContain("Add parallel branch");
+    expect(html).toContain('aria-label="Maximum parallel steps"');
   });
-  it("opens the selected node in a side editor with reads limited to earlier steps", () => {
+  it("opens the selected node in a side editor with cycle-safe prerequisites", () => {
     const {html} = render();
-    expect(html).toContain('aria-label="Edit step literature-scout" aria-pressed="true"');
-    expect(html).toContain('aria-label="Edit step source-verifier" aria-pressed="false"');
+    expect(html).toContain('aria-label="Inspect step literature-scout" aria-pressed="true"');
+    expect(html).toContain('aria-label="Inspect step source-verifier" aria-pressed="false"');
     expect(html).toContain('aria-label="Agent for literature-scout"');
     expect(html).toContain('aria-label="Instructions for literature-scout"');
     expect(html).toContain('aria-label="literature-scout field 1 name"');
     expect(html).toContain('value="sources"');
     expect(html).toContain('aria-label="Effects of literature-scout"');
     expect(html).toContain('aria-label="Remove step literature-scout"');
-    expect(html).toContain("Nothing runs before this step. It receives the task only.");
+    expect(html).toContain("No eligible prerequisite. This step receives the task only.");
     expect(html).not.toContain('aria-label="Agent for source-verifier"');
     expect(html).not.toContain('aria-label="literature-scout reads');
   });
@@ -115,8 +113,8 @@ describe("workflow graph", () => {
   it("invites the first workflow instead of editing a harness without one", () => {
     const {html} = render({...harness, workflows: []});
     expect(html).toContain("No workflow configured. Add one, then give each step an agent.");
-    expect(html).not.toContain('aria-label="Workflow steps"');
-    expect(html).not.toContain('aria-label="Edit step literature-scout"');
+    expect(html).not.toContain('aria-label="Workflow dependency graph. Scroll horizontally to explore branches."');
+    expect(html).not.toContain('aria-label="Inspect step literature-scout"');
   });
   it("keeps the panel to the workflow itself, with no research-graph aside", () => {
     expect(render().html).not.toContain("Your research graph stays separate");
@@ -155,10 +153,10 @@ describe("workflow drafts", () => {
     expect(remaining.map((step) => step.id)).toEqual(["source-verifier"]);
     expect(remaining[0]!.reads).toEqual([]);
   });
-  it("prunes reads that would point forward after a move", () => {
+  it("preserves dependencies when changing presentation order", () => {
     const moved = moveWorkflowStep(workflow.steps, 1, -1);
     expect(moved.map((step) => step.id)).toEqual(["source-verifier", "literature-scout"]);
-    expect(moved[0]!.reads).toEqual([]);
+    expect(moved[0]!.reads).toEqual(["literature-scout"]);
     expect(moveWorkflowStep(workflow.steps, 0, -1)).toBe(workflow.steps);
     expect(moveWorkflowStep(workflow.steps, 1, 1)).toBe(workflow.steps);
   });

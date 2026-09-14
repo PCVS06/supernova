@@ -20,7 +20,7 @@ export function createHarnessViewTool(snapshot: HarnessSnapshot, store: HarnessS
     parameters,
     executionMode: "sequential",
     description:
-      "Manage pi+ sidebar presentation when the user asks. First list to get IDs and revision, then update a lab's name, hex color, or position (beforeProjectId; empty string moves to end). Science Space may manage its known labs; a lab lead may only update its own lab. Never deletes work, changes prompts or folders, or grants research approval. Report every change to the user.",
+      "Manage Radian sidebar presentation when the user asks. First list to get IDs and revision, then update a lab's name, hex color, or position (beforeProjectId; empty string moves to end). Science Space may manage its known labs; a lab lead may only update its own lab. Never deletes work, changes prompts or folders, or grants research approval. Report every change to the user.",
     async execute(_id, params) {
       let library = await store.list();
       if (params.action === "update") {

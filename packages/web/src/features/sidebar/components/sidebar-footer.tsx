@@ -1,6 +1,7 @@
 import {Link} from "@tanstack/react-router";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
+import SidebarInbox from "@/features/sidebar/components/sidebar-inbox";
 import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
 import {cn} from "@/lib/cn";
 
@@ -31,6 +32,7 @@ export default function SidebarFooter(props: SidebarFooterProps) {
         <Icon name="settings" size="sm" />
       </Link>
       <div className="flex-1" />
+      <SidebarInbox className={footerActionClassName} />
       <IconButton className={footerActionClassName} label={themeLabel} onClick={() => setMode(nextMode)} size="none" title={themeLabel}>
         <Icon name={nextMode === "light" ? "sun" : "moon"} size="sm" />
       </IconButton>

@@ -12,17 +12,17 @@ interface AgentIdentityPickerProps {
   onChange: (color: string) => void;
 }
 
-/** One ring for every role; the color is the whole identity. */
+/** Retains editable role accents alongside the monochrome mathematical marks. */
 export default function AgentIdentityPicker(props: AgentIdentityPickerProps) {
   const {name, color, kind, onChange} = props;
 
   return (
-    <SettingsRow description="The ring color identifies this role in the sidebar, the workflow graph and every chat." title="Ring color">
+    <SettingsRow description="Stored with this role for color accents. Its mathematical identity mark stays white." title="Role color">
       <div className="flex flex-wrap gap-2">
         {["#ffffff", ...agentColors].map((choice) => (
           <Button
             key={choice}
-            aria-label={`${kind === "lead" ? "Lead" : "Agent"} color ${choice}`}
+            aria-label={`${kind === "lead" || kind === "orchestrator" ? "Lead" : "Agent"} color ${choice}`}
             aria-pressed={agentColor(name, color) === choice}
             onClick={() => onChange(choice)}
             className={cn(
@@ -30,7 +30,7 @@ export default function AgentIdentityPicker(props: AgentIdentityPickerProps) {
               agentColor(name, color) === choice && "border-ink-faint"
             )}
           >
-            <AgentMark name={name} kind={kind} color={choice} className="size-9" />
+            <AgentMark name={name} kind={kind} color={choice} colorPreview className="size-9" />
           </Button>
         ))}
       </div>

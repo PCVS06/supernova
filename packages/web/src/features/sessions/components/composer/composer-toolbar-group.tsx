@@ -5,13 +5,12 @@ interface ComposerToolbarGroupProps {
   readonly label: string;
 }
 
-/** Labels one composer control so the toolbar reads as turn settings instead of loose buttons. */
+/** Keeps control groups accessible without repeating their names in the toolbar. */
 export default function ComposerToolbarGroup(props: ComposerToolbarGroupProps) {
   const {children, label} = props;
 
   return (
-    <span className="flex min-w-0 items-center gap-1">
-      <span className="retro-label shrink-0 text-ink-faint">{label}</span>
+    <span role="group" aria-label={label} className="flex min-w-0 items-center">
       {children}
     </span>
   );

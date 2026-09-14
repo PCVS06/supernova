@@ -31,6 +31,9 @@ function applyEvent(input: {event: SessionStreamEvent; queryClient: QueryClient}
 
   if (event.type === "connected") {
     useSessionLiveStore.getState().resetRevisions();
+    void queryClient.invalidateQueries({queryKey: ["agent", "workspace-overview"]});
+    void queryClient.invalidateQueries({queryKey: ["agent", "workflow-runs"]});
+    void queryClient.invalidateQueries({queryKey: ["agent", "harness-runs"]});
     void queryClient.invalidateQueries({queryKey: allSessionsQueryKey()});
     void queryClient.invalidateQueries({queryKey: allProjectSessionsQueryKey()});
     return;

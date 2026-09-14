@@ -4,6 +4,7 @@ import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import Menu, {MenuItem} from "@/components/ui/menu";
 import {useArchiveProjectSession} from "@/features/projects/hooks/api/use-archive-project-session";
+import {useProjectList} from "@/features/projects/hooks/use-project-list";
 import {useProjectsStore} from "@/features/projects/stores/projects-store";
 import {cn} from "@/lib/cn";
 
@@ -22,14 +23,14 @@ export default function SessionActionsMenu(props: SessionActionsMenuProps) {
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const project = useProjectsStore((state) => state.projects.find((candidate) => candidate.path === projectPath));
+  const project = useProjectList().find((candidate) => candidate.path === projectPath);
   const toggleSessionPinned = useProjectsStore((state) => state.toggleSessionPinned);
   const archiveProjectSessionMutation = useArchiveProjectSession();
   const pinned = project?.pinnedSessionIds?.includes(sessionId) === true;
 
   const handleToggleSessionPinned = (): void => {
-    if (!project) return;
-    toggleSessionPinned(project.id, sessionId);
+    const stored = useProjectsStore.getState().addProject(projectPath, project?.harnessId);
+    if (stored) toggleSessionPinned(stored.id, sessionId);
   };
 
   const handleArchiveSession = (): void => {
@@ -58,7 +59,7 @@ export default function SessionActionsMenu(props: SessionActionsMenuProps) {
       sideOffset={2}
       align="start"
     >
-      <MenuItem disabled={!project} icon={<Icon name="pin" size="xs" />} onClick={handleToggleSessionPinned}>
+      <MenuItem icon={<Icon name={pinned ? "pin-filled" : "pin"} size="xs" />} onClick={handleToggleSessionPinned}>
         {pinned ? "Unpin chat" : "Pin chat"}
       </MenuItem>
       <MenuItem icon={<Icon name="edit" size="xs" />} onClick={onRename}>

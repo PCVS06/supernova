@@ -126,7 +126,7 @@ describe("workflow run inspection", () => {
   it("shows what each step actually did, with its receipt and failure kind", () => {
     const html = renderToStaticMarkup(<WorkflowRunPage sessionId="chat" runId="wf-1" />);
     expect(html).toContain("Evidence review");
-    expect(html).toContain("failed · step 1 of 2 · $0.42 spent");
+    expect(html).toContain("failed · 1 of 2 complete · $0.42 spent");
     expect(html).toContain("Check the claims in the draft");
     expect(html).toContain("completed · attempt 1 · none effects");
     expect(html).toContain("failed · attempt 2 · external effects");
@@ -140,12 +140,12 @@ describe("workflow run inspection", () => {
   it("gives the exact resume instruction, allowing an external rerun only when the blocked step has external effects", () => {
     const external = renderToStaticMarkup(<WorkflowRunPage sessionId="chat" runId="wf-1" />);
     expect(external).toContain("Run harness_workflow with resumeRunId wf-1 and allowExternalRetry true");
-    expect(external).toContain("continues from step 2 of 2 and keeps the same run");
+    expect(external).toContain("continues unfinished branches and keeps the same run");
     expect(external).toContain("Completed steps are not run again");
     state.run = {...run, cursor: 0, steps: [{...run.steps[0]!, status: "failed", output: undefined, error: "The provider refused.", failureKind: "provider"}]};
     const contained = renderToStaticMarkup(<WorkflowRunPage sessionId="chat" runId="wf-1" />);
     expect(contained).toContain("Run harness_workflow with resumeRunId wf-1");
-    expect(contained).toContain("continues from step 1 of 2");
+    expect(contained).toContain("continues unfinished branches");
     expect(contained).not.toContain("allowExternalRetry");
   });
   it("does not offer a resume while the run is still going", () => {

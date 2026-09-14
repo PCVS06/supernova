@@ -1,9 +1,14 @@
 import {Schema} from "effect";
-import {CurationProposal, CurationTarget, CuratorReview, InstructionVersion} from "@supernova/contracts/harnesses/schemas/curation";
+import {CurationProposal, CurationRequest, CurationTarget, CuratorMetrics, CuratorReview, InstructionVersion} from "@supernova/contracts/harnesses/schemas/curation";
 import {HarnessLibrary} from "@supernova/contracts/harnesses/schemas/harness";
 
 export const ListCurationPayload = Schema.Struct({harnessId: Schema.String});
-export const ListCurationResult = Schema.Struct({proposals: Schema.Array(CurationProposal), reviews: Schema.Array(CuratorReview)});
+export const ListCurationResult = Schema.Struct({
+  proposals: Schema.Array(CurationProposal),
+  reviews: Schema.Array(CuratorReview),
+  requests: Schema.Array(CurationRequest),
+  metrics: CuratorMetrics,
+});
 
 /** Approve applies the change (with an edited `replace` when given); reject records the reason as evidence for later reviews. */
 export const DecideCurationPayload = Schema.Struct({

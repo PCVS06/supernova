@@ -1,21 +1,27 @@
 import AssistantMessageContent from "@/features/sessions/components/timeline/items/assistant/assistant-message-content";
+import MathResponse from "@/features/sessions/components/timeline/items/assistant/math-response";
 import MessageActions from "@/features/sessions/components/timeline/items/actions/message-actions";
 import type {SessionAssistantEvent} from "@/features/sessions/types/session-timeline-item";
 
 interface AssistantMessageProps {
   event: SessionAssistantEvent;
   live: boolean;
+  turnId: string;
 }
 
 export default function AssistantMessage(props: AssistantMessageProps) {
-  const {event, live} = props;
+  const {event, live, turnId} = props;
 
   const error = event.error;
 
   return (
     <article className="group/message">
       <div className="max-w-3xl">
-        {event.content.length > 0 && <AssistantMessageContent streaming={live}>{event.content}</AssistantMessageContent>}
+        {event.content.length > 0 && (
+          <MathResponse live={live && !error} text={event.content} turnId={`${turnId}:${event.id}`}>
+            <AssistantMessageContent streaming={live}>{event.content}</AssistantMessageContent>
+          </MathResponse>
+        )}
         {event.content.length > 0 && !live && <MessageActions copyText={event.content} timestamp={event.timestamp} />}
         {error && <p className="mt-3 text-sm text-danger-ink">{error}</p>}
       </div>

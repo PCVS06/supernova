@@ -1,8 +1,5 @@
 @import "tailwindcss";
 
-.chat-workspace .pi-orb {
-  color: var(--chat-accent);
-}
 @import "shadcn/tailwind.css";
 @plugin "@toolwind/corner-shape";
 
@@ -114,7 +111,7 @@
   :root[data-app-environment="linux"],
   :root[data-app-environment="linux"] body,
   :root[data-app-environment="linux"] #root {
-    background: transparent;
+    background: var(--theme-surface-deep);
     overflow: hidden;
   }
 
@@ -171,12 +168,53 @@
       opacity 160ms ease;
   }
 
+  :root {
+    --white-glow-soft: 0 0 3px rgb(255 255 255 / 22%);
+    --white-glow-focused: 0 0 3px rgb(255 255 255 / 65%), 0 0 10px rgb(255 255 255 / 35%);
+    --white-glow-mark: 3px;
+  }
+
+  :root[data-white-glow="soft"] {
+    --white-glow-soft: 0 0 2px rgb(255 255 255 / 12%);
+    --white-glow-focused: 0 0 4px rgb(255 255 255 / 38%);
+    --white-glow-mark: 1px;
+  }
+
+  :root[data-white-glow="bright"] {
+    --white-glow-soft: 0 0 4px rgb(255 255 255 / 40%);
+    --white-glow-focused: 0 0 4px rgb(255 255 255 / 85%), 0 0 14px rgb(255 255 255 / 55%);
+    --white-glow-mark: 5px;
+  }
+
+  :root[data-color-mode="dark"] .app-glass-chrome {
+    background: #000;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  :root[data-color-mode="dark"] :is(button, a, [role="button"], [data-slot="marker"], .text-ink-strong) {
+    text-shadow: var(--white-glow-soft);
+  }
+
+  :root[data-color-mode="dark"]
+    :is(button, a, [role="button"]):is(:hover, :focus-visible, [aria-current="page"], [aria-pressed="true"], [data-active="true"], [data-state="active"]) {
+    text-shadow: var(--white-glow-focused);
+  }
+
+  :root[data-color-mode="dark"] :is([aria-selected="true"], [data-selected="true"], [data-active="true"]) {
+    text-shadow: var(--white-glow-focused);
+  }
+
+  :root[data-color-mode="dark"] :is(button, a, [role="button"]):focus-visible {
+    box-shadow: 0 0 7px rgb(255 255 255 / 24%);
+  }
+
   :root[data-color-mode="dark"] .ui-icon {
-    filter: drop-shadow(0 0 3px rgb(255 255 255 / 18%));
+    filter: drop-shadow(0 0 var(--white-glow-mark) rgb(255 255 255 / 65%));
   }
 
   :root[data-color-mode="dark"] :is(button, a, [role="button"]):hover .ui-icon {
-    filter: drop-shadow(0 0 4px rgb(255 255 255 / 30%));
+    filter: drop-shadow(0 0 5px rgb(255 255 255 / 90%));
   }
 
   .workspace-tabs {

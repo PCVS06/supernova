@@ -1,3 +1,4 @@
+import {backgroundDelegations} from "@supernova/agent-runtime/layers/harnesses/internal/background-delegations";
 import type {AgentSession} from "@earendil-works/pi-coding-agent";
 import type {ImageContent} from "@earendil-works/pi-ai";
 import {randomUUID} from "node:crypto";
@@ -152,7 +153,7 @@ export class PiSessionRuntime {
   public async abort(): Promise<void> {
     this.cancelled = true;
     this.pendingAbortedSteering.push(...(this.agentSession?.clearQueue().steering ?? []));
-    await this.agentSession?.abort().catch(() => undefined);
+    await Promise.all([this.agentSession?.abort().catch(() => undefined), backgroundDelegations.cancel(this.sessionId)]);
   }
 
   /** Whether any mutating session command currently owns this runtime. */

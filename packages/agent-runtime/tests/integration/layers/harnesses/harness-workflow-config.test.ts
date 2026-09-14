@@ -37,15 +37,15 @@ describe("workflow configuration", () => {
     expect(() => validateHarness(harness())).not.toThrow();
   });
 
-  it("rejects a read of a step that does not run before the reader", () => {
+  it("accepts acyclic dependencies independently of display order", () => {
     const steps = [...workflow().steps].reverse();
-    expect(() => validateHarness(harness({workflows: [workflow({steps})]}))).toThrow("does not run before it");
+    expect(() => validateHarness(harness({workflows: [workflow({steps})]}))).not.toThrow();
   });
 
   it("rejects steps that reference undefined agents, duplicate ids, and invalid field names", () => {
     expect(() => validateHarness(harness({workflows: [workflow({steps: [{...workflow().steps[0]!, agent: "ghost"}]})]}))).toThrow("not defined");
     const duplicate = workflow({steps: [workflow().steps[0]!, {...workflow().steps[1]!, id: "scout", reads: []}]});
-    expect(() => validateHarness(harness({workflows: [duplicate]}))).toThrow("duplicate or invalid step ID");
+    expect(() => validateHarness(harness({workflows: [duplicate]}))).toThrow("unique");
     const badField = workflow({steps: [{...workflow().steps[0]!, output: {fields: [{name: "1bad", type: "string", required: true}]}}]});
     expect(() => validateHarness(harness({workflows: [badField]}))).toThrow("output field name");
   });

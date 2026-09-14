@@ -10,7 +10,7 @@ const azureSigningConfigured = Boolean(process.env.AZURE_TRUSTED_SIGNING_ENDPOIN
 /** @type {import("electron-builder").Configuration} */
 const config = {
   appId: "dev.supernova.app",
-  productName: nightly ? "Supernova (Nightly)" : "Supernova",
+  productName: nightly ? "Radian (Nightly)" : "Radian",
   directories: {
     buildResources: "resources",
   },
@@ -23,7 +23,7 @@ const config = {
     {from: "../../packages/web/dist", to: "web"},
   ],
   win: {
-    executableName: "supernova",
+    executableName: "radian",
     icon: "icons/icon.ico",
     ...(azureSigningConfigured && {
       azureSignOptions: {
@@ -35,14 +35,14 @@ const config = {
     }),
   },
   nsis: {
-    artifactName: "supernova-${version}-${arch}-setup.${ext}",
+    artifactName: "radian-${version}-${arch}-setup.${ext}",
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
     createDesktopShortcut: "always",
   },
   mac: {
     icon: "icons/icon.icns",
-    artifactName: "supernova-${version}-${arch}-mac.${ext}",
+    artifactName: "radian-${version}-${arch}-mac.${ext}",
     entitlements: "resources/entitlements.mac.plist",
     entitlementsInherit: "resources/entitlements.mac.plist",
     extendInfo: {
@@ -55,23 +55,23 @@ const config = {
   },
   dmg: {
     icon: "icons/icon.icns",
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   linux: {
-    executableName: "supernova",
+    executableName: "radian",
     icon: "icons",
     target: ["AppImage", "snap", "deb"],
     maintainer: "electronjs.org",
     category: "Utility",
   },
   appImage: {
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   snap: {
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   deb: {
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   npmRebuild: false,
   publish: {

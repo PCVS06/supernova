@@ -100,7 +100,7 @@ export default function ComposerEditor(props: ComposerEditorProps) {
         if (element && editor && !editor.isDestroyed && editor.isEditable !== editable) editor.setEditable(editable);
       }}
     >
-      <ComposerSuggestionMenu onSelect={selectSuggestion} onSubmit={onSubmit} open={suggestionOpen} query={query}>
+      <ComposerSuggestionMenu onSelect={selectSuggestion} onSubmit={onSubmit} onDismiss={() => onSuggestionMatchChange(null)} open={suggestionOpen} query={query}>
         <div className="grid min-w-0">
           {/* Reserve the editor's real text height before TipTap finishes mounting.
               This keeps timeline scroll restoration from running against a shorter

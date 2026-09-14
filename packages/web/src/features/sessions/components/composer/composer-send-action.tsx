@@ -34,7 +34,7 @@ export default function ComposerSendAction(props: ComposerSendActionProps) {
       )}
       {showDictation ? (
         <IconButton
-          className="size-8 shrink-0 rounded-full"
+          className="grid size-8 shrink-0 place-items-center rounded-full"
           disabled={!dictationSupported}
           label={dictating ? "Stop dictation" : "Start dictation"}
           onClick={onToggleDictation}
@@ -46,7 +46,7 @@ export default function ComposerSendAction(props: ComposerSendActionProps) {
         </IconButton>
       ) : (
         <IconButton
-          className="size-7 shrink-0 rounded-full"
+          className="grid size-8 shrink-0 place-items-center rounded-full"
           disabled={!canSend}
           label={primaryLabel}
           onClick={steerPrimary ? onSteer : onSend}
@@ -60,7 +60,7 @@ export default function ComposerSendAction(props: ComposerSendActionProps) {
       {streaming && (
         <IconButton
           label={streamStatus === "stopping" ? "Stopping stream" : "Stop streaming"}
-          className="size-8"
+          className="grid size-8 place-items-center"
           disabled={!canInterrupt}
           onClick={onInterrupt}
           size="none"

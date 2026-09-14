@@ -10,8 +10,8 @@ async function main(): Promise<void> {
   registerBundledToolsPath();
 
   const program = new Command()
-    .name("supernova-server")
-    .description("Start the Supernova API server (no UI).")
+    .name("radian-server")
+    .description("Start the Radian API server (no UI).")
     .addOption(new Option("--host <host>", "Host to bind").env("SUPERNOVA_SERVER_HOST").default(DEFAULT_HOST))
     .addOption(new Option("--port <port>", "Port to bind; 0 selects an available port").env("SUPERNOVA_SERVER_PORT").argParser(parsePort).default(DEFAULT_PORT))
     .showHelpAfterError();
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   if (stopping) return;
 
   process.send?.({type: "ready", url: server.url});
-  console.log(`Supernova API listening at ${server.url}`);
+  console.log(`Radian API listening at ${server.url}`);
 }
 
 void main().catch((error: unknown) => {

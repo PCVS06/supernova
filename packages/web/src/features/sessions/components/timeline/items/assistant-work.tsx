@@ -1,4 +1,5 @@
 import {useState} from "react";
+import WorkflowLiveEntry from "@/features/harnesses/components/workflow-graph/workflow-live-entry";
 import Icon from "@/components/ui/icon";
 import {Marker, MarkerContent} from "@/components/ui/marker";
 import MessageActions from "@/features/sessions/components/timeline/items/actions/message-actions";
@@ -26,6 +27,7 @@ function WorkEvent(props: WorkEventProps) {
   const {event, live, toolDetailMode} = props;
 
   if (event.type === "tool") {
+    if (event.tool?.name === "harness_workflow") return <WorkflowLiveEntry event={event} />;
     return <ToolEvent event={event} mode={toolDetailMode} />;
   }
 
@@ -71,6 +73,11 @@ export default function AssistantWork(props: AssistantWorkProps) {
 
   return (
     <section className="space-y-2">
+      {item.events
+        .filter((event) => event.type === "tool" && event.tool?.name === "harness_workflow")
+        .map((event) => (
+          <WorkEvent key={event.id} event={event} live={false} toolDetailMode="collapsible" />
+        ))}
       <Marker className="cursor-pointer select-none gap-1.5 px-0 pt-0 hover:text-ink-muted" onClick={handleToggle} render={<button type="button" />} variant="border">
         <MarkerContent>Worked for {formatDuration(item.durationMs)}</MarkerContent>
         <Icon className={cn("transition-transform duration-160 ease-out", showExpanded && "rotate-90")} name="chevron-right" size="xs" />
@@ -80,9 +87,11 @@ export default function AssistantWork(props: AssistantWorkProps) {
         data-expanded={showExpanded}
       >
         <div className="overflow-hidden flex flex-col gap-3 mt-1">
-          {item.events.map((event) => (
-            <WorkEvent event={event} live={false} toolDetailMode="collapsible" key={event.id} />
-          ))}
+          {item.events
+            .filter((event) => event.type !== "tool" || event.tool?.name !== "harness_workflow")
+            .map((event) => (
+              <WorkEvent event={event} live={false} toolDetailMode="collapsible" key={event.id} />
+            ))}
         </div>
       </div>
     </section>

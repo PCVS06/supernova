@@ -1,0 +1,35 @@
+.math-response {
+  position: relative;
+}
+.math-response[data-reveal-preparing="true"] .math-response-content {
+  visibility: hidden;
+}
+::highlight(radian-digits) {
+  color: transparent;
+  text-shadow: none;
+}
+.math-response-digits {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+}
+.math-response-actions {
+  display: flex;
+  justify-content: flex-end;
+  height: 1.5rem;
+}
+.math-response-skip {
+  visibility: hidden;
+}
+.math-response[data-revealing="true"] .math-response-skip {
+  visibility: visible;
+}
+:root[data-mathematical-motion="off"] .math-response-digits,
+:root[data-mathematical-motion="subtle"] .math-response-digits {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .math-response-digits {
+    display: none;
+  }
+}

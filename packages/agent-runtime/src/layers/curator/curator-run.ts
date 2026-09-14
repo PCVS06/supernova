@@ -10,7 +10,7 @@ import type {HarnessStore} from "@supernova/agent-runtime/layers/harnesses/inter
 import {curatorStore} from "@supernova/agent-runtime/layers/curator/curator-store";
 import type {CuratorStore} from "@supernova/agent-runtime/layers/curator/curator-store";
 import {createCuratorTools} from "@supernova/agent-runtime/layers/curator/curator-tools";
-import {instructionBudgetPercent} from "@supernova/agent-runtime/layers/curator/lib/curator-evidence";
+import {assembledInstructionChars, instructionBudgetPercent} from "@supernova/agent-runtime/layers/curator/lib/curator-evidence";
 import {curatorScopeLine, curatorSummary, curatorSystemPrompt} from "@supernova/agent-runtime/layers/curator/lib/curator-prompt";
 import type {PiSdkServiceShape} from "@supernova/agent-runtime/layers/pi-sdk";
 import {toPiThinkingLevel} from "@supernova/agent-runtime/layers/session-runtime/lib/models/thinking-levels";
@@ -115,6 +115,8 @@ export async function runCuratorReview(input: RunCuratorReviewInput): Promise<Cu
   if (input.projectId && !project) throw new Error("Project is not part of this harness.");
   if (input.scope === "memory" && !project) throw new Error("A memory review needs the project whose ledger it reads.");
   const scoped = project ? [project] : projects;
+  // Recorded on every review, finished or failed, so the size trend can be read off the review history alone.
+  const budgetPercent = instructionBudgetPercent(harness, scoped);
 
   const started: CuratorReview = {
     id: randomUUID(),
@@ -126,6 +128,7 @@ export async function runCuratorReview(input: RunCuratorReviewInput): Promise<Cu
     summary: "",
     proposals: 0,
     applied: 0,
+    instructionChars: assembledInstructionChars(harness, scoped),
   };
   const spentBefore = await curation.spentToday(harness.id);
   if (spentBefore >= curator.maxCostUsdPerDay) {
@@ -149,7 +152,7 @@ export async function runCuratorReview(input: RunCuratorReviewInput): Promise<Cu
     );
     const systemPrompt = curatorSystemPrompt({
       harnessName: harness.name,
-      budgetPercent: instructionBudgetPercent(harness, scoped),
+      budgetPercent,
       scopeLine: curatorScopeLine({scope: input.scope, harnessName: harness.name, projectName: project?.name}),
     });
     const resources = await createReviewResources({cwd: cwd ?? store.root, systemPrompt});
@@ -165,6 +168,7 @@ export async function runCuratorReview(input: RunCuratorReviewInput): Promise<Cu
         scope: input.scope,
         ...(project ? {projectId: project.id} : {}),
         autoApply: curator.autoApply,
+        budgetPercent,
         actor: {modelProvider: model?.provider ?? "pi-plus", modelId: model?.id ?? "curator", sessionId: started.id},
         store,
         curation,

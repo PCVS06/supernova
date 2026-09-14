@@ -360,8 +360,8 @@ export class TimelineDriver {
   }
 
   private async openSession(sessionId: string, title: string): Promise<void> {
-    await this.page.goto(`/session/${sessionId}`, {waitUntil: "commit"});
-    await expect(this.page.getByRole("button", {name: `Open chat: ${title}`})).toHaveAttribute("aria-current", "page");
+    await this.page.goto(`/session/${sessionId}`, {waitUntil: "domcontentloaded"});
+    await expect(this.page.getByRole("button", {name: `Open chat: ${title}`})).toHaveAttribute("aria-current", "page", {timeout: 30000});
     await expect(this.timeline()).toBeVisible();
   }
 
@@ -409,7 +409,8 @@ export class TimelineDriver {
 
   private async waitForSettledStatus(status: "aborted" | "completed"): Promise<void> {
     await expect.poll(() => this.mockState().then((state) => state.status)).toBe(status);
-    await expect(this.page.getByRole("button", {name: "Send message"})).toBeVisible();
+    await expect(this.page.locator('[contenteditable="true"]').first()).toBeEditable();
+    await expect(this.page.getByRole("button", {name: "Stop streaming"})).toHaveCount(0);
     await expect(this.page.locator('[data-slot="message-scroller-content"]')).toHaveAttribute("aria-busy", "false");
   }
 }

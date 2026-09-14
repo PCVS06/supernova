@@ -45,10 +45,10 @@ export async function startServerProcess({entry, execPath, env, port = 0}: Start
 
   try {
     const url = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timed out waiting for the Supernova API.")), 15_000);
+      const timeout = setTimeout(() => reject(new Error("Timed out waiting for the Radian API.")), 15_000);
 
       const onExit = (code: number | null, signal: string | null): void => {
-        reject(new Error(`Supernova API exited before readiness (code=${code}, signal=${signal}).`));
+        reject(new Error(`Radian API exited before readiness (code=${code}, signal=${signal}).`));
       };
 
       const onMessage = (message: unknown): void => {

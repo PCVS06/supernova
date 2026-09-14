@@ -21,7 +21,7 @@ export default function ThinkingLevelPicker(props: ThinkingLevelPickerProps) {
       trigger={(triggerProps) => (
         <Button
           {...triggerProps}
-          className="flex min-w-0 items-center gap-1.5  px-2.5 py-1 text-xs"
+          className="flex min-w-0 items-center gap-1 px-1.5 py-1 text-xs"
           disabled={disabled || thinkingLevels.length === 0}
           type="button"
           variant="primary"

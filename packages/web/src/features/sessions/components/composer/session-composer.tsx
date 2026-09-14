@@ -244,7 +244,7 @@ export default function SessionComposer(props: SessionComposerProps) {
     controlTray,
     controlsPending = false,
     queuePending = false,
-    placeholder = "Ask anything, @ to add files, or / for commands",
+    placeholder = "",
     projectPath,
     slashCommandActions,
     streamStatus = "idle",
@@ -445,7 +445,7 @@ export default function SessionComposer(props: SessionComposerProps) {
               </p>
             )}
             <div className="mt-2 flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-1">
                 <SessionComposerAttachButton attachments={attachments} disabled={attachmentDisabled} />
                 {toolbarControls}
               </div>

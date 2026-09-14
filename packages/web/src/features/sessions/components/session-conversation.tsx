@@ -4,7 +4,6 @@ import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import type {AppEnvironment} from "@/lib/app-environment";
 import AgentMark from "@/features/harnesses/components/agent-mark";
-import ChatDelegatedWork from "@/features/harnesses/components/chat-delegated-work";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentColor} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
@@ -57,7 +56,9 @@ export default function SessionConversation(props: SessionConversationProps) {
   const primary = variant === "primary";
   const library = useHarnessLibrary();
   const project = library.data?.projects.find((item) => item.path === session.projectPath);
-  const lead = library.data?.harnesses.some((item) => item.coordinatorProjectId === project?.id) === true;
+  const lead = project !== undefined && library.data?.harnesses.some((item) => item.coordinatorProjectId === project.id) === true;
+  const latestTurn = session.turns.at(-1);
+  const completedTurnId = latestTurn?.status === "completed" && !latestTurn.events.some((event) => "error" in event && event.error) ? latestTurn.id : undefined;
 
   const markSessionVisited = useSessionVisitsStore((state) => state.markSessionVisited);
   const setWorkspaceTarget = useWorkspacePanelStore((state) => state.setTarget);
@@ -158,9 +159,7 @@ export default function SessionConversation(props: SessionConversationProps) {
         }
         subtitle={project?.name ?? session.projectPath}
         color={project ? (project.color ?? (lead ? "#ffffff" : agentColor(project.id))) : undefined}
-        mark={
-          <AgentMark className="size-6" color={project?.color ?? (lead ? "#ffffff" : undefined)} kind={lead ? "lead" : "specialist"} name={project?.id ?? session.projectPath} />
-        }
+        mark={<AgentMark className="size-6" color={project?.color} kind={lead ? "orchestrator" : "lead"} name={project?.id ?? session.projectPath} />}
         variant={variant}
         attachmentDropOverlayVisible={composerAttachments.isDraggingFiles}
         attachmentDropZoneProps={composerAttachments.dropZoneProps}
@@ -212,8 +211,7 @@ export default function SessionConversation(props: SessionConversationProps) {
               slashCommandActions={{...stream.slashCommandActions, redo: handleRedo, undo: handleUndo}}
               streamStatus={stream.streamStatus}
               toolbarControls={
-                <div className="flex min-w-0 items-center gap-3">
-                  <SessionContextIndicator context={stream.liveContext ?? session.context} />
+                <div className="flex min-w-0 items-center gap-1">
                   <ComposerToolbarGroup label="Model">
                     <ModelPicker
                       selectedModel={modelSelection.selectedModelDetails}
@@ -235,6 +233,7 @@ export default function SessionConversation(props: SessionConversationProps) {
                   )}
                 </div>
               }
+              toolbarActions={<SessionContextIndicator context={stream.liveContext ?? session.context} />}
               topExtension={
                 <UndoneTurnsDrawer
                   disabled={composerActionDisabled}
@@ -249,7 +248,10 @@ export default function SessionConversation(props: SessionConversationProps) {
         timeline={
           <SessionTimeline
             key={session.id}
-            activity={<ChatDelegatedWork sessionId={session.id} live={stream.streamStatus !== "idle"} />}
+            constellation={{sessionId: session.id, projectPath: session.projectPath, title: session.title}}
+            identityConstant={project ? (lead ? "tau" : "phi") : "pi"}
+            completedTurnId={completedTurnId}
+            stopping={stream.streamStatus === "stopping"}
             bottomOverlayHeight={undoneDrawerHeight}
             compacting={stream.streamStatus === "compacting"}
             isStreaming={stream.streamStatus === "streaming" || stream.streamStatus === "compacting"}

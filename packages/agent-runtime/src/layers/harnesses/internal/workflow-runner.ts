@@ -1,4 +1,7 @@
-import {randomUUID} from "node:crypto";
+import {createHash, randomUUID} from "node:crypto";
+import {realpath} from "node:fs/promises";
+import {workflowDependencies, workflowLayers, workflowStepSummaries} from "@supernova/contracts/harnesses/workflow-graph";
+import {withWorkflowWorkspace} from "@supernova/agent-runtime/layers/harnesses/internal/workflow-workspace-lease";
 import {Type} from "typebox";
 import type {TSchema} from "typebox";
 import {Value} from "typebox/value";
@@ -21,6 +24,10 @@ export type WorkflowStepExecutor = (input: {
   readonly agent: HarnessAgent;
   readonly task: string;
   readonly signal?: AbortSignal;
+  readonly effects?: WorkflowStep["effects"];
+  readonly maxCostUsd?: number;
+  readonly onStarted?: (runId: string) => Promise<void>;
+  readonly onUsage?: (usage: WorkflowStepUsage) => Promise<void>;
 }) => Promise<{readonly runId?: string; readonly text: string; readonly usage: WorkflowStepUsage}>;
 
 const externalRetryGuidance = "Resume with allowExternalRetry set to true once you know the external action did not happen, or finish that action by hand instead.";
@@ -123,67 +130,255 @@ function stepExecution(snapshot: HarnessSnapshot, agent: HarnessAgent, step: Wor
   };
 }
 
-/** Ends the run on one step, leaving the cursor there so a resume retries exactly that step. */
-function endedRun(run: WorkflowRun, index: number, record: WorkflowStepExecutionRecord, spentUsd = run.spentUsd): WorkflowRun {
+/** Creates a durable logical action once per step, independent of execution attempts. */
+function createdRun(options: RunWorkflowOptions, id: string): WorkflowRun {
   const at = new Date().toISOString();
   return {
-    ...run,
-    steps: run.steps.map((item, position) => (position === index ? record : item)),
-    status: record.status === "cancelled" ? "cancelled" : "failed",
-    spentUsd,
-    error: record.error,
-    finishedAt: at,
-  };
-}
-
-/**
- * Why the run must stop before the step at the cursor, if anything. The wall clock is measured over this pass because a
- * resumed run may have waited for a person, while the spend cap is cumulative over the whole run.
- */
-function limitReached(run: WorkflowRun, deadline: number, executed: ReadonlySet<string>): string | undefined {
-  const {maxCostUsd, maxWallClockSeconds} = run.workflow.limits;
-  if (Date.now() >= deadline) return `Workflow ${run.workflow.name} reached its wall-clock limit of ${maxWallClockSeconds} seconds.`;
-  if (maxCostUsd !== undefined && run.spentUsd >= maxCostUsd)
-    return `Workflow ${run.workflow.name} reached its cost limit of ${maxCostUsd} USD after spending ${run.spentUsd.toFixed(4)} USD.`;
-  const previous = run.steps[run.cursor - 1];
-  const cap = run.workflow.steps[run.cursor - 1]?.limits?.maxCostUsd;
-  if (previous?.usage && cap !== undefined && executed.has(previous.stepId) && previous.usage.costUsd >= cap)
-    return `Step ${previous.stepId} spent ${previous.usage.costUsd.toFixed(4)} USD, reaching its limit of ${cap} USD.`;
-  return undefined;
-}
-
-/** Starts a fresh run with one pending record per step and a stable action id per step. */
-function createdRun(input: {snapshot: HarnessSnapshot; workflow: HarnessWorkflow; chatId: string; task: string}): WorkflowRun {
-  const at = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    chatId: input.chatId,
-    harnessId: input.snapshot.harness.id,
-    projectId: input.snapshot.project.id,
-    workflowId: input.workflow.id,
-    workflowName: input.workflow.name,
-    workflowRevision: input.snapshot.revision,
-    task: input.task,
+    id,
+    chatId: options.chatId,
+    harnessId: options.snapshot.harness.id,
+    projectId: options.snapshot.project.id,
+    workflowId: options.workflow.id,
+    workflowName: options.workflow.name,
+    workflowRevision: options.snapshot.revision,
+    invocationId: options.invocationId,
+    task: options.task,
     status: "running",
     cursor: 0,
-    stepCount: input.workflow.steps.length,
+    completedCount: 0,
+    revision: 0,
+    activeElapsedMs: 0,
+    stepCount: options.workflow.steps.length,
     spentUsd: 0,
     startedAt: at,
     updatedAt: at,
-    workflow: input.workflow,
-    steps: input.workflow.steps.map((step) => ({stepId: step.id, agent: step.agent, actionId: randomUUID(), attempt: 0, status: "pending", input: {}})),
+    workflow: options.workflow,
+    steps: options.workflow.steps.map((step) => ({stepId: step.id, agent: step.agent, actionId: randomUUID(), attempt: 0, status: "pending", input: {}})),
   };
 }
 
-/** Reopens an existing run in place, refusing a rerun that could repeat an external action. */
+/** Refuses uncertain external repeats, and preserves completed branches on continuation. */
 function resumedRun(run: WorkflowRun, allowExternalRetry: boolean): WorkflowRun {
-  const record = run.steps[run.cursor];
-  const step = run.workflow.steps[run.cursor];
-  if (record && step && step.effects === "external" && record.status === "failed" && record.attempt > 0 && !allowExternalRetry)
-    throw new Error(
-      `Step ${step.id} of ${run.workflow.name} has external effects and its attempt ${record.attempt} failed (action ${record.actionId}), so it is not rerun automatically. ${externalRetryGuidance}`
-    );
-  return {...run, status: "running", error: undefined, finishedAt: undefined};
+  for (const record of run.steps) {
+    const step = run.workflow.steps.find((item) => item.id === record.stepId);
+    if (record.status !== "completed" && record.attempt > 0 && step?.effects === "external" && !allowExternalRetry)
+      throw new Error(`Step ${record.stepId} of ${run.workflowName} has external effects and an unfinished attempt (action ${record.actionId}). ${externalRetryGuidance}`);
+  }
+  return {
+    ...run,
+    status: "running",
+    error: undefined,
+    finishedAt: undefined,
+    steps: run.steps.map((record) => (record.status === "completed" ? record : {...record, status: "pending", waitReason: undefined})),
+  };
+}
+
+/** Dispatches ready steps, keeping all state transitions behind one persistence queue. */
+async function executeWorkflow(options: RunWorkflowOptions, initial: WorkflowRun): Promise<WorkflowRun> {
+  const {snapshot, store, execute} = options;
+  workflowLayers(initial.workflow.steps);
+  const workspacePath = await realpath(snapshot.project.path);
+  let run = initial;
+  const started = Date.now();
+  const elapsed = initial.activeElapsedMs ?? 0;
+  const remainingMs = initial.workflow.limits.maxWallClockSeconds * 1000 - elapsed;
+  const cancellation = new AbortController();
+  const signal = options.signal ? AbortSignal.any([options.signal, cancellation.signal]) : cancellation.signal;
+  let stopReason: string | undefined;
+  const timer = setTimeout(
+    () => {
+      stopReason = `Workflow ${run.workflowName} reached its wall-clock limit of ${run.workflow.limits.maxWallClockSeconds} seconds.`;
+      cancellation.abort();
+    },
+    Math.max(0, remainingMs)
+  );
+  timer.unref();
+  const active = new Map<string, Promise<void>>();
+  const reserved = new Map<string, number>();
+  const attemptSpend = new Map<string, number>();
+  let fatalError: unknown;
+  let writes = Promise.resolve();
+  const persist = (update: (current: WorkflowRun) => WorkflowRun): Promise<void> => {
+    writes = writes.then(async () => {
+      const next = update(run);
+      const firstUnfinished = next.steps.findIndex((record) => record.status !== "completed");
+      run = {
+        ...next,
+        cursor: firstUnfinished < 0 ? next.steps.length : firstUnfinished,
+        completedCount: next.steps.filter((record) => record.status === "completed").length,
+        revision: (run.revision ?? 0) + 1,
+        updatedAt: new Date().toISOString(),
+        activeElapsedMs: elapsed + Date.now() - started,
+        stepStates: workflowStepSummaries(next),
+      };
+      await store.saveWorkflowRun(run);
+      options.onUpdate?.(run);
+    });
+    return writes;
+  };
+  const updateStep = (id: string, update: (record: WorkflowStepExecutionRecord) => WorkflowStepExecutionRecord) =>
+    persist((current) => ({...current, steps: current.steps.map((record) => (record.stepId === id ? update(record) : record))}));
+
+  const work = async (step: WorkflowStep, allowance?: number): Promise<void> => {
+    const childAbort = new AbortController();
+    const childSignal = AbortSignal.any([signal, childAbort.signal]);
+    const usage = (reported: WorkflowStepUsage): Promise<void> =>
+      persist((current) => {
+        const record = current.steps.find((item) => item.stepId === step.id)!;
+        if (record.status !== "running") return current;
+        attemptSpend.set(step.id, reported.costUsd);
+        const spentUsd = current.spentUsd + Math.max(0, reported.costUsd - (record.usage?.costUsd ?? 0));
+        if (allowance !== undefined && reported.costUsd >= allowance) childAbort.abort();
+        if (current.workflow.limits.maxCostUsd !== undefined && spentUsd >= current.workflow.limits.maxCostUsd) {
+          stopReason = `Workflow ${current.workflowName} reached its cost limit of ${current.workflow.limits.maxCostUsd} USD.`;
+          cancellation.abort();
+        }
+        return {...current, spentUsd, steps: current.steps.map((item) => (item.stepId === step.id ? {...item, usage: reported} : item))};
+      });
+    try {
+      await updateStep(step.id, (record) => ({...record, waitReason: step.effects === "none" ? "Waiting for workspace access" : "Waiting for exclusive workspace access"}));
+      await withWorkflowWorkspace(workspacePath, step.effects !== "none", childSignal, async () => {
+        const defined = snapshot.harness.agents.find((agent) => agent.name === step.agent);
+        if (!defined) throw new HarnessConfigurationFailure(`Agent ${step.agent} is no longer defined.`);
+        const reads = Object.fromEntries(
+          step.reads.map((id) => {
+            const source = run.steps.find((record) => record.stepId === id);
+            if (source?.status !== "completed" || !source.output) throw new HarnessConfigurationFailure(`Step ${step.id} requires the validated output of ${id}.`);
+            return [id, source.output];
+          })
+        );
+        await updateStep(step.id, (record) => ({
+          ...record,
+          status: "running",
+          attempt: record.attempt + 1,
+          startedAt: new Date().toISOString(),
+          finishedAt: undefined,
+          input: {task: run.task, reads},
+          output: undefined,
+          rawOutput: undefined,
+          error: undefined,
+          failureKind: undefined,
+          waitReason: undefined,
+          usage: undefined,
+          runId: undefined,
+        }));
+        const record = run.steps.find((item) => item.stepId === step.id)!;
+        const {snapshot: child, agent} = stepExecution(snapshot, defined, step);
+        const task = stepPrompt({workflow: run.workflow, step, position: run.workflow.steps.indexOf(step), task: run.task, actionId: record.actionId, reads});
+        const worked = await execute({
+          snapshot: child,
+          agent,
+          task,
+          signal: childSignal,
+          effects: step.effects,
+          maxCostUsd: allowance,
+          onStarted: (runId) => updateStep(step.id, (item) => ({...item, runId})),
+          onUsage: usage,
+        });
+        // A completed reply is accounted even when it crossed a per-reply billing boundary.
+        await usage(worked.usage);
+        const validated = validateStepOutput(step, worked.text);
+        await updateStep(step.id, (item) => ({
+          ...item,
+          runId: worked.runId ?? item.runId,
+          rawOutput: worked.text,
+          finishedAt: new Date().toISOString(),
+          ...("error" in validated ? {status: "failed", failureKind: "malformed_output", error: validated.error} : {status: "completed", output: validated.output}),
+        }));
+        if (step.limits?.maxCostUsd !== undefined && worked.usage.costUsd >= step.limits.maxCostUsd)
+          stopReason = `Step ${step.id} spent ${worked.usage.costUsd.toFixed(4)} USD, reaching its limit of ${step.limits.maxCostUsd} USD.`;
+      });
+    } catch (error) {
+      const limit = stopReason ?? (childAbort.signal.aborted ? `Step ${step.id} reached its cost allowance.` : undefined);
+      await updateStep(step.id, (record) => ({
+        ...record,
+        status: limit ? "failed" : signal.aborted ? "cancelled" : "failed",
+        finishedAt: new Date().toISOString(),
+        waitReason: undefined,
+        failureKind: limit ? "limit" : signal.aborted ? "cancelled" : error instanceof HarnessConfigurationFailure ? "configuration" : "provider",
+        error: limit ?? (error instanceof Error ? error.message : String(error)),
+      }));
+    } finally {
+      reserved.delete(step.id);
+      attemptSpend.delete(step.id);
+    }
+  };
+
+  try {
+    await persist((current) => current);
+    while (true) {
+      if (fatalError) throw fatalError;
+      if (remainingMs <= Date.now() - started && !stopReason) {
+        stopReason = `Workflow ${run.workflowName} reached its wall-clock limit of ${run.workflow.limits.maxWallClockSeconds} seconds.`;
+        cancellation.abort();
+      }
+      const limit = run.workflow.limits.maxCostUsd;
+      if (limit !== undefined && run.spentUsd >= limit && !stopReason) stopReason = `Workflow ${run.workflowName} reached its cost limit of ${limit} USD.`;
+      for (const step of run.workflow.steps) {
+        if (active.has(step.id)) continue;
+        const record = run.steps.find((item) => item.stepId === step.id)!;
+        if (record.status !== "pending") continue;
+        const dependencies = workflowDependencies(step).map((id) => run.steps.find((item) => item.stepId === id)!);
+        const failed = dependencies.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
+        if (failed.length) {
+          await updateStep(step.id, (item) => ({...item, status: "blocked", waitReason: `Waiting for ${failed.map((source) => source.stepId).join(", ")} to succeed`}));
+          continue;
+        }
+        if (stopReason || signal.aborted) {
+          await updateStep(step.id, (item) => ({
+            ...item,
+            status: stopReason ? "failed" : "cancelled",
+            failureKind: stopReason ? "limit" : "cancelled",
+            error: stopReason ?? "Workflow cancelled before this step started.",
+            waitReason: undefined,
+          }));
+          continue;
+        }
+        const waiting = dependencies.filter((item) => item.status !== "completed");
+        if (waiting.length) {
+          const waitReason = `Waiting for ${waiting.map((item) => item.stepId).join(", ")}`;
+          if (record.waitReason !== waitReason) await updateStep(step.id, (item) => ({...item, waitReason}));
+          continue;
+        }
+        const capacity = run.workflow.maxParallel ?? 1;
+        if (active.size >= capacity) {
+          if (record.waitReason !== "Waiting for available capacity") await updateStep(step.id, (item) => ({...item, waitReason: "Waiting for available capacity"}));
+          continue;
+        }
+        const held = [...reserved].reduce((total, [id, amount]) => total + Math.max(0, amount - (attemptSpend.get(id) ?? 0)), 0);
+        const available = limit === undefined ? undefined : Math.max(0, limit - run.spentUsd - held);
+        if (available !== undefined && available < 0.000001 && active.size > 0) continue;
+        const allowance = available === undefined ? step.limits?.maxCostUsd : Math.min(step.limits?.maxCostUsd ?? Infinity, available / (capacity - active.size));
+        if (allowance !== undefined) reserved.set(step.id, allowance);
+        const pending = work(step, allowance)
+          .catch((error: unknown) => {
+            fatalError = error;
+            cancellation.abort();
+          })
+          .finally(() => active.delete(step.id));
+        active.set(step.id, pending);
+      }
+      if (active.size > 0) {
+        await Promise.race(active.values());
+        continue;
+      }
+      if (fatalError) throw fatalError;
+      if (run.steps.some((record) => record.status === "pending")) continue;
+      break;
+    }
+    const failed = run.steps.find((record) => record.status === "failed" || record.status === "blocked");
+    await persist((current) => ({
+      ...current,
+      status: failed ? "failed" : current.steps.every((record) => record.status === "completed") ? "completed" : "cancelled",
+      error: failed?.error ?? failed?.waitReason ?? stopReason,
+      finishedAt: new Date().toISOString(),
+    }));
+    return run;
+  } finally {
+    clearTimeout(timer);
+    cancellation.abort();
+    await Promise.allSettled(active.values());
+  }
 }
 
 export interface RunWorkflowOptions {
@@ -193,101 +388,45 @@ export interface RunWorkflowOptions {
   readonly task: string;
   readonly store: HarnessRunStore;
   readonly execute: WorkflowStepExecutor;
-  /** An existing run to continue in place. Its frozen workflow is executed, not the harness's current one. */
   readonly resume?: WorkflowRun;
   readonly allowExternalRetry?: boolean;
   readonly signal?: AbortSignal;
+  readonly invocationId?: string;
+  readonly onUpdate?: (run: WorkflowRun) => void;
 }
 
-/** Runs a workflow's steps in order, validating each handoff and persisting the run at every step boundary. */
+/** Runs a persisted dependency graph with bounded parallelism, shared outputs and one owner per invocation. */
 export async function runWorkflow(options: RunWorkflowOptions): Promise<WorkflowRun> {
-  const {snapshot, store, execute, signal} = options;
-  let run = options.resume ? resumedRun(options.resume, options.allowExternalRetry === true) : createdRun(options);
-  const deadline = Date.now() + run.workflow.limits.maxWallClockSeconds * 1000;
-  const executed = new Set<string>();
-  const persist = async (next: WorkflowRun): Promise<void> => {
-    run = {...next, updatedAt: new Date().toISOString()};
-    await store.saveWorkflowRun(run);
-  };
-  await persist(run);
-  while (run.cursor < run.workflow.steps.length) {
-    const index = run.cursor;
-    const step = run.workflow.steps[index]!;
-    const pending = run.steps[index]!;
-    const stop = limitReached(run, deadline, executed);
-    if (stop) {
-      await persist(endedRun(run, index, {...pending, status: "failed", failureKind: "limit", error: stop}));
-      return run;
-    }
-    if (signal?.aborted) {
-      await persist(endedRun(run, index, {...pending, status: "cancelled", failureKind: "cancelled", error: `Step ${step.id} was cancelled before it started.`}));
-      return run;
-    }
-    const defined = snapshot.harness.agents.find((item) => item.name === step.agent);
-    if (!defined) {
-      const error = `Step ${step.id} runs the agent ${step.agent}, which this harness no longer defines.`;
-      await persist(endedRun(run, index, {...pending, status: "failed", failureKind: "configuration", error}));
-      return run;
-    }
-    const reads = Object.fromEntries(step.reads.map((stepId) => [stepId, run.steps.find((item) => item.stepId === stepId)?.output ?? {}]));
-    const started: WorkflowStepExecutionRecord = {
-      ...pending,
-      attempt: pending.attempt + 1,
-      status: "running",
-      startedAt: new Date().toISOString(),
-      finishedAt: undefined,
-      input: {task: run.task, reads},
-      output: undefined,
-      rawOutput: undefined,
-      error: undefined,
-      failureKind: undefined,
-      usage: undefined,
-    };
-    await persist({...run, steps: run.steps.map((item, position) => (position === index ? started : item))});
-    const {snapshot: child, agent} = stepExecution(snapshot, defined, step);
-    const prompt = stepPrompt({workflow: run.workflow, step, position: index, task: run.task, actionId: started.actionId, reads});
-    let worked: Awaited<ReturnType<WorkflowStepExecutor>>;
+  const id = options.resume?.id ?? (options.invocationId ? createHash("sha256").update(`${options.chatId}:${options.invocationId}`).digest("hex").slice(0, 40) : randomUUID());
+  return options.store.executeWorkflow(options.chatId, id, async () => {
+    let saved: WorkflowRun | undefined;
     try {
-      worked = await execute({snapshot: child, agent, task: prompt, signal});
+      saved = await options.store.getWorkflowRun(options.chatId, id);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const failureKind = signal?.aborted ? "cancelled" : error instanceof HarnessConfigurationFailure ? "configuration" : "provider";
-      const status = failureKind === "cancelled" ? "cancelled" : "failed";
-      await persist(endedRun(run, index, {...started, status, failureKind, error: message, finishedAt: new Date().toISOString()}));
-      return run;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-    const finished = {...started, runId: worked.runId, usage: worked.usage, rawOutput: worked.text, finishedAt: new Date().toISOString()};
-    const spentUsd = run.spentUsd + worked.usage.costUsd;
-    const validated = validateStepOutput(step, worked.text);
-    if ("error" in validated) {
-      await persist(endedRun(run, index, {...finished, status: "failed", failureKind: "malformed_output", error: validated.error}, spentUsd));
-      return run;
-    }
-    executed.add(step.id);
-    await persist({
-      ...run,
-      steps: run.steps.map((item, position) => (position === index ? {...finished, status: "completed", output: validated.output} : item)),
-      cursor: index + 1,
-      spentUsd,
-    });
-  }
-  await persist({...run, status: "completed", finishedAt: new Date().toISOString()});
-  return run;
+    if (saved?.status === "completed" || (saved && !options.resume)) return saved;
+    if (saved?.status === "running") throw new Error("This workflow is still running. Wait for its current execution before resuming.");
+    const initial = saved ?? options.resume;
+    return executeWorkflow(options, initial ? resumedRun(initial, options.allowExternalRetry === true) : createdRun(options, id));
+  });
 }
 
-/** Reports the run to the calling agent: what every step did, the validated result, the spend, and how to resume. */
+/** Reports recorded results and the exact continuation identity to the calling agent. */
 export function describeWorkflowRun(run: WorkflowRun): string {
-  const steps = run.steps.map((record, index) => {
-    const detail = record.failureKind ? ` — ${record.failureKind}: ${record.error ?? "no detail"}` : record.attempt > 1 ? ` (attempt ${record.attempt})` : "";
-    return `${index + 1}. ${record.stepId} [${record.agent}] ${record.status}${detail}`;
+  const steps = run.steps.map(
+    (record) => `${record.stepId} [${record.agent}] ${record.status}${record.error ? ` — ${record.error}` : record.waitReason ? ` — ${record.waitReason}` : ""}`
+  );
+  const terminals = run.workflow.steps.filter((step) => !run.workflow.steps.some((other) => workflowDependencies(other).includes(step.id)));
+  const outputs = terminals.flatMap((step) => {
+    const record = run.steps.find((item) => item.stepId === step.id && item.status === "completed");
+    return record?.output ? [`Output of ${step.id}:\n${JSON.stringify(record.output, null, 2)}`] : [];
   });
-  const completed = [...run.steps].reverse().find((record) => record.status === "completed" && record.output);
-  const limit = run.workflow.limits.maxCostUsd !== undefined ? ` of ${run.workflow.limits.maxCostUsd.toFixed(2)} USD` : "";
   return [
-    `Workflow ${run.workflowName} ${run.status}: ${run.cursor} of ${run.stepCount} steps done.`,
+    `Workflow ${run.workflowName} ${run.status}: ${run.steps.filter((step) => step.status === "completed").length} of ${run.stepCount} steps done.`,
     steps.join("\n"),
-    completed ? `Output of ${completed.stepId}:\n${JSON.stringify(completed.output, null, 2)}` : "No step produced validated output.",
-    `Spend: ${run.spentUsd.toFixed(4)} USD${limit}.`,
+    ...outputs,
+    `Spend: ${run.spentUsd.toFixed(4)} USD.`,
     ...(run.status === "completed" ? [] : [`Resume with harness_workflow and resumeRunId ${run.id} once the cause is fixed. Completed steps are not run again.`]),
   ].join("\n\n");
 }

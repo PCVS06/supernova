@@ -5,7 +5,7 @@ interface LedgerRowEndProps {
   actions: ReactNode;
 }
 
-/** Keeps quiet row actions visible in a fixed slot without shifting on hover. */
+/** Reveals row actions on hover or keyboard focus without shifting the title. */
 export default function LedgerRowEnd(props: LedgerRowEndProps) {
   const {actions} = props;
   return (

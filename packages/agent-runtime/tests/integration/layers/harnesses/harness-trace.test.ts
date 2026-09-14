@@ -176,6 +176,19 @@ describe("chat-owned worker receipts and view boundaries", () => {
     expect(harnessPromptLayers(legacy, agent).map((layer) => layer.content)).toEqual(["SHARED RULES", "PROJECT BRIEF", "REVIEW ROLE"]);
   });
 
+  it("offers a chat the way to reach the curator, and a chat-less tool set nothing to file into", () => {
+    const {snapshot} = configuration();
+    const store = new HarnessRunStore(join(root, "runs"));
+
+    expect(createHarnessTools(snapshot, fakeSdk().sdk, {chatId: "chat", store}).map((tool) => tool.name)).toEqual([
+      "subagent",
+      "harness_workflow",
+      "manage_lab_view",
+      "request_curation",
+    ]);
+    expect(createHarnessTools(snapshot, fakeSdk().sdk).map((tool) => tool.name)).not.toContain("request_curation");
+  });
+
   it("allows bounded view edits, rejects cross-lab authority and stale revisions, and preserves prompts and folders", async () => {
     const store = new HarnessStore(join(root, "configuration"));
     await mkdir(join(root, "lab"));

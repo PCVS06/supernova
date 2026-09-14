@@ -1,3 +1,6 @@
+import {useState} from "react";
+import WorkflowGraph from "@/features/harnesses/components/workflow-graph/workflow-graph";
+import {workflowStepSummaries} from "@supernova/contracts/harnesses/workflow-graph";
 import {Link} from "@tanstack/react-router";
 import type {WorkflowRun, WorkflowStep, WorkflowStepExecutionRecord} from "@supernova/contracts/harnesses/schemas";
 import AgentMark from "@/features/harnesses/components/agent-mark";
@@ -60,14 +63,16 @@ function StepRecord(props: {sessionId: string; record: WorkflowStepExecutionReco
 function ResumeBlock(props: {run: WorkflowRun}) {
   const {run} = props;
   // The runtime refuses a rerun of the step at the cursor when that step failed and touches something outside the workspace.
-  const external = run.steps[run.cursor]?.status === "failed" && run.workflow.steps[run.cursor]?.effects === "external";
+  const external = run.steps.some(
+    (record) => record.status !== "completed" && record.attempt > 0 && run.workflow.steps.find((step) => step.id === record.stepId)?.effects === "external"
+  );
   const instruction = `Run harness_workflow with resumeRunId ${run.id}${external ? " and allowExternalRetry true" : ""}`;
   return (
     <section className="space-y-3 rounded-xl border border-border p-5">
       <h2 className="text-sm font-medium">Resume this run</h2>
       <p className="text-sm leading-relaxed text-ink-muted">
-        A resume continues from step {run.cursor + 1} of {run.stepCount} and keeps the same run. Completed steps are not run again; their outputs are handed to the steps that read
-        them. Ask your lead in chat:
+        A resume continues unfinished branches and keeps the same run. Completed steps are not run again; their outputs are handed to the steps that read them. Ask your lead in
+        chat:
       </p>
       <pre className="whitespace-pre-wrap break-words rounded-lg border border-border p-4 font-mono text-xs leading-relaxed">{instruction}</pre>
       {external && (
@@ -81,6 +86,7 @@ function ResumeBlock(props: {run: WorkflowRun}) {
 
 /** Inspect one durable workflow run: the steps that actually ran, what they returned, and how to continue it. */
 export default function WorkflowRunPage({sessionId, runId}: {sessionId: string; runId: string}) {
+  const [selectedId, setSelectedId] = useState<string>();
   const query = useWorkflowRun(sessionId, runId);
   const run = query.data;
   return (
@@ -103,7 +109,7 @@ export default function WorkflowRunPage({sessionId, runId}: {sessionId: string; 
               <div>
                 <h1 className="text-xl font-medium">{run.workflow.name}</h1>
                 <p className="mt-1 text-sm text-ink-muted">
-                  {run.status} · step {run.cursor} of {run.stepCount} · ${run.spentUsd.toFixed(2)} spent
+                  {run.status} · {run.completedCount ?? run.cursor} of {run.stepCount} complete · ${run.spentUsd.toFixed(2)} spent
                 </p>
               </div>
               <section>
@@ -116,6 +122,7 @@ export default function WorkflowRunPage({sessionId, runId}: {sessionId: string; 
                 </p>
               )}
               {(run.status === "failed" || run.status === "interrupted") && <ResumeBlock run={run} />}
+              <WorkflowGraph steps={workflowStepSummaries(run)} selectedId={selectedId} onSelect={setSelectedId} live={run.status === "running" && !query.error} />
               <section>
                 <h2 className="mb-3 text-sm font-medium">Steps</h2>
                 <ol className="space-y-3" aria-label="Workflow run steps">

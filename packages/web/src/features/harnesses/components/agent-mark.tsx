@@ -1,8 +1,8 @@
-import PiOrb from "@/components/brand/pi-orb";
-import {agentColor} from "@/features/harnesses/lib/agent-identity";
+import ConstantOrb from "@/components/brand/constant-orb";
+import {agentColor, agentMarks} from "@/features/harnesses/lib/agent-identity";
 import {cn} from "@/lib/cn";
 
-export type AgentMarkKind = "lead" | "specialist";
+export type AgentMarkKind = keyof typeof agentMarks;
 
 interface AgentMarkProps {
   name: string;
@@ -10,15 +10,16 @@ interface AgentMarkProps {
   className?: string;
   working?: boolean;
   kind?: AgentMarkKind;
+  colorPreview?: boolean;
 }
 
-/** The app's rune ring with a stable role color. Leads and specialists share one shape and differ by color only. */
+/** Identifies each role with its mathematical symbol and animated number field. */
 export default function AgentMark(props: AgentMarkProps) {
-  const {name, color, className, working, kind = "specialist"} = props;
+  const {name, color, className, working, kind = "specialist", colorPreview = false} = props;
 
   return (
-    <span data-kind={kind} title={kind === "lead" ? "Project lead" : "Specialist worker"} className={cn("relative inline-flex", className ?? "size-8")}>
-      <PiOrb color={agentColor(name, color)} className="size-full" state={working ? "working" : "still"} />
+    <span data-kind={kind} title={agentMarks[kind].label} className={cn("relative inline-flex", className ?? "size-8")}>
+      <ConstantOrb constant={agentMarks[kind].constant} color={colorPreview ? agentColor(name, color) : undefined} className="size-full" state={working ? "working" : "idle"} />
     </span>
   );
 }

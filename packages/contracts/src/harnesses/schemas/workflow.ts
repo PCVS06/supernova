@@ -34,22 +34,25 @@ export const WorkflowStep = Schema.Struct({
   agent: Schema.String,
   instructions: Schema.String,
   reads: Schema.Array(Schema.String),
+  /** Ordering prerequisites whose output is not added to this step's context. */
+  dependsOn: Schema.optional(Schema.Array(Schema.String)),
   output: WorkflowOutputContract,
   effects: WorkflowStepEffects,
   execution: Schema.optional(WorkflowStepExecution),
   limits: Schema.optional(WorkflowStepLimits),
 });
 
-/** A named, sequential workflow shared by every project of a harness. */
+/** A named dependency graph shared by every project of a harness. */
 export const HarnessWorkflow = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   description: Schema.String,
   steps: Schema.Array(WorkflowStep),
+  maxParallel: Schema.optional(Schema.Number),
   limits: Schema.Struct({maxCostUsd: Schema.optional(Schema.Number), maxWallClockSeconds: Schema.Number}),
 });
 
-export const WorkflowStepStatus = Schema.Literals(["pending", "running", "completed", "failed", "skipped", "cancelled"]);
+export const WorkflowStepStatus = Schema.Literals(["pending", "running", "completed", "failed", "blocked", "skipped", "cancelled"]);
 
 /** Why a step stopped. Malformed output and limits are semantic failures and are never retried automatically. */
 export const WorkflowFailureKind = Schema.Literals(["malformed_output", "provider", "limit", "cancelled", "configuration", "unknown"]);
@@ -64,6 +67,7 @@ export const WorkflowStepExecutionRecord = Schema.Struct({
   actionId: Schema.String,
   attempt: Schema.Number,
   status: WorkflowStepStatus,
+  waitReason: Schema.optional(Schema.String),
   startedAt: Schema.optional(Schema.String),
   finishedAt: Schema.optional(Schema.String),
   /** Receipt id of the specialist worker that executed this attempt, when one was started. */
@@ -78,6 +82,21 @@ export const WorkflowStepExecutionRecord = Schema.Struct({
 
 export const WorkflowRunStatus = Schema.Literals(["running", "completed", "failed", "cancelled", "interrupted"]);
 
+/** Lightweight topology and progress; prompts and outputs are loaded only on inspection. */
+export const WorkflowStepSummary = Schema.Struct({
+  stepId: Schema.String,
+  agent: Schema.String,
+  reads: Schema.Array(Schema.String),
+  dependsOn: Schema.Array(Schema.String),
+  status: WorkflowStepStatus,
+  waitReason: Schema.optional(Schema.String),
+  startedAt: Schema.optional(Schema.String),
+  finishedAt: Schema.optional(Schema.String),
+  runId: Schema.optional(Schema.String),
+  attempt: Schema.Number,
+  usage: Schema.optional(WorkflowStepUsage),
+});
+
 export const WorkflowRunSummary = Schema.Struct({
   id: Schema.String,
   chatId: Schema.String,
@@ -89,8 +108,13 @@ export const WorkflowRunSummary = Schema.Struct({
   workflowRevision: Schema.Number,
   task: Schema.String,
   status: WorkflowRunStatus,
-  /** Index of the next step to execute; equals the step count when every step finished. */
+  /** First unfinished definition index; progress uses completedCount for branched graphs. */
   cursor: Schema.Number,
+  completedCount: Schema.optional(Schema.Number),
+  revision: Schema.optional(Schema.Number),
+  invocationId: Schema.optional(Schema.String),
+  activeElapsedMs: Schema.optional(Schema.Number),
+  stepStates: Schema.optional(Schema.Array(WorkflowStepSummary)),
   stepCount: Schema.Number,
   spentUsd: Schema.Number,
   startedAt: Schema.String,
@@ -121,3 +145,4 @@ export type WorkflowStepExecutionRecord = typeof WorkflowStepExecutionRecord.Typ
 export type WorkflowRunStatus = typeof WorkflowRunStatus.Type;
 export type WorkflowRunSummary = typeof WorkflowRunSummary.Type;
 export type WorkflowRun = typeof WorkflowRun.Type;
+export type WorkflowStepSummary = typeof WorkflowStepSummary.Type;

@@ -8,7 +8,8 @@ import WorkerRunDetail from "@/features/harnesses/components/worker-run/worker-r
 import WorkerActivity from "@/features/harnesses/components/worker-run/worker-activity";
 
 const query = vi.hoisted(() => ({data: undefined as HarnessRun | undefined, error: undefined as Error | undefined, refetch: vi.fn()}));
-vi.mock("@/features/harnesses/hooks/api/use-harness-runs", () => ({useHarnessRun: () => query}));
+vi.mock("@/features/harnesses/hooks/api/use-harness-runs", () => ({useHarnessRun: () => query, useHarnessRuns: () => ({data: [], isSuccess: true})}));
+vi.mock("@/features/harnesses/hooks/api/use-workflow-runs", () => ({useWorkflowRuns: () => ({data: [], isSuccess: true})}));
 vi.mock("@tanstack/react-router", () => ({
   Link: ({children, to, params, ...props}: {children: ReactNode; to: string; params: Record<string, string>}) => (
     <a {...props} href={Object.entries(params).reduce((path, [key, value]) => path.replace(`$${key}`, value), to)}>
@@ -61,16 +62,15 @@ describe("worker conversation inspection", () => {
     query.error = undefined;
   });
 
-  it("shows a chat first, keeps context out of the conversation, and links the owning chat and delegating worker", () => {
+  it("puts the result first, keeps context closed, and links the owning chat", () => {
     query.data = run;
     const html = renderToStaticMarkup(<HarnessRunPage sessionId={run.chatId} runId={run.id} />);
     expect(html).toContain('aria-label="Worker conversation"');
     expect(html).toContain("Check the research claims.");
     expect(html).toContain("<strong>primary source</strong>");
     expect(html).toContain('href="/session/owning-chat"');
-    expect(html).toContain('href="/session/owning-chat/run/lab-lead"');
-    expect(html).toContain("Steer through lead");
-    expect(html).toContain("Agent conversation · read only");
+    expect(html).not.toContain('href="/session/owning-chat/run/lab-lead"');
+    expect(html).toContain("Back to chat");
     expect(html).not.toContain("ROLE INSTRUCTIONS ARE NOT CHAT");
     expect(html).not.toContain("No transcript recorded");
     expect(html).toContain('aria-expanded="false"');
@@ -80,7 +80,7 @@ describe("worker conversation inspection", () => {
   it("labels a historical final result honestly instead of inventing a conversation", () => {
     const html = renderToStaticMarkup(<WorkerConversation run={{...run, status: "completed", transcript: undefined, output: "Archived result"}} />);
     expect(html).toContain("No transcript recorded for this run");
-    expect(html).toContain("Returned result");
+    expect(html).toContain('aria-label="Agent result"');
     expect(html).toContain("Archived result");
     expect(html).not.toContain("Updates automatically");
     expect(html).not.toContain("Writing…");
@@ -89,7 +89,7 @@ describe("worker conversation inspection", () => {
   it.each(["failed", "cancelled", "interrupted", "completed"] as const)("does not claim a tool is still running after the run is %s", (status) => {
     const html = renderToStaticMarkup(<WorkerConversation run={{...run, status}} />);
     expect(html).toContain("No completion recorded");
-    expect(html).toContain("This worker is no longer running");
+    expect(html).not.toContain("This worker is no longer running");
     expect(html).not.toContain("Updates automatically");
   });
 
@@ -125,7 +125,7 @@ describe("worker conversation inspection", () => {
 
   it("distinguishes a newly started empty recording from a historical missing recording", () => {
     const html = renderToStaticMarkup(<WorkerConversation run={{...run, status: "starting", transcript: {entries: [], omittedEntries: 0}}} />);
-    expect(html).toContain("No public response or tool activity recorded yet");
+    expect(html).toContain("Working on the assignment…");
     expect(html).not.toContain("No transcript recorded");
   });
 

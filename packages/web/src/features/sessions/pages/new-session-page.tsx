@@ -2,7 +2,7 @@ import type {Session, UserMessageContentPart} from "@supernova/contracts/session
 import {useRef} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {useNavigate, useRouter} from "@tanstack/react-router";
-import PiOrb from "@/components/brand/pi-orb";
+import ConstantOrb from "@/components/brand/constant-orb";
 import ChatRoleBadge from "@/features/sessions/components/chat-role-badge";
 import AttachmentDropOverlay from "@/features/sessions/components/attachments/attachment-drop-overlay";
 import ComposerToolbarGroup from "@/features/sessions/components/composer/composer-toolbar-group";
@@ -23,7 +23,6 @@ import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store
 import {useRpcClient} from "@/rpc/use-rpc-client";
 import {showToast} from "@/components/ui/toast-manager";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
-import {agentColor} from "@/features/harnesses/lib/agent-identity";
 
 const GOAL_CHAT_TITLE_LENGTH = 120;
 
@@ -125,7 +124,7 @@ function NewProjectSession(props: NewSessionPageProps) {
     <div {...composerAttachments.dropZoneProps} className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-16 pt-4">
       <div className="flex h-[min(calc(100svh-1rem),32rem)] w-[min(calc(100vw-2rem),48rem)] flex-col items-center justify-center overflow-visible">
         <div className="mb-8 flex max-w-full flex-col items-center gap-3 px-4">
-          <PiOrb className="mb-1 size-36" color={project ? (project.color ?? (project.id === harness?.coordinatorProjectId ? "#ffffff" : agentColor(project.id))) : undefined} />
+          <ConstantOrb constant={project && project.id === harness?.coordinatorProjectId ? "tau" : "phi"} className="mb-1 size-36" />
           <h1 className="text-center text-2xl font-medium tracking-tight text-ink-strong">What would you like to work on?</h1>
           <p className="max-w-full truncate text-sm text-ink-muted" title={projectName}>
             <ChatRoleBadge role={project ? (project.id === harness?.coordinatorProjectId ? "harness-lead" : "project-lead") : "chat"} /> ·{" "}
@@ -146,7 +145,7 @@ function NewProjectSession(props: NewSessionPageProps) {
               onAccepted={handleAccepted}
               projectPath={projectPath}
               toolbarControls={
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 items-center gap-1">
                   <ComposerToolbarGroup label="Model">
                     <ModelPicker
                       selectedModel={modelSelection.selectedModelDetails}

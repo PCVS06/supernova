@@ -17,12 +17,20 @@ export const HarnessAgent = Schema.Struct({
 export const CuratorAutoApply = Schema.Struct({memory: Schema.Boolean, planningLog: Schema.Boolean});
 
 /** The background curator of a harness: what it may apply by itself and how much it may spend. */
+/** Local wall-clock window, "HH:MM" to "HH:MM", in which no review starts; may cross midnight. */
+export const CuratorQuietHours = Schema.Struct({from: Schema.String, to: Schema.String});
+
 export const CuratorConfig = Schema.Struct({
   enabled: Schema.Boolean,
   execution: Schema.optional(HarnessExecution),
   maxCostUsdPerRun: Schema.Number,
   maxCostUsdPerDay: Schema.Number,
   autoApply: CuratorAutoApply,
+  /** Local time "HH:MM" of the daily full review; unset means no daily sweep. */
+  dailyAt: Schema.optional(Schema.String),
+  quietHours: Schema.optional(CuratorQuietHours),
+  /** Days after a decision on an artefact before it may be proposed against again without newer evidence; default 7. */
+  cooldownDays: Schema.optional(Schema.Number),
 });
 
 export const HarnessConfig = Schema.Struct({
@@ -177,6 +185,7 @@ export type HarnessLibrary = typeof HarnessLibrary.Type;
 export type HarnessSnapshot = typeof HarnessSnapshot.Type;
 export type CuratorConfig = typeof CuratorConfig.Type;
 export type CuratorAutoApply = typeof CuratorAutoApply.Type;
+export type CuratorQuietHours = typeof CuratorQuietHours.Type;
 export type HarnessPromptLayer = typeof HarnessPromptLayer.Type;
 export type HarnessRunSummary = typeof HarnessRunSummary.Type;
 export type HarnessRun = typeof HarnessRun.Type;
