@@ -29,7 +29,7 @@ export default function SettingsShell(props: SettingsShellProps) {
       sidebar={<SettingsSidebar activeHarnessId={activeHarnessId} activePage={activePage} activeSectionId={activeSectionId} />}
       sidebarWidth={SETTINGS_SIDEBAR_WIDTH}
     >
-      <header className="flex h-12 shrink-0 items-baseline gap-2 border-b border-border px-5 [-webkit-app-region:drag] sm:px-6">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-5 [-webkit-app-region:drag] sm:px-6">
         {owner && <span className="truncate text-xs text-ink-faint">{owner}</span>}
         <h1 className="truncate text-sm font-medium text-ink-strong">{title}</h1>
       </header>
