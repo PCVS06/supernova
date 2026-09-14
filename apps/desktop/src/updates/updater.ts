@@ -18,6 +18,7 @@ interface CreateDesktopUpdaterOptions {
 export interface DesktopUpdater {
   readonly getState: () => DesktopUpdateState;
   readonly start: () => void;
+  readonly check: () => void;
   readonly download: () => Promise<void>;
   readonly quitAndInstall: () => void;
 }
@@ -48,8 +49,8 @@ function detectAdhocBundle(): Promise<boolean> {
   });
 }
 
-const adhocReason = "This copy of pi+ is not code-signed, so macOS refuses to replace it in place. Download the new version and replace the app yourself.";
-const mismatchReason = "macOS refused to install the update because its code signature does not match this copy of pi+. Download the new version and replace the app yourself.";
+const adhocReason = "This copy of Radian is not code-signed, so macOS refuses to replace it in place. Download the new version and replace the app yourself.";
+const mismatchReason = "macOS refused to install the update because its code signature does not match this copy of Radian. Download the new version and replace the app yourself.";
 
 /**
  * Creates the desktop auto-updater with two-step semantics: updates are never downloaded or
@@ -71,13 +72,15 @@ export function createDesktopUpdater({nightly, onStateChange}: CreateDesktopUpda
   };
 
   const checkForUpdates = (): void => {
-    if (state.status === "downloading" || state.status === "downloaded") return;
+    if (!supported || state.status === "downloading" || state.status === "downloaded") return;
     // Failures surface through the updater "error" event.
     void autoUpdater.checkForUpdates().catch(() => undefined);
   };
 
   return {
     getState: () => state,
+
+    check: checkForUpdates,
 
     start: () => {
       if (!supported) return;

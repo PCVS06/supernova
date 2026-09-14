@@ -8,6 +8,7 @@ export const DESKTOP_IPC_CHANNELS = {
   goForwardWorkspaceBrowser: "desktop:workspace-browser-forward",
   reloadWorkspaceBrowser: "desktop:workspace-browser-reload",
   getUpdateState: "desktop:get-update-state",
+  checkForUpdates: "desktop:check-for-updates",
   downloadUpdate: "desktop:download-update",
   installUpdate: "desktop:install-update",
   updateState: "desktop:update-state",

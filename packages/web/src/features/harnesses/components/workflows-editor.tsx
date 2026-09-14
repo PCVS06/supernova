@@ -2,78 +2,38 @@ import {useState} from "react";
 import {AnimatePresence, motion} from "framer-motion";
 import type {HarnessConfig, HarnessWorkflow, WorkflowStep} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
-import Icon from "@/components/ui/icon";
 import Input from "@/components/ui/input";
 import SettingsPageShell from "@/features/settings/components/settings-page-shell";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import ConfigCard from "@/features/harnesses/components/config-card";
 import ConfigChoice from "@/features/harnesses/components/config-choice";
-import WorkflowChip from "@/features/harnesses/components/workflow-graph/workflow-chip";
-import WorkflowNodeCard from "@/features/harnesses/components/workflow-graph/workflow-node-card";
+import WorkflowGraph from "@/features/harnesses/components/workflow-graph/workflow-graph";
 import WorkflowStepEditor from "@/features/harnesses/components/workflow-graph/workflow-step-editor";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
-import {createWorkflow, insertWorkflowStep, moveWorkflowStep, removeWorkflowStep, workflowsPatch} from "@/features/harnesses/lib/workflow-draft";
-import {cn} from "@/lib/cn";
+import {createWorkflow, insertWorkflowStep, moveWorkflowStep, removeWorkflowStep, workflowsPatch, workflowEffectsLabels} from "@/features/harnesses/lib/workflow-draft";
 
 const maxWorkflows = 12;
 const maxSteps = 12;
 const panelTransition = {duration: 0.18, ease: [0.32, 0.72, 0, 1]} as const;
 
-/** The rail marker a row hangs from, so the column reads as one graph rather than a stack of cards. */
-function RailDot(props: {filled?: boolean}) {
-  return (
-    <span className="relative grid w-6 shrink-0 place-items-center self-stretch">
-      <span className={cn("size-2 rounded-full border border-border bg-surface", props.filled && "border-ink-faint bg-ink-faint")} />
-    </span>
-  );
-}
-
-interface WorkflowEdgeProps {
-  step: WorkflowStep;
-  steps: readonly WorkflowStep[];
-  onInsert: () => void;
-  canInsert: boolean;
-}
-
-/** The labelled edge into a node: which earlier step hands over which fields. */
-function WorkflowEdge(props: WorkflowEdgeProps) {
-  const {step, steps, onInsert, canInsert} = props;
-  const sources = step.reads.map((id) => ({id, fields: steps.find((item) => item.id === id)?.output.fields ?? []}));
-
-  return (
-    <div className="flex items-center gap-3 py-1.5">
-      <span className="relative grid w-6 shrink-0 place-items-center">
-        <Button
-          aria-label={`Add a step before ${step.id}`}
-          className="grid size-6 place-items-center rounded-full border border-border bg-surface text-ink-faint hover:border-ink-faint hover:text-ink"
-          disabled={!canInsert}
-          onClick={onInsert}
-        >
-          <Icon name="plus" size="xs" />
-        </Button>
-      </span>
-      <span aria-label={`Fields into ${step.id}`} className="flex min-w-0 flex-wrap items-center gap-1.5">
-        {sources.length === 0 && <WorkflowChip>Starts from the task only</WorkflowChip>}
-        {sources.map((source) => (
-          <WorkflowChip key={source.id} tone="accent">
-            {source.id} → {source.fields.map((field) => field.name).join(", ") || "no fields"}
-          </WorkflowChip>
-        ))}
-      </span>
-    </div>
-  );
-}
-
 interface WorkflowsEditorProps {
   harness: HarnessConfig;
   onChange: (change: Pick<HarnessConfig, "graph" | "workflows">) => void;
+  /** The workflow named in the URL. Without it the editor keeps its own selection. */
+  selected?: string;
+  onSelect?: (workflowId: string) => void;
 }
 
-/** Named sequential workflows as a graph with typed handoffs. Saving one starts nothing; the agent runs it when asked in chat. */
+/** Named dependency workflows with shared results and bounded parallel execution. Saving one starts nothing; the agent runs it when asked in chat. */
 export default function WorkflowsEditor(props: WorkflowsEditorProps) {
-  const {harness, onChange} = props;
+  const {harness, onChange, selected, onSelect} = props;
   const workflows = harness.workflows ?? [];
-  const [selectedId, setSelectedId] = useState(workflows[0]?.id ?? "");
+  const [ownId, setOwnId] = useState(workflows[0]?.id ?? "");
+  const selectedId = selected ?? ownId;
+  const setSelectedId = (workflowId: string): void => {
+    setOwnId(workflowId);
+    onSelect?.(workflowId);
+  };
   const [selectedStepId, setSelectedStepId] = useState(workflows[0]?.steps[0]?.id ?? "");
   const [nextAgent, setNextAgent] = useState(harness.agents[0]?.name ?? "");
   const workflow = workflows.find((item) => item.id === selectedId) ?? workflows[0];
@@ -156,6 +116,21 @@ export default function WorkflowsEditor(props: WorkflowsEditorProps) {
                     title="Description"
                   />
                   <SettingsRow
+                    title="Parallel steps"
+                    description="Independent reads run together. Workspace writes remain exclusive."
+                    control={
+                      <Input
+                        aria-label="Maximum parallel steps"
+                        className="sm:w-40"
+                        type="number"
+                        min={1}
+                        max={6}
+                        value={workflow.maxParallel ?? 1}
+                        onChange={(event) => patch({maxParallel: Number(event.target.value)})}
+                      />
+                    }
+                  />
+                  <SettingsRow
                     control={
                       <Input
                         aria-label="Time limit in seconds"
@@ -191,36 +166,20 @@ export default function WorkflowsEditor(props: WorkflowsEditorProps) {
 
                 <SettingsGroup title="Graph">
                   <div className="px-3 sm:px-4">
-                    <p className="mb-4 max-w-xl text-xs leading-relaxed text-ink-muted">Steps run in order. Each one hands the next a checked result; select a step to edit it.</p>
-                    <div className="workflow-graph-rail relative">
-                      <div className="flex items-center gap-3 pb-1.5">
-                        <RailDot />
-                        <span className="text-xs text-ink-faint">Task from the chat</span>
-                      </div>
-                      <ol aria-label="Workflow steps">
-                        {steps.map((step, index) => (
-                          <li key={step.id}>
-                            {index > 0 && <WorkflowEdge step={step} steps={steps} canInsert={!!nextAgent && steps.length < maxSteps} onInsert={() => handleInsert(index)} />}
-                            <div className="flex items-stretch gap-3">
-                              <RailDot filled={step.id === selectedStepId} />
-                              <div className="min-w-0 flex-1 py-1">
-                                <WorkflowNodeCard
-                                  agent={harness.agents.find((item) => item.name === step.agent)}
-                                  index={index}
-                                  selected={step.id === selectedStepId}
-                                  step={step}
-                                  onSelect={() => setSelectedStepId(step.id === selectedStepId ? "" : step.id)}
-                                />
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ol>
-                      <div className="flex flex-wrap items-center gap-3 pt-1.5">
-                        <RailDot />
-                        <span className="text-xs text-ink-faint">{steps.length ? "Result back to the chat" : "No steps yet. Add the first agent."}</span>
-                      </div>
-                    </div>
+                    <p className="mb-4 text-xs leading-relaxed">
+                      Branches can run together. A join waits for every incoming connection. Select a step to edit its inputs and results.
+                    </p>
+                    <WorkflowGraph
+                      descriptions={Object.fromEntries(
+                        steps.map((step) => [
+                          step.id,
+                          `${step.output.fields.map((field) => `${field.name}: ${field.type}`).join(", ")} · ${workflowEffectsLabels[step.effects]}${step.execution?.effort ? ` · ${step.execution.effort}` : ""}`,
+                        ])
+                      )}
+                      selectedId={selectedStepId}
+                      onSelect={setSelectedStepId}
+                      steps={steps.map((step) => ({stepId: step.id, agent: step.agent, reads: step.reads, dependsOn: step.dependsOn ?? [], status: "pending", attempt: 0}))}
+                    />
                     <div className="mt-4 flex flex-wrap items-center gap-2 pl-9">
                       <ConfigChoice
                         className="sm:w-56"
@@ -233,6 +192,18 @@ export default function WorkflowsEditor(props: WorkflowsEditorProps) {
                       />
                       <Button variant="filled" className="px-3 py-2 text-xs" disabled={!nextAgent || steps.length >= maxSteps} onClick={() => handleInsert(steps.length)}>
                         Add step
+                      </Button>
+                      <Button
+                        className="rounded-lg border border-border px-3 py-2 text-xs"
+                        disabled={!nextAgent || steps.length >= maxSteps}
+                        onClick={() => {
+                          const next = insertWorkflowStep(steps, steps.length, nextAgent);
+                          const added = next.at(-1)!;
+                          writeSteps(next.map((step) => (step.id === added.id ? {...step, reads: selectedStep?.reads ?? [], dependsOn: selectedStep?.dependsOn} : step)));
+                          setSelectedStepId(added.id);
+                        }}
+                      >
+                        Add parallel branch
                       </Button>
                     </div>
                   </div>

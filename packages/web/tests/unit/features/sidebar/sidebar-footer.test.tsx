@@ -17,6 +17,9 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/features/settings/stores/appearance-store", () => ({
   useAppearanceStore: (select: (value: typeof state) => unknown) => select(state),
 }));
+vi.mock("@/features/workspace/hooks/use-workspace-overview", () => ({
+  useWorkspaceOverview: () => ({library: {harnesses: [{id: "science", name: "Science Pi"}]}, data: {curators: []}}),
+}));
 vi.mock("@/components/ui/icon-button", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/components/ui/icon-button")>();
   return {
@@ -35,12 +38,14 @@ describe("sidebar footer", () => {
     buttons.clear();
   });
 
-  it("keeps Settings, theme, and help as quiet icon-only actions", () => {
+  it("keeps Settings, Inbox, theme, and help as quiet icon-only actions", () => {
     const html = renderToStaticMarkup(<SidebarFooter settingsActive={false} />);
 
     expect(html).toContain('aria-label="Open settings"');
+    expect(html).toContain('aria-label="Inbox"');
     expect(html).toContain('aria-label="Use light theme"');
     expect(html).toContain('aria-label="Open help"');
+    expect(html).toContain('href="/inbox/$harnessId"');
     expect(html).toContain("ui-icon");
     expect(html).not.toContain(">Settings<");
     buttons.get("Use light theme")!.onClick?.({} as never);

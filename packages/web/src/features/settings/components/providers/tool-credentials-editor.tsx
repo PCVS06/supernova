@@ -28,7 +28,7 @@ function CredentialField(props: {field: ToolCredentialResult[number]["fields"][n
           {field.optional ? " · optional" : ""}
         </label>
         <span className="text-ink-muted">
-          {field.source === "pi+" ? "Saved in pi+ · not tested" : field.source === "environment" ? "From environment · not tested" : "Not configured"}
+          {field.source === "pi+" ? "Saved in Radian · not tested" : field.source === "environment" ? "From environment · not tested" : "Not configured"}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -50,7 +50,7 @@ function CredentialField(props: {field: ToolCredentialResult[number]["fields"][n
             disabled={save.isPending}
             className="text-xs text-ink-muted"
             onClick={() => {
-              if (window.confirm("Remove this saved credential from pi+? An existing environment credential, if any, will be used instead.")) void submit("");
+              if (window.confirm("Remove this saved credential from Radian? An existing environment credential, if any, will be used instead.")) void submit("");
             }}
           >
             Remove
@@ -66,14 +66,11 @@ function CredentialField(props: {field: ToolCredentialResult[number]["fields"][n
   );
 }
 
+/** App-wide keys for the tools every harness may call. Each key is stored the moment it is entered. */
 export default function ToolCredentialsEditor() {
   const credentials = useToolCredentials();
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border p-4 text-xs leading-relaxed text-ink-muted">
-        <p className="font-medium text-ink">Tool connections · app-wide credentials</p>
-        <p className="mt-2">Encrypted local storage · not Keychain · available to trusted tools</p>
-      </div>
       {credentials.isPending && <p className="text-sm text-ink-muted">Loading credential status…</p>}
       {credentials.isError && (
         <p role="alert" className="text-sm text-danger-ink">

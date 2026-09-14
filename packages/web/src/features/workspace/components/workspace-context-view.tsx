@@ -4,7 +4,6 @@ import Icon from "@/components/ui/icon";
 import InstructionReceipt, {ContextDisclosure, ContextGroup} from "@/features/harnesses/components/instruction-receipt";
 import {useChatHarness} from "@/features/harnesses/hooks/api/use-harness-runs";
 import {useHarnessLibrary} from "@/features/harnesses/hooks/api/use-harnesses";
-import {agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {useFolderEntries} from "@/features/workspace/hooks/api/use-folder-entries";
 import {pathFileName} from "@/features/workspace/lib/workspace-paths";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
@@ -56,7 +55,6 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
   const project = library.data?.projects.find((item) => item.path === projectPath);
   const harnessId = snapshot?.harness.id ?? project?.harnessId;
   const projectId = snapshot?.project.id ?? project?.id;
-  const projectName = snapshot?.project.name ?? project?.name;
   const rootEntries = useFolderEntries({enabled: active, path: "", projectPath});
   const projectDocuments = [
     ...new Set([
@@ -68,26 +66,6 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3">
-      <div className="flex shrink-0 items-center gap-3 border-b border-border-muted py-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-xl border border-border-muted bg-surface-control text-ink-muted">
-          <Icon name="sliders" size="sm" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-ink-strong">Context</p>
-          <p className="truncate text-xs text-ink-faint">{projectName ? agentLabel(projectName) : "This chat"}</p>
-        </div>
-        {harnessId && projectId && (
-          <Link
-            aria-label="Project settings"
-            className="grid size-7 shrink-0 place-items-center rounded-md text-ink-faint hover:bg-overlay-hover hover:text-ink"
-            params={{harnessId}}
-            search={{projectId, section: "projects"}}
-            to="/settings/harness/$harnessId"
-          >
-            <Icon name="settings" size="xs" />
-          </Link>
-        )}
-      </div>
       {context.isPending && (
         <p className="py-6 text-sm text-ink-muted" role="status">
           Loading captured context…
@@ -105,10 +83,29 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
         <div className="min-h-0 flex-1 overflow-y-auto py-3">
           <ContextGroup>
             <WorkspaceProjectFiles paths={projectDocuments} />
-            <InstructionReceipt captured={context.data.captured} layers={context.data.instructions} runtime={context.data.runtime} unframed />
+            <InstructionReceipt
+              captured={context.data.captured}
+              layers={context.data.instructions}
+              runtime={context.data.runtime}
+              roleConstant={(snapshot?.harness ?? library.data?.harnesses.find((harness) => harness.id === harnessId))?.coordinatorProjectId === projectId ? "tau" : "phi"}
+              unframed
+            />
           </ContextGroup>
         </div>
       )}
+      <div className="flex shrink-0 justify-end py-3">
+        {harnessId && projectId && (
+          <Link
+            aria-label="Project settings"
+            className="grid size-7 shrink-0 place-items-center rounded-md text-ink-faint hover:bg-overlay-hover hover:text-ink"
+            params={{harnessId, page: "projects"}}
+            search={{project: projectId}}
+            to="/settings/harness/$harnessId/$page"
+          >
+            <Icon name="settings" size="xs" />
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

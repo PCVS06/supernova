@@ -2,7 +2,6 @@ import {useState} from "react";
 import type {CurationProposal, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
-import SettingsPageShell from "@/features/settings/components/settings-page-shell";
 import ConfigCard from "@/features/harnesses/components/config-card";
 import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import WorkflowChip from "@/features/harnesses/components/workflow-graph/workflow-chip";
@@ -29,7 +28,7 @@ function errorText(error: unknown): string {
 }
 
 function matchesFilter(proposal: CurationProposal, filter: InboxFilter): boolean {
-  return filter === "all" || proposal.status === filter;
+  return filter === "all" || proposal.status === filter || (filter === "pending" && proposal.status === "failed");
 }
 
 interface DiffColumnProps {
@@ -207,7 +206,7 @@ interface CurationInboxProps {
   initialFilter?: InboxFilter;
 }
 
-/** Proposals waiting for a decision, and the record of the ones already decided. */
+/** Proposals waiting for a decision, and the ones already decided. The page around it owns the scroll. */
 export default function CurationInbox(props: CurationInboxProps) {
   const {harnessId, projects, initialFilter = "pending"} = props;
   const [filter, setFilter] = useState<InboxFilter>(initialFilter);
@@ -217,43 +216,41 @@ export default function CurationInbox(props: CurationInboxProps) {
   const proposals = (curation.data?.proposals ?? []).filter((proposal) => matchesFilter(proposal, filter)).toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return (
-    <SettingsPageShell testId="curation-inbox">
-      <div className="space-y-4">
-        <nav aria-label="Proposal filters" className="flex flex-wrap gap-2 px-3 sm:px-4">
-          {inboxFilters.map((item) => (
-            <Button
-              aria-label={item.label}
-              aria-pressed={item.value === filter}
-              className={cn("rounded-full border px-3 py-1 text-xs", item.value === filter ? "border-ink-faint text-ink" : "border-border text-ink-muted hover:text-ink")}
-              key={item.value}
-              onClick={() => setFilter(item.value)}
-            >
-              {item.label}
+    <section aria-label="Curator proposals" className="space-y-4" data-testid="curation-inbox">
+      <nav aria-label="Proposal filters" className="flex flex-wrap gap-2 px-3 sm:px-4">
+        {inboxFilters.map((item) => (
+          <Button
+            aria-label={item.label}
+            aria-pressed={item.value === filter}
+            className={cn("rounded-full border px-3 py-1 text-xs", item.value === filter ? "border-ink-faint text-ink" : "border-border text-ink-muted hover:text-ink")}
+            key={item.value}
+            onClick={() => setFilter(item.value)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </nav>
+      <div className="space-y-3 px-3 sm:px-4">
+        {curation.isPending && (
+          <p className="py-8 text-center text-sm text-ink-muted" role="status">
+            Loading proposals…
+          </p>
+        )}
+        {curation.isError && (
+          <ConfigCard className="text-sm text-danger-ink" role="alert">
+            Could not load the inbox.{" "}
+            <Button className="underline" onClick={() => void curation.refetch()}>
+              Retry
             </Button>
-          ))}
-        </nav>
-        <div className="space-y-3 px-3 sm:px-4">
-          {curation.isPending && (
-            <p className="py-8 text-center text-sm text-ink-muted" role="status">
-              Loading proposals…
-            </p>
-          )}
-          {curation.isError && (
-            <ConfigCard className="text-sm text-danger-ink" role="alert">
-              Could not load the inbox.{" "}
-              <Button className="underline" onClick={() => void curation.refetch()}>
-                Retry
-              </Button>
-            </ConfigCard>
-          )}
-          {proposals.map((proposal) => (
-            <ProposalCard key={proposal.id} projectName={projects.find((project) => project.id === proposal.target.projectId)?.name} proposal={proposal} revision={revision} />
-          ))}
-          {curation.data && !proposals.length && (
-            <ConfigCard className="text-sm text-ink-muted">{filter === "pending" ? "Nothing waiting. Run a review from Agents → Curator." : "None yet."}</ConfigCard>
-          )}
-        </div>
+          </ConfigCard>
+        )}
+        {proposals.map((proposal) => (
+          <ProposalCard key={proposal.id} projectName={projects.find((project) => project.id === proposal.target.projectId)?.name} proposal={proposal} revision={revision} />
+        ))}
+        {curation.data && !proposals.length && (
+          <ConfigCard className="text-sm text-ink-muted">{filter === "pending" ? "Nothing waiting. Run a review from the Curator page." : "None yet."}</ConfigCard>
+        )}
       </div>
-    </SettingsPageShell>
+    </section>
   );
 }

@@ -35,6 +35,8 @@ export interface DesktopUpdateState {
 export interface DesktopApi {
   readonly environment: DesktopEnvironment;
   readonly serverUrl: string;
+  /** Folder the bundled API keeps its data in, shown by the About page. */
+  readonly dataDirectory: string;
   readonly appVersion: string;
   readonly nightly: boolean;
   readonly openDirectory: (path: string) => Promise<void>;
@@ -46,6 +48,7 @@ export interface DesktopApi {
   readonly goForwardWorkspaceBrowser: () => Promise<void>;
   readonly reloadWorkspaceBrowser: () => Promise<void>;
   readonly getUpdateState: () => Promise<DesktopUpdateState>;
+  readonly checkForUpdates: () => Promise<void>;
   readonly downloadUpdate: () => Promise<void>;
   readonly installUpdate: () => Promise<void>;
   readonly onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;

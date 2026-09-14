@@ -2,200 +2,102 @@ import {useState} from "react";
 import type {HarnessConfig} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
-import Switch from "@/components/ui/switch";
 import SettingsPageShell from "@/features/settings/components/settings-page-shell";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import ConfigCard from "@/features/harnesses/components/config-card";
-import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import SkillsEditor from "@/features/harnesses/components/skills-editor";
-import ToolCredentialsEditor from "@/features/harnesses/components/tool-credentials-editor";
 import {useHarnessResources} from "@/features/harnesses/hooks/api/use-harness-resources";
-import type {HarnessSectionId} from "@/features/harnesses/lib/harness-sections";
 
 interface ResourcesEditorProps {
   harness: HarnessConfig;
-  section: HarnessSectionId;
   onChangeHarness: (change: Partial<HarnessConfig>) => void;
+  onOpenProviders: () => void;
 }
 
-/** Everything an agent may reach for: skills, tools, connectors, and the context it always loads. Shared by every project. */
+/** What an agent of this harness may reach for: the skills it may use, and the tools its extensions registered. */
 export default function ResourcesEditor(props: ResourcesEditorProps) {
-  const {harness, section, onChangeHarness} = props;
+  const {harness, onChangeHarness, onOpenProviders} = props;
   const [query, setQuery] = useState("");
   const resources = useHarnessResources(harness.id);
   const tools = resources.data?.tools.filter((tool) => `${tool.name} ${tool.description} ${tool.group}`.toLowerCase().includes(query.toLowerCase())) ?? [];
-  const research = resources.data?.tools.some((tool) => tool.name === "research_literature_search");
-  const inspected = section === "tools" || section === "connectors";
-  const context = harness.context;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <SettingsPageShell>
-        {inspected && resources.isPending && <p className="px-3 text-sm text-ink-muted sm:px-4">Inspecting configured resources…</p>}
-        {inspected && resources.isError && (
-          <p className="px-3 text-sm text-danger-ink sm:px-4" role="alert">
-            Could not inspect resources.{" "}
-            <Button className="underline" onClick={() => void resources.refetch()}>
-              Retry
-            </Button>
-          </p>
-        )}
-        {inspected && !!resources.data?.warnings.length && (
-          <details className="mx-3 rounded-xl border border-border p-4 text-xs text-danger-ink sm:mx-4" role="alert">
-            <summary className="cursor-pointer">{resources.data.warnings.length} extensions unavailable</summary>
-            <ul className="mt-3 space-y-2">
-              {resources.data.extensions
-                .filter((extension) => !extension.loaded)
-                .map((extension, index) => (
-                  <li key={index}>{extension.name}</li>
-                ))}
-            </ul>
-          </details>
-        )}
+    <SettingsPageShell testId="harness-skills">
+      {resources.isPending && <p className="px-3 text-sm text-ink-muted sm:px-4">Inspecting configured resources…</p>}
+      {resources.isError && (
+        <p className="px-3 text-sm text-danger-ink sm:px-4" role="alert">
+          Could not inspect resources.{" "}
+          <Button className="underline" onClick={() => void resources.refetch()}>
+            Retry
+          </Button>
+        </p>
+      )}
+      {!!resources.data?.warnings.length && (
+        <details className="mx-3 rounded-xl border border-border p-4 text-xs text-danger-ink sm:mx-4" role="alert">
+          <summary className="cursor-pointer">{resources.data.warnings.length} extensions unavailable</summary>
+          <ul className="mt-3 space-y-2">
+            {resources.data.extensions
+              .filter((extension) => !extension.loaded)
+              .map((extension, index) => (
+                <li key={index}>{extension.name}</li>
+              ))}
+          </ul>
+        </details>
+      )}
 
-        {section === "skills" && (
-          <SettingsGroup title="Skills">
-            <SkillsEditor harnessId={harness.id} value={harness.enabledSkills} onChange={(enabledSkills) => onChangeHarness({enabledSkills})} />
-          </SettingsGroup>
-        )}
+      <SettingsGroup title="Skills">
+        <SkillsEditor harnessId={harness.id} value={harness.enabledSkills} onChange={(enabledSkills) => onChangeHarness({enabledSkills})} />
+      </SettingsGroup>
 
-        {section === "tools" && resources.data && (
-          <SettingsGroup title="Tools">
-            <SettingsRow
-              control={<Input aria-label="Search tools" className="sm:w-64" placeholder="Search tools…" value={query} onChange={(event) => setQuery(event.target.value)} />}
-              description="Registered by the connected extensions, so they are read-only here."
-              title={`${resources.data.tools.length} registered tools`}
-            />
-            <div className="space-y-2 px-3 sm:px-4">
-              {tools.map((tool) => (
-                <ConfigCard key={tool.group + tool.name}>
-                  <p className="text-xs text-ink-muted">{tool.group}</p>
-                  <h3 className="mt-1 break-all font-mono text-sm text-ink-strong">{tool.name}</h3>
-                  <p className="mt-2 text-xs leading-relaxed text-ink-muted">{tool.description}</p>
+      {resources.data && (
+        <SettingsGroup title="Registered tools · read-only">
+          <SettingsRow
+            control={<Input aria-label="Search tools" className="sm:w-64" placeholder="Search tools…" value={query} onChange={(event) => setQuery(event.target.value)} />}
+            description="Registered by the connected extensions, so they cannot be edited here."
+            title={`${resources.data.tools.length} registered tools`}
+          />
+          <div className="space-y-2 px-3 sm:px-4">
+            {tools.map((tool) => (
+              <ConfigCard key={tool.group + tool.name}>
+                <p className="text-xs text-ink-muted">{tool.group}</p>
+                <h3 className="mt-1 break-all font-mono text-sm text-ink-strong">{tool.name}</h3>
+                <p className="mt-2 text-xs leading-relaxed text-ink-muted">{tool.description}</p>
+              </ConfigCard>
+            ))}
+            {!tools.length && <ConfigCard className="text-sm text-ink-muted">No matching tools. Clear the search to see every tool.</ConfigCard>}
+          </div>
+        </SettingsGroup>
+      )}
+
+      {resources.data && (
+        <SettingsGroup title="Extensions · read-only">
+          <SettingsRow description="Loaded by the server; each one registers the tools above." title={`${resources.data.extensions.length} connected extensions`}>
+            <div className="space-y-3">
+              {resources.data.extensions.map((extension, index) => (
+                <ConfigCard key={index} className="text-xs">
+                  <p>
+                    {extension.name} · {extension.loaded ? `${extension.toolCount} tools registered` : "Load failed"}
+                  </p>
+                  {extension.commands.length > 0 && <p className="mt-1 text-ink-muted">{extension.commands.map((name) => `/${name}`).join(", ")}</p>}
                 </ConfigCard>
               ))}
-              {!tools.length && <ConfigCard className="text-sm text-ink-muted">No matching tools. Clear the search to see every tool.</ConfigCard>}
-              <details className="rounded-xl border border-border p-4">
-                <summary className="cursor-pointer text-sm">Connected extensions · {resources.data.extensions.length}</summary>
-                <div className="mt-4 space-y-3">
-                  {resources.data.extensions.map((extension, index) => (
-                    <div key={index} className="text-xs">
-                      <p>
-                        {extension.name} · {extension.loaded ? `${extension.toolCount} tools registered` : "Load failed"}
-                      </p>
-                      {extension.commands.length > 0 && <p className="mt-1 text-ink-muted">{extension.commands.map((name) => `/${name}`).join(", ")}</p>}
-                    </div>
-                  ))}
-                </div>
-              </details>
+              {!resources.data.extensions.length && <p className="text-xs text-ink-muted">No extensions connected.</p>}
             </div>
-          </SettingsGroup>
-        )}
+          </SettingsRow>
+        </SettingsGroup>
+      )}
 
-        {section === "connectors" &&
-          resources.data &&
-          (research ? (
-            <SettingsGroup title="Connectors & API keys">
-              <div className="px-3 sm:px-4">
-                <ToolCredentialsEditor />
-              </div>
-            </SettingsGroup>
-          ) : (
-            <SettingsGroup title="Connectors & API keys">
-              <SettingsRow description="Connect an extension that needs credentials and its keys appear here." title="No external connectors registered" />
-            </SettingsGroup>
-          ))}
-
-        {section === "context" && (
-          <>
-            <SettingsGroup title="Context rules">
-              <SettingsRow description="Loaded into every chat of this harness, before the conversation starts." title="Shared context instructions">
-                <PromptEditor
-                  label="Context instructions"
-                  size="sm"
-                  value={context.instructions}
-                  onChange={(instructions) => onChangeHarness({context: {...context, instructions}})}
-                />
-              </SettingsRow>
-              <SettingsRow
-                control={
-                  <Switch
-                    aria-label="Include project instructions"
-                    checked={context.includeProjectInstructions}
-                    onCheckedChange={(includeProjectInstructions) => onChangeHarness({context: {...context, includeProjectInstructions}})}
-                  />
-                }
-                description="Reads each project's own AGENTS.md alongside these instructions."
-                title="Include project AGENTS.md"
-              />
-              <SettingsRow
-                control={
-                  <Switch
-                    aria-label="Automatic compaction"
-                    checked={context.autoCompaction}
-                    onCheckedChange={(autoCompaction) => onChangeHarness({context: {...context, autoCompaction}})}
-                  />
-                }
-                description="Summarizes older turns when the context window fills up."
-                title="Automatic compaction"
-              />
-            </SettingsGroup>
-            <SettingsGroup title="Context files">
-              <SettingsRow description="Paths relative to each project, one per line." title="Files loaded into every chat">
-                <PromptEditor
-                  label="Context files"
-                  size="sm"
-                  placeholder="docs/architecture.md"
-                  value={context.files.join("\n")}
-                  onChange={(value) =>
-                    onChangeHarness({
-                      context: {
-                        ...context,
-                        files: value
-                          .split("\n")
-                          .map((file) => file.trim())
-                          .filter(Boolean),
-                      },
-                    })
-                  }
-                />
-              </SettingsRow>
-            </SettingsGroup>
-            <SettingsGroup title="Context budget">
-              <SettingsRow
-                control={
-                  <Input
-                    aria-label="Reserved tokens"
-                    className="sm:w-40"
-                    type="number"
-                    min={1024}
-                    max={100000}
-                    value={context.reserveTokens}
-                    onChange={(event) => onChangeHarness({context: {...context, reserveTokens: Number(event.target.value)}})}
-                  />
-                }
-                description="Held back for the model's reply."
-                title="Reserved tokens"
-              />
-              <SettingsRow
-                control={
-                  <Input
-                    aria-label="Recent tokens to keep"
-                    className="sm:w-40"
-                    type="number"
-                    min={1024}
-                    max={100000}
-                    value={context.keepRecentTokens}
-                    onChange={(event) => onChangeHarness({context: {...context, keepRecentTokens: Number(event.target.value)}})}
-                  />
-                }
-                description="Never compacted, so the latest turns stay verbatim."
-                title="Recent tokens to keep"
-              />
-            </SettingsGroup>
-          </>
-        )}
-      </SettingsPageShell>
-    </div>
+      <SettingsGroup title="Set elsewhere">
+        <SettingsRow
+          control={
+            <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={onOpenProviders}>
+              Open Providers &amp; keys
+            </Button>
+          }
+          description="Connector keys are saved once for every harness of this app."
+          title="Tool credentials"
+        />
+      </SettingsGroup>
+    </SettingsPageShell>
   );
 }

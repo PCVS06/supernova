@@ -2,6 +2,7 @@ import type {ReactNode} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {beforeEach, describe, expect, it, vi} from "vitest";
 import type {HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
+import SidebarInbox from "@/features/sidebar/components/sidebar-inbox";
 import HarnessSidebarSection from "@/features/harnesses/components/harness-sidebar-section";
 import ProjectListItem from "@/features/projects/components/project-list/project-list-item";
 import ProjectSessionListItem from "@/features/projects/components/project-list/project-session-list-item";
@@ -15,7 +16,13 @@ interface StoredSession {
   updatedAt: string;
 }
 
-const state = vi.hoisted(() => ({sessions: [] as StoredSession[], pendingProposals: 0, pathname: "/", liveSessions: {} as Record<string, {status: SessionLiveStatus}>}));
+const state = vi.hoisted(() => ({
+  activeHarnessId: undefined as string | undefined,
+  sessions: [] as StoredSession[],
+  pendingProposals: 0,
+  pathname: "/",
+  liveSessions: {} as Record<string, {status: SessionLiveStatus}>,
+}));
 
 function MockLink(props: {
   readonly "aria-label"?: string;
@@ -47,9 +54,6 @@ vi.mock("@/features/harnesses/hooks/api/use-harnesses", () => ({
   useHarnessLibrary: () => ({data: {revision: 1, harnesses: [], projects: []}}),
   useRemoveHarnessProject: () => ({mutate: () => undefined}),
 }));
-vi.mock("@/features/harnesses/hooks/api/use-curation", () => ({
-  useCuration: () => ({data: {proposals: Array.from({length: state.pendingProposals}, () => ({status: "pending"})), reviews: []}}),
-}));
 vi.mock("@/components/ui/menu", () => ({
   default: (props: {children: ReactNode; trigger: (triggerProps: {readonly "aria-label": string}) => ReactNode; triggerLabel: string}) => (
     <>
@@ -70,7 +74,27 @@ vi.mock("@/features/sessions/components/session-actions-menu", () => ({
     <button aria-label={`Chat actions for ${props.sessionTitle}`} className={props.triggerClassName} type="button" />
   ),
 }));
-vi.mock("@/features/harnesses/components/chat-run-list", () => ({default: () => null}));
+vi.mock("@/features/workspace/hooks/use-workspace-overview", () => ({
+  useWorkspaceOverview: () => ({
+    model: {items: [], links: []},
+    data: {
+      revision: 1,
+      capturedAt: "2026-09-13T10:00:00Z",
+      projects: [],
+      runs: [],
+      workflows: [],
+      controls: [],
+      curators: [{harnessId: "science", pending: state.pendingProposals}],
+      activityTotals: [],
+      errors: [],
+    },
+    library: {revision: 1, harnesses: [harness()], projects: []},
+    isPending: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock("@/features/workspace/components/workspace-activity-link", () => ({default: () => null}));
 vi.mock("@/features/projects/stores/projects-store", () => ({
   useProjectsStore: (select: (store: Record<string, unknown>) => unknown) =>
     select({
@@ -91,7 +115,9 @@ vi.mock("@/features/sessions/stores/session-visits-store", () => ({
   useSessionVisitsStore: (select: (store: Record<string, unknown>) => unknown) => select({visits: {}}),
 }));
 vi.mock("@/features/harnesses/stores/harness-navigation-store", () => ({
-  useHarnessNavigationStore: (select: (store: Record<string, unknown>) => unknown) => select({selectHarness: () => undefined, selectProject: () => undefined}),
+  activeHarness: <T extends {id: string}>(harnesses: readonly T[], storedId?: string) => harnesses.find((item) => item.id === storedId) ?? harnesses[0],
+  useHarnessNavigationStore: (select: (store: Record<string, unknown>) => unknown) =>
+    select({activeHarnessId: state.activeHarnessId, selectHarness: () => undefined, selectProject: () => undefined}),
 }));
 
 function project(overrides: Partial<ProjectListProject> = {}): ProjectListProject {
@@ -158,6 +184,7 @@ function renderHarnessSection(projects: ProjectListProject[], configuredProjects
 
 describe("sidebar rows", () => {
   beforeEach(() => {
+    state.activeHarnessId = undefined;
     state.sessions = [];
     state.pendingProposals = 0;
     state.pathname = "/";
@@ -176,12 +203,12 @@ describe("sidebar rows", () => {
     expect(html.indexOf("Science Spaceflight Lab")).toBeLessThan(html.indexOf('aria-label="New chat in Science Spaceflight Lab"'));
   });
 
-  it("identifies the harness lead separately from the project name", () => {
+  it("identifies the harness lead with its symbol without a repeated subtitle", () => {
     const html = renderProjectRow({isCoordinator: true});
 
-    expect(html).toContain(">Harness lead<");
+    expect(html).not.toContain(">Harness lead<");
     expect(html).not.toContain("Coordinates all labs");
-    expect(html).toContain("pi-orb");
+    expect(html).toContain('data-constant="tau"');
     expect(html).not.toContain("group-hover/ledger:opacity-0");
   });
 
@@ -202,7 +229,7 @@ describe("sidebar rows", () => {
     expect(html).toContain("text-danger-ink");
     expect(html).toContain("disabled");
     // The ring belongs to a project that exists; a missing folder shows a warning instead.
-    expect(html).not.toContain("pi-orb");
+    expect(html).not.toContain("constant-orb");
   });
 
   it("opens project settings from the row menu", () => {
@@ -212,7 +239,17 @@ describe("sidebar rows", () => {
     expect(html).not.toContain("Project instructions");
   });
 
-  it("names the harness group, hides its own ring and keeps both group actions reachable", () => {
+  it("offers plain project actions to a project that belongs to no harness", () => {
+    const html = renderProjectRow({harnessId: undefined, harnessProjectId: undefined});
+
+    expect(html).not.toContain("Project settings");
+    expect(html).not.toContain("Remove from harness");
+    expect(html).toContain("Rename project");
+    expect(html).toContain(">Remove<");
+    expect(html).toContain('data-constant="phi"');
+  });
+
+  it("identifies the harness with pi and keeps both group actions reachable", () => {
     const html = renderHarnessSection([project()], [configuredProject()]);
 
     expect(html).toContain("Science Pi");
@@ -221,28 +258,35 @@ describe("sidebar rows", () => {
     expect(html).toContain('aria-label="Harness settings for Science Pi"');
     expect(html).toContain(">1 project<");
     expect(html).not.toContain("bg-surface-sidebar");
-    expect(html).not.toContain("pi-orb");
+    expect(html).toContain('data-constant="pi"');
   });
 
-  it("carries waiting proposals into the harness inbox and stays invisible at zero", () => {
-    const quiet = renderHarnessSection([project()], [configuredProject()]);
+  it("opens the inbox of the first harness until a harness is chosen", () => {
+    expect(renderToStaticMarkup(<SidebarInbox />)).toContain('href="/inbox/science"');
+    state.activeHarnessId = "gone";
+    expect(renderToStaticMarkup(<SidebarInbox />)).toContain('href="/inbox/science"');
+  });
+
+  it("links directly to curator proposals and signals pending decisions without an inline inbox", () => {
+    const quiet = renderToStaticMarkup(<SidebarInbox />);
     state.pendingProposals = 2;
-    const waiting = renderHarnessSection([project()], [configuredProject()]);
-
-    expect(quiet).not.toContain("proposals waiting");
-    expect(waiting).toContain('aria-label="2 proposals waiting in Science Pi"');
-    expect(waiting).toContain('href="/settings/harness/science?section=inbox"');
-    expect(waiting).toContain(">2<");
+    const waiting = renderToStaticMarkup(<SidebarInbox />);
+    expect(quiet).not.toContain("curator decisions");
+    expect(waiting).toContain('aria-label="2 curator decisions"');
+    expect(waiting).toContain('href="/inbox/science"');
+    expect(waiting).not.toContain("aria-expanded");
+    expect(waiting).not.toContain(">Inbox<");
+    expect(renderHarnessSection([project()], [configuredProject()])).not.toContain("proposals waiting");
   });
 
-  it("invites a first project when a harness is empty", () => {
+  it("keeps empty harnesses collapsed while creation remains reachable", () => {
     const html = renderHarnessSection([], []);
 
-    expect(html).toContain("Add a project");
+    expect(html).not.toContain("Add a project");
     expect(html).toContain('aria-label="New project in Science Pi"');
   });
 
-  it("gives the chat stable, always-visible actions without completion metadata", () => {
+  it("gives the chat stable hover actions without completion metadata", () => {
     const html = renderToStaticMarkup(
       <ProjectSessionListItem
         onOpen={() => undefined}
@@ -279,7 +323,8 @@ describe("sidebar rows", () => {
     const expanded = renderToStaticMarkup(<ProjectListItem activeSessionId="" dragging={false} expanded onToggle={() => undefined} project={project()} />);
     for (const html of [collapsed, expanded]) {
       expect(html).toContain('aria-label="Open chat: Research 0"');
-      expect(html).toContain("1 working");
+      expect(html).toContain('data-state="working"');
+      expect(html).not.toContain("1 working");
     }
     expect(collapsed).not.toContain('aria-label="Open chat: Research 7"');
   });

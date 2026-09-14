@@ -22,11 +22,10 @@ describe("agent memory panel", () => {
     memory.data = {projectName: "Science Space", available: false, total: 0, rejected: 0, records: []};
   });
 
-  it("reads one ledger without a picker and names the storage file", () => {
-    const html = renderToStaticMarkup(
-      <AgentMemoryPanel explanation="Records saved in Science Space, the coordinating project of this harness." harnessId="science" projects={[head]} />
-    );
-    expect(html).toContain("Records saved in Science Space, the coordinating project of this harness.");
+  it("reads one ledger without a picker, says it is read-only and names the storage file", () => {
+    const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records the agents saved while working in Science Space." harnessId="science" projects={[head]} />);
+    expect(html).toContain("Memory · read-only");
+    expect(html).toContain("Records the agents saved while working in Science Space.");
     expect(html).toContain("/science/.science-memory/ledger.jsonl");
     expect(html).toContain('aria-label="Refresh memory"');
     expect(html).toContain('aria-label="Search memory"');
@@ -35,9 +34,9 @@ describe("agent memory panel", () => {
     expect(memory.scope).toHaveBeenCalledWith("science", "head");
   });
 
-  it("opens the project a specialist works in and offers the other ledgers", () => {
+  it("opens the requested ledger and offers the others when several are readable", () => {
     const html = renderToStaticMarkup(
-      <AgentMemoryPanel explanation="Specialists share the ledger of the project they work in." harnessId="science" projectId="lab" projects={[head, lab]} />
+      <AgentMemoryPanel explanation="Records the agents saved while working in Robot Lab." harnessId="science" projectId="lab" projects={[head, lab]} />
     );
     expect(html).toContain('aria-label="Project ledger"');
     expect(html).toContain("/robot/.science-memory/ledger.jsonl");
@@ -61,7 +60,7 @@ describe("agent memory panel", () => {
         },
       ],
     };
-    const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records saved in Science Space." harnessId="science" projects={[head]} />);
+    const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records the agents saved while working in Science Space." harnessId="science" projects={[head]} />);
     expect(html).toContain("research finding");
     expect(html).toContain("provisional");
     expect(html).toContain("Updated 2026-09-11");
@@ -75,14 +74,14 @@ describe("agent memory panel", () => {
   it("reports a read failure without pretending memory is empty", () => {
     memory.data = undefined;
     memory.isError = true;
-    const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records saved in Science Space." harnessId="science" projects={[head]} />);
+    const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records the agents saved while working in Science Space." harnessId="science" projects={[head]} />);
     expect(html).toContain("Could not read memory. No files were changed.");
     expect(html).not.toContain("Nothing saved yet");
   });
 
   it("explains a missing project folder instead of claiming the ledger is empty", () => {
     memory.data = {projectName: "Robot Lab", available: false, unavailableReason: "workspace-missing", total: 0, rejected: 0, records: []};
-    const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records saved in Robot Lab, this lead's own project." harnessId="science" projects={[lab]} />);
+    const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records the agents saved while working in Robot Lab." harnessId="science" projects={[lab]} />);
     expect(html).toContain("Project folder missing");
     expect(html).toContain("Restore the folder on the server, then refresh.");
     expect(html).not.toContain("Nothing saved yet");

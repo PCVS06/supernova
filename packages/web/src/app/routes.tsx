@@ -5,6 +5,7 @@ import SettingsPage from "@/features/settings/pages/settings-page";
 import NewSessionPage from "@/features/sessions/pages/new-session-page";
 import SessionPage from "@/features/sessions/pages/session-page";
 import HarnessConfigPage from "@/features/harnesses/pages/harness-config-page";
+import InboxPage from "@/features/harnesses/pages/inbox-page";
 import HarnessRunPage from "@/features/harnesses/pages/harness-run-page";
 import WorkflowRunPage from "@/features/harnesses/pages/workflow-run-page";
 
@@ -44,6 +45,12 @@ export function HomeRoute() {
   return <EmptySessionState />;
 }
 
+export function InboxRoute() {
+  const {harnessId} = useParams({from: "/home-layout/inbox/$harnessId"});
+
+  return <InboxPage key={harnessId} harnessId={harnessId} />;
+}
+
 export function SessionRoute() {
   const {appEnvironment} = useRouteContext({from: "__root__"});
   const {sessionId} = useParams({from: "/home-layout/session/$sessionId"});
@@ -68,10 +75,10 @@ export function SettingsSectionRoute() {
   return <SettingsPage appEnvironment={appEnvironment} sectionId={sectionId} />;
 }
 
-export function SettingsHarnessConfigRoute() {
+export function SettingsHarnessPageRoute() {
   const {appEnvironment} = useRouteContext({from: "__root__"});
-  const {harnessId} = useParams({from: "/settings/harness/$harnessId"});
-  const search = useSearch({from: "/settings/harness/$harnessId"});
+  const {harnessId, page} = useParams({from: "/settings/harness/$harnessId/$page"});
+  const search = useSearch({from: "/settings/harness/$harnessId/$page"});
 
-  return <HarnessConfigPage appEnvironment={appEnvironment} key={harnessId} harnessId={harnessId} {...search} />;
+  return <HarnessConfigPage appEnvironment={appEnvironment} key={harnessId} harnessId={harnessId} page={page} {...search} />;
 }

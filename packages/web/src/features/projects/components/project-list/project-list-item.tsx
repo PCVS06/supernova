@@ -1,4 +1,5 @@
 import {useCallback, useRef, useState} from "react";
+import ConstantOrb from "@/components/brand/constant-orb";
 import type {MouseEvent} from "react";
 import {useLocation, useNavigate} from "@tanstack/react-router";
 import {useQueryClient} from "@tanstack/react-query";
@@ -15,14 +16,16 @@ import {useProjectsStore} from "@/features/projects/stores/projects-store";
 import {sessionQueryOptions} from "@/features/sessions/hooks/api/use-session";
 import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store";
 import {hasUnseenActivity, useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
-import {pinnedFirst} from "@/features/projects/lib/pinned-first";
+import {useWorkspaceMapStore} from "@/features/workspace/stores/workspace-map-store";
+import {useWorkspaceOverview} from "@/features/workspace/hooks/use-workspace-overview";
+import {workspaceActivity} from "@/features/workspace/lib/build-workspace-model";
 import {cn} from "@/lib/cn";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import {useHarnessLibrary, useRemoveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {showToast} from "@/components/ui/toast-manager";
-import {ledgerPrimaryClassName, ledgerRowClassName} from "@/features/sidebar/lib/ledger-styles";
+import {ledgerDisclosureClassName, ledgerMarkClassName, ledgerPrimaryClassName, ledgerRowClassName} from "@/features/sidebar/lib/ledger-styles";
 import LedgerRowEnd from "@/features/sidebar/components/ledger-row-end";
 
 const INITIAL_SESSION_LIMIT = 5;
@@ -67,23 +70,39 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   } = useInlineRename({initialValue: project.name, onSave: (name) => renameProject(project.id, name)});
   const sessionsQuery = useListProjectSessions({projectPath: project.path});
 
+  const overview = useWorkspaceOverview();
+  const sidebarDetail = useWorkspaceMapStore((state) => state.sidebarDetail);
+  const activity = workspaceActivity(
+    overview.model.items,
+    undefined,
+    project.harnessProjectId ?? overview.model.items.find((item) => item.kind === "project" && item.projectPath === project.path)?.projectId ?? project.id
+  );
+  const [heldOrder, setHeldOrder] = useState<readonly string[]>();
   const sessions = sessionsQuery.data
-    ? pinnedFirst(
-        sessionsQuery.data.sessions
-          .map((session) => ({
-            id: session.id,
-            pinned: project.pinnedSessionIds.includes(session.id),
-            title: session.title,
-            timestamp: Date.parse(session.updatedAt),
-          }))
-          .toSorted((left, right) => right.timestamp - left.timestamp)
-      )
+    ? sessionsQuery.data.sessions
+        .map((session) => ({
+          id: session.id,
+          pinned: project.pinnedSessionIds.includes(session.id),
+          title: session.title,
+          timestamp: Date.parse(session.updatedAt),
+        }))
+        .toSorted((left, right) => {
+          if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+          if (left.pinned) return project.pinnedSessionIds.indexOf(left.id) - project.pinnedSessionIds.indexOf(right.id);
+          if (heldOrder) {
+            const a = heldOrder.indexOf(left.id);
+            const b = heldOrder.indexOf(right.id);
+            if (a !== b) return (a < 0 ? Number.MAX_SAFE_INTEGER : a) - (b < 0 ? Number.MAX_SAFE_INTEGER : b);
+          }
+          return right.timestamp - left.timestamp;
+        })
     : [];
 
   const activeSession = sessions.find((session) => session.id === activeSessionId);
+  const delegatedSessionIds = new Set(overview.model.items.filter((item) => item.kind === "agent" && item.active).map((item) => item.sessionId));
   const workingSessions = sessions.filter((session) => {
     const status = sessionLiveStates[session.id]?.status;
-    return status === "streaming" || status === "stopping" || status === "compacting";
+    return status === "streaming" || status === "stopping" || status === "compacting" || delegatedSessionIds.has(session.id);
   });
 
   const pinnedSessions = sessions.filter((session) => session.pinned);
@@ -101,12 +120,19 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   const canShowMoreSessions = expanded && hasHiddenSessions;
   const canShowLessAtEnd = expanded && canShowLessSessions && !canShowMoreSessions;
   const canOpenInFinder = window.desktopApi?.environment === "mac";
-  const projectLabel = project.harnessProjectId ? agentLabel(project.name) : project.name;
+  // A project without a harness has no harness pages and no lead; its row offers plain project actions instead.
+  const harnessId = project.harnessId;
+  const harnessProjectId = harnessId ? project.harnessProjectId : undefined;
+  const projectLabel = harnessProjectId ? agentLabel(project.name) : project.name;
   // The chat tree only draws its guide line when it has something to show, so a collapsed project stays a single clean row.
   const sessionTreeVisible = displayedSessions.length > 0 || (expanded && (sessionsQuery.isPending || sessionsQuery.error != null || !hasSessions));
 
+  const followHarness = (): void => {
+    if (harnessId) selectProject(harnessId, harnessProjectId);
+  };
+
   const handleToggle = (): void => {
-    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+    followHarness();
     // Chats live in the sidebar, so a project row only expands or collapses; configuration is behind the gear.
     onToggle(project.id);
   };
@@ -119,20 +145,21 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   const removeHarnessProject = useRemoveHarnessProject();
   const handleRemoveFromHarness = (): void => {
     const revision = library.data?.revision;
-    if (!project.harnessProjectId || revision === undefined) return;
+    if (!harnessProjectId || revision === undefined) return;
     if (!window.confirm(`Remove ${projectLabel} from its harness? The folder and its files stay on disk.`)) return;
     removeHarnessProject.mutate(
-      {projectId: project.harnessProjectId, expectedRevision: revision},
+      {projectId: harnessProjectId, expectedRevision: revision},
       {onError: (error) => showToast("Could not remove the project", error instanceof Error ? error.message : "Please try again.")}
     );
   };
 
   const handleToggleProjectPinned = (): void => {
-    toggleProjectPinned(project.id);
+    const stored = useProjectsStore.getState().addProject(project.path, project.harnessId);
+    if (stored) toggleProjectPinned(stored.id);
   };
 
   const handleOpenSession = (sessionId: string): void => {
-    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+    followHarness();
     void navigate({params: {sessionId}, to: "/session/$sessionId"});
   };
 
@@ -144,7 +171,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
 
   const handleNewSession = (event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
-    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+    followHarness();
     void navigate({search: {projectId: project.id}, to: "/session/new"});
   };
 
@@ -173,6 +200,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
     <>
       <div
         className={cn(ledgerRowClassName, actionsMenuOpen && "bg-overlay-hover text-ink", folderMissing && "opacity-60")}
+        data-sidebar-level={project.isCoordinator ? "lead" : "project"}
         title={folderMissing ? `Folder missing: ${project.path}` : `${project.name}\n${project.path}`}
       >
         {renaming ? (
@@ -192,36 +220,46 @@ export default function ProjectListItem(props: ProjectListItemProps) {
           <Button
             aria-expanded={expanded}
             aria-label={hasSessions ? `${expanded ? "Collapse" : "Expand"} chats in ${projectLabel}` : projectLabel}
-            className={ledgerPrimaryClassName}
+            className={cn(ledgerPrimaryClassName, "gap-1 py-0")}
             onClick={handleToggle}
           >
-            <span className="grid size-6 shrink-0 place-items-center">
+            <Icon className={cn(ledgerDisclosureClassName, !expanded && "-rotate-90")} name="chevron-down" size="xs" />
+            <span className={ledgerMarkClassName}>
               {folderMissing ? (
                 <Icon className="shrink-0 text-danger-ink" name="alert" size="sm" />
-              ) : project.harnessProjectId ? (
+              ) : harnessProjectId ? (
                 <AgentMark
-                  className="size-6 shrink-0"
-                  color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(project.harnessProjectId))}
-                  kind="lead"
-                  name={project.harnessProjectId}
-                  working={workingSessions.length > 0}
+                  className={project.isCoordinator ? "size-8 shrink-0" : "size-7 shrink-0"}
+                  color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(harnessProjectId))}
+                  kind={project.isCoordinator ? "orchestrator" : "lead"}
+                  name={harnessProjectId}
+                  working={!overview.error && !overview.data?.errors.length && (activity.working > 0 || workingSessions.length > 0)}
                 />
               ) : (
-                <Icon className="shrink-0 text-ink-faint" name={expanded ? "folder-open" : "folder"} size="sm" />
+                <ConstantOrb
+                  constant="phi"
+                  className="size-7"
+                  state={!overview.error && !overview.data?.errors.length && (activity.working > 0 || workingSessions.length > 0) ? "working" : "idle"}
+                />
               )}
             </span>
-            {!folderMissing && project.harnessProjectId && (
-              <Icon className={cn("-ml-1 shrink-0 text-ink-faint transition-transform motion-reduce:transition-none", !expanded && "-rotate-90")} name="chevron-down" size="xs" />
-            )}
             <span className="min-w-0 flex-1">
-              <span className="line-clamp-2 break-words text-sm font-medium leading-5">{projectLabel}</span>
-              {(project.isCoordinator || folderMissing || workingSessions.length > 0) && (
+              <span className="block truncate text-sm font-medium leading-5">{projectLabel}</span>
+              {(folderMissing || (sidebarDetail && (project.isCoordinator || workingSessions.length > 0 || activity.working > 0 || activity.attention > 0))) && (
                 <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-faint">
-                  {project.isCoordinator && <span>Harness lead</span>}
+                  {sidebarDetail && project.isCoordinator && <span>Harness lead</span>}
                   {folderMissing ? (
                     <span className="text-danger-ink">Folder missing</span>
-                  ) : workingSessions.length > 0 ? (
-                    <span className="text-ink-muted">{workingSessions.length} working</span>
+                  ) : activity.working > 0 || workingSessions.length > 0 || activity.attention > 0 ? (
+                    <span className="text-white">
+                      {overview.error || overview.data?.errors.length ? "Last saved · " : ""}
+                      {[
+                        Math.max(activity.working, workingSessions.length) > 0 ? `${Math.max(activity.working, workingSessions.length)} working` : "",
+                        activity.attention > 0 ? `${activity.attention} need attention` : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
                   ) : null}
                 </span>
               )}
@@ -259,32 +297,32 @@ export default function ProjectListItem(props: ProjectListItemProps) {
                     Open in Finder
                   </MenuItem>
                 )}
-                {project.harnessProjectId && (
+                {harnessId && harnessProjectId && (
                   <MenuItem
                     icon={<Icon name="settings" size="xs" />}
                     onClick={() => {
-                      selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+                      selectProject(harnessId, harnessProjectId);
                       void navigate({
-                        to: "/settings/harness/$harnessId",
-                        params: {harnessId: project.harnessId ?? "coding"},
-                        search: {projectId: project.harnessProjectId, section: "projects"},
+                        to: "/settings/harness/$harnessId/$page",
+                        params: {harnessId, page: "projects"},
+                        search: {project: harnessProjectId},
                       });
                     }}
                   >
                     Project settings
                   </MenuItem>
                 )}
-                {!project.harnessProjectId && (
+                {!harnessProjectId && (
                   <MenuItem icon={<Icon name="edit" size="xs" />} onClick={startRenaming}>
                     Rename project
                   </MenuItem>
                 )}
-                {!project.harnessProjectId && (
+                {!harnessProjectId && (
                   <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
                     Remove
                   </MenuItem>
                 )}
-                {project.harnessProjectId && (
+                {harnessProjectId && (
                   <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveFromHarness}>
                     Remove from harness
                   </MenuItem>
@@ -298,7 +336,17 @@ export default function ProjectListItem(props: ProjectListItemProps) {
       <div className={cn("overflow-hidden", sessionsExpanded && "pb-0.5")} onPointerDown={(event) => event.stopPropagation()}>
         <ul
           aria-label={`Chats in ${projectLabel}`}
-          className={cn("flex flex-col gap-0.5", sessionTreeVisible && "ml-4 border-l border-border-muted py-1 pl-2")}
+          onPointerEnter={() => setHeldOrder(sessions.map((session) => session.id))}
+          onPointerLeave={(event) => {
+            if (!event.currentTarget.contains(document.activeElement)) setHeldOrder(undefined);
+          }}
+          onFocus={() => {
+            if (!heldOrder) setHeldOrder(sessions.map((session) => session.id));
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setHeldOrder(undefined);
+          }}
+          className={cn("flex flex-col gap-0.5", sessionTreeVisible && "ml-3 border-l border-border-muted")}
           ref={attachSessionListAutoAnimateRef}
         >
           {expanded && sessionsQuery.isPending && (
@@ -323,13 +371,16 @@ export default function ProjectListItem(props: ProjectListItemProps) {
                 key={session.id}
                 onOpen={() => handleOpenSession(session.id)}
                 onPrefetch={() => handlePrefetchSession(session.id)}
-                onTogglePinned={() => toggleSessionPinned(project.id, session.id)}
+                onTogglePinned={() => {
+                  const stored = useProjectsStore.getState().addProject(project.path, project.harnessId);
+                  if (stored) toggleSessionPinned(stored.id, session.id);
+                }}
                 projectPath={project.path}
                 selected={selected}
                 current={location.pathname === `/session/${session.id}`}
                 session={session}
-                color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(project.harnessProjectId ?? project.id))}
-                managed={!!project.harnessProjectId}
+                managed={!!harnessProjectId}
+                orchestrator={project.isCoordinator}
                 streaming={sessionStreaming}
                 status={sessionLive?.status}
                 unseen={sessionUnseen}

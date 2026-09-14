@@ -1,73 +1,91 @@
-/** Top-level areas of harness configuration. One tab bar, one URL section per panel. */
-export type HarnessTabId = "agents" | "resources" | "workflows" | "projects" | "inbox";
+/** The pages of one harness. The settings sidebar is the tree; a page carries at most one tab row. */
+export type HarnessPageId = "overview" | "instructions" | "agents" | "skills" | "workflows" | "projects" | "curator";
 
-export type HarnessSectionId = "orchestrator" | "leads" | "specialists" | "curator" | "skills" | "tools" | "connectors" | "context" | "workflows" | "limits" | "projects" | "inbox";
-
-export interface HarnessSection {
-  id: HarnessSectionId;
+export interface HarnessPage {
+  id: HarnessPageId;
   label: string;
-  tab: HarnessTabId;
 }
 
-export interface HarnessTab {
-  id: HarnessTabId;
-  label: string;
-  sections: readonly HarnessSection[];
-}
-
-function tab(id: HarnessTabId, label: string, sections: readonly [HarnessSectionId, string][]): HarnessTab {
-  return {id, label, sections: sections.map(([sectionId, sectionLabel]) => ({id: sectionId, label: sectionLabel, tab: id}))};
-}
-
-export const harnessTabs: readonly HarnessTab[] = [
-  tab("agents", "Agents", [
-    ["orchestrator", "Main orchestrator"],
-    ["leads", "Project leads"],
-    ["specialists", "Specialists"],
-    ["curator", "Curator"],
-  ]),
-  tab("resources", "Resources", [
-    ["skills", "Skills"],
-    ["tools", "Tools"],
-    ["connectors", "Connectors"],
-    ["context", "Context"],
-  ]),
-  tab("workflows", "Workflows", [
-    ["workflows", "Workflows"],
-    ["limits", "Limits"],
-  ]),
-  tab("projects", "Projects", [["projects", "Projects"]]),
-  tab("inbox", "Inbox", [["inbox", "Inbox"]]),
+export const harnessPages: readonly HarnessPage[] = [
+  {id: "overview", label: "Overview"},
+  {id: "instructions", label: "Instructions"},
+  {id: "agents", label: "Agents"},
+  {id: "skills", label: "Skills & tools"},
+  {id: "workflows", label: "Workflows"},
+  {id: "projects", label: "Projects"},
+  {id: "curator", label: "Curator"},
 ];
 
-const harnessSections: readonly HarnessSection[] = harnessTabs.flatMap((item) => item.sections);
+export const defaultHarnessPage: HarnessPageId = "overview";
 
-/** Section names links used before configuration moved into settings, so an old link still lands on the right panel. */
-const legacySections: Record<string, HarnessSectionId> = {
-  Chats: "orchestrator",
-  Context: "context",
-  Graph: "workflows",
-  // Memory is no longer a panel of its own; every agent page carries its own memory tab.
-  Memory: "specialists",
-  memory: "specialists",
-  Overview: "orchestrator",
-  Prompts: "orchestrator",
-  "Run limits": "limits",
-  Skills: "skills",
-  Team: "specialists",
-  Workflow: "workflows",
-};
+/** The coordinating role in the Agents list. Specialists are addressed by their own name. */
+export const mainOrchestratorAgent = "main";
 
-export const defaultHarnessSection: HarnessSectionId = "orchestrator";
-
-/** Resolves a URL section to its panel and owning tab, falling back to the first panel for unknown values. */
-export function resolveHarnessSection(section?: string): {section: HarnessSection; tab: HarnessTab} {
-  const id = section && (legacySections[section] ?? section);
-  const resolved = harnessSections.find((candidate) => candidate.id === id) ?? harnessSections[0]!;
-  return {section: resolved, tab: harnessTabs.find((candidate) => candidate.id === resolved.tab)!};
+/** Scope of a harness page, always visible in the URL. */
+export interface HarnessPageSearch {
+  agent?: string;
+  project?: string;
+  workflow?: string;
 }
 
-/** Tab bar items of the harness workspace. The inbox carries the number of proposals waiting for a decision. */
-export function harnessTabItems(pendingProposals: number): readonly {value: HarnessTabId; label: string; count?: number}[] {
-  return harnessTabs.map((item) => ({value: item.id, label: item.label, count: item.id === "inbox" && pendingProposals > 0 ? pendingProposals : undefined}));
+/** Every `?section=` value and every tab used before the tree existed, mapped to the page that owns it now. */
+const legacyPages: Record<string, HarnessPageId> = {
+  Chats: "agents",
+  Context: "instructions",
+  Graph: "workflows",
+  Memory: "projects",
+  Overview: "overview",
+  Prompts: "instructions",
+  "Run limits": "overview",
+  Skills: "skills",
+  Team: "agents",
+  Workflow: "workflows",
+  agents: "agents",
+  connectors: "skills",
+  context: "instructions",
+  curator: "curator",
+  leads: "projects",
+  limits: "overview",
+  memory: "projects",
+  orchestrator: "agents",
+  projects: "projects",
+  resources: "skills",
+  skills: "skills",
+  specialists: "agents",
+  tools: "skills",
+  workflows: "workflows",
+};
+
+/** Old values that opened the inbox, which now lives outside settings. */
+const legacyInbox = new Set(["inbox"]);
+
+/** Old values that named the coordinating role rather than a specialist. */
+const legacyMainOrchestrator = new Set(["Chats", "orchestrator"]);
+
+/** Resolves a page id from the URL, falling back to the first page for unknown values. */
+export function resolveHarnessPage(page?: string): HarnessPage {
+  return harnessPages.find((candidate) => candidate.id === page) ?? harnessPages[0]!;
+}
+
+export function harnessPageLabel(page: HarnessPageId): string {
+  return resolveHarnessPage(page).label;
+}
+
+export interface LegacyHarnessRoute {
+  /** The settings page that owns the old URL. */
+  page: HarnessPageId;
+  search: HarnessPageSearch;
+  /** The inbox left settings, so these links go to the home layout instead of to a page. */
+  inbox?: true;
+}
+
+/** Maps one old harness URL onto the page and search that replaced it. */
+export function legacyHarnessRoute(legacy: {section?: string; projectId?: string; agentName?: string}): LegacyHarnessRoute {
+  if (legacy.section && legacyInbox.has(legacy.section)) return {page: defaultHarnessPage, search: {}, inbox: true};
+  const page = (legacy.section ? legacyPages[legacy.section] : undefined) ?? defaultHarnessPage;
+  const agent = legacy.agentName ?? (legacy.section && legacyMainOrchestrator.has(legacy.section) ? mainOrchestratorAgent : undefined);
+  const search: HarnessPageSearch = {};
+  if (page === "agents" && agent) search.agent = agent;
+  if (page === "projects" && legacy.projectId) search.project = legacy.projectId;
+  return {page, search};
 }

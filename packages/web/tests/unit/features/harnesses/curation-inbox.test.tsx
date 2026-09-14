@@ -60,6 +60,16 @@ const rejectedProposal: CurationProposal = {
   status: "rejected",
   decisionReason: "The workflow contract was wrong, not the role.",
 };
+const requestedProposal: CurationProposal = {
+  ...base,
+  id: "P-6",
+  tier: "notify",
+  target: {kind: "document", harnessId: "science", projectId: "lab", path: "PLAN.md"},
+  change: {type: "log", line: "2026-09-12 · Dropped the 2019 dataset."},
+  rationale: "A chat filed the decision and the plan never recorded it.",
+  evidence: [{kind: "request", ref: "chat-7", quote: "We stopped using the 2019 dataset."}],
+  status: "pending",
+};
 const failedProposal: CurationProposal = {
   ...base,
   id: "P-5",
@@ -94,6 +104,13 @@ describe("curation inbox", () => {
     expect(html).toContain("steer · chat-7");
     expect(html).toContain("date the summary please");
     expect(html).toContain("<details");
+  });
+
+  it("names a request filed from a chat as its own kind of evidence", () => {
+    const html = render([requestedProposal]);
+
+    expect(html).toContain("request · chat-7");
+    expect(html).toContain("We stopped using the 2019 dataset.");
   });
 
   it("shows a text change as two columns with the changed lines marked", () => {
@@ -156,6 +173,6 @@ describe("curation inbox", () => {
   it("says what to do next when nothing is waiting", () => {
     const empty = render([]);
 
-    expect(empty).toContain("Nothing waiting. Run a review from Agents → Curator.");
+    expect(empty).toContain("Nothing waiting. Run a review from the Curator page.");
   });
 });

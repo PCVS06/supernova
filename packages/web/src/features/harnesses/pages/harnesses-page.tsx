@@ -1,11 +1,13 @@
 import {useState} from "react";
+import ConstantOrb from "@/components/brand/constant-orb";
 import {Link, useNavigate} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import {configCardClass} from "@/features/harnesses/components/config-card";
-import {useHarnessLibrary, useImportScienceHarness, useSaveHarness} from "@/features/harnesses/hooks/api/use-harnesses";
+import ScienceImport from "@/features/harnesses/components/science-import";
+import {useHarnessLibrary, useSaveHarness} from "@/features/harnesses/hooks/api/use-harnesses";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
 import {cn} from "@/lib/cn";
 
@@ -13,13 +15,10 @@ import {cn} from "@/lib/cn";
 export default function HarnessesPage() {
   const library = useHarnessLibrary();
   const save = useSaveHarness();
-  const importer = useImportScienceHarness();
   const navigate = useNavigate();
   const select = useHarnessNavigationStore((state) => state.selectHarness);
   const [name, setName] = useState("");
   const [importOpen, setImportOpen] = useState(false);
-  const [packagePath, setPackagePath] = useState("~/Developer/pi-scientific-tools");
-  const [rootPath, setRootPath] = useState("~/Developer/Science-Space");
 
   // The library is the whole content of this section, so it is narrowed once instead of guarded in every expression.
   if (!library.data) {
@@ -63,7 +62,7 @@ export default function HarnessesPage() {
         onSuccess: () => {
           select(id);
           setName("");
-          void navigate({to: "/settings/harness/$harnessId", params: {harnessId: id}});
+          void navigate({to: "/settings/harness/$harnessId/$page", params: {harnessId: id, page: "overview"}});
         },
       }
     );
@@ -78,13 +77,13 @@ export default function HarnessesPage() {
             {harnesses.map((harness) => (
               <Link
                 key={harness.id}
-                params={{harnessId: harness.id}}
-                to="/settings/harness/$harnessId"
+                params={{harnessId: harness.id, page: "overview"}}
+                to="/settings/harness/$harnessId/$page"
                 onClick={() => select(harness.id)}
                 className={cn(configCardClass, "group flex flex-col p-5 transition-colors hover:border-border-strong hover:bg-surface-control")}
               >
                 <span className="flex items-center justify-between">
-                  <Icon name="workflow" size="md" className="text-ink-muted" />
+                  <ConstantOrb constant="pi" className="size-10" state="still" />
                   <Icon className="text-ink-faint group-hover:text-ink" name="arrow-right" size="sm" />
                 </span>
                 <span className="mt-4 text-sm font-medium text-ink-strong">{harness.name}</span>
@@ -113,54 +112,12 @@ export default function HarnessesPage() {
             </Button>
           </div>
         </SettingsRow>
-        {!harnesses.some((harness) => harness.id === "science") && (
-          <SettingsRow
-            control={
-              <Button aria-expanded={importOpen} className="rounded-lg border border-border px-3 py-2 text-xs" onClick={() => setImportOpen(!importOpen)}>
-                {importOpen ? "Hide" : "Set up import"}
-                <Icon name="chevron-down" size="xs" className={cn("ml-2 transition-transform", importOpen && "rotate-180")} />
-              </Button>
-            }
-            description="Imports prompts and specialist definitions, and links existing lab folders. Original files are not overwritten. Existing research gates stay in place; no agents or experiments start."
-            title="Import your Science Pi setup"
-          >
-            {importOpen && (
-              <div className="space-y-3">
-                <label className="block space-y-1.5">
-                  <span className="block text-xs text-ink-muted">Science package</span>
-                  <Input value={packagePath} onChange={(event) => setPackagePath(event.target.value)} />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="block text-xs text-ink-muted">Science workspace</span>
-                  <Input value={rootPath} onChange={(event) => setRootPath(event.target.value)} />
-                </label>
-                <Button
-                  variant="filled"
-                  className="px-4 py-2 text-sm"
-                  disabled={importer.isPending}
-                  onClick={() =>
-                    importer.mutate(
-                      {packagePath, rootPath, expectedRevision: revision},
-                      {
-                        onSuccess: () => {
-                          select("science");
-                          void navigate({to: "/settings/harness/$harnessId", params: {harnessId: "science"}});
-                        },
-                      }
-                    )
-                  }
-                >
-                  {importer.isPending ? "Importing…" : "Import Science Pi"}
-                </Button>
-              </div>
-            )}
-          </SettingsRow>
-        )}
+        {!harnesses.some((harness) => harness.id === "science") && <ScienceImport open={importOpen} revision={revision} onToggle={() => setImportOpen(!importOpen)} />}
       </SettingsGroup>
 
-      {(save.error || importer.error) && (
+      {save.error && (
         <p className="px-3 text-sm text-danger-ink sm:px-4" role="alert">
-          {String(save.error || importer.error)}
+          {String(save.error)}
         </p>
       )}
     </>

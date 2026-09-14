@@ -1,33 +1,39 @@
 import type {CuratorConfig, HarnessConfig} from "@supernova/contracts/harnesses/schemas";
+import {useState} from "react";
+import {Link} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
+import ConstantOrb from "@/components/brand/constant-orb";
+import ConstantCompletion from "@/components/brand/constant-completion";
+import {constantIdentity} from "@/components/brand/constant-identity";
+import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
 import Input from "@/components/ui/input";
 import Switch from "@/components/ui/switch";
 import {showToast} from "@/components/ui/toast-manager";
 import SettingsPageShell from "@/features/settings/components/settings-page-shell";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
-import ConfigCard from "@/features/harnesses/components/config-card";
+import CuratorRequests from "@/features/harnesses/components/curator-requests";
+import CuratorSchedule from "@/features/harnesses/components/curator-schedule";
+import CuratorSignals from "@/features/harnesses/components/curator-signals";
 import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import {useCuration, useRunCuratorReview} from "@/features/harnesses/hooks/api/use-curation";
 import {relativeTime, spendLabel} from "@/features/harnesses/lib/curation-format";
 import {curatorConfigPatch, defaultCuratorConfig} from "@/features/harnesses/lib/curator-config";
 
-const REVIEW_LIMIT = 20;
-
 interface CuratorEditorProps {
   harness: HarnessConfig;
   onChangeHarness: (change: Partial<HarnessConfig>) => void;
-  onOpenInbox: () => void;
 }
 
 /** The curator of one harness: whether it runs, which model it uses, what it may apply alone, and what it cost. */
 export default function CuratorEditor(props: CuratorEditorProps) {
-  const {harness, onChangeHarness, onOpenInbox} = props;
+  const {harness, onChangeHarness} = props;
   const curation = useCuration(harness.id);
   const runReview = useRunCuratorReview();
+  const [completedReview, setCompletedReview] = useState<string>();
+  const mathematicalMotion = useAppearanceStore((state) => state.mathematicalMotion);
   const curator = harness.curator;
   const limits = curator ?? defaultCuratorConfig;
-  const reviews = (curation.data?.reviews ?? []).toSorted((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, REVIEW_LIMIT);
-  const last = reviews[0];
+  const last = (curation.data?.reviews ?? []).toSorted((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
   const pending = curation.data?.proposals.filter((proposal) => proposal.status === "pending").length ?? 0;
 
   const patch = (change: Partial<CuratorConfig>): void => {
@@ -35,6 +41,7 @@ export default function CuratorEditor(props: CuratorEditorProps) {
   };
 
   const handleReview = (): void => {
+    setCompletedReview(undefined);
     runReview.mutate(
       {harnessId: harness.id},
       {
@@ -43,6 +50,7 @@ export default function CuratorEditor(props: CuratorEditorProps) {
             showToast("Review failed", review.error ?? "The review stopped without a reason.");
             return;
           }
+          if (review.status === "completed") setCompletedReview(review.id);
           showToast("Review finished", review.summary || `${review.proposals} proposals · ${review.applied} applied`);
         },
         onError: (error) => showToast("Review failed", error instanceof Error ? error.message : String(error)),
@@ -52,6 +60,22 @@ export default function CuratorEditor(props: CuratorEditorProps) {
 
   return (
     <SettingsPageShell testId="curator-editor">
+      <header className="flex items-center gap-4 px-3 pb-5 sm:px-4">
+        {completedReview ? (
+          <ConstantCompletion constant="i" className="size-24" label="Curator · imaginary unit" key={completedReview} onComplete={() => setCompletedReview(undefined)} />
+        ) : (
+          <ConstantOrb constant="i" className="size-24" label="Curator · imaginary unit" state={runReview.isPending ? "working" : "idle"} />
+        )}
+        <div>
+          <h2 className="text-xl font-medium text-ink-strong">Curator</h2>
+          <p className="mt-1 text-xs text-ink-muted">Instructions, plans and memory</p>
+          {runReview.isPending && mathematicalMotion === "playful" && (
+            <p aria-hidden="true" className="mt-1 text-xs text-ink">
+              {constantIdentity.i.caption}…
+            </p>
+          )}
+        </div>
+      </header>
       <SettingsGroup title="Status">
         <SettingsRow
           control={<Switch aria-label="Curator" checked={curator?.enabled ?? false} onCheckedChange={(enabled) => patch({enabled})} />}
@@ -80,13 +104,15 @@ export default function CuratorEditor(props: CuratorEditorProps) {
             </div>
           )}
         </SettingsRow>
-        {pending > 0 && (
-          <div className="px-3 sm:px-4">
-            <Button className="text-xs text-ink-muted underline hover:text-ink" onClick={onOpenInbox}>
-              Open inbox ({pending} pending)
-            </Button>
-          </div>
-        )}
+        <SettingsRow
+          control={
+            <Link className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" params={{harnessId: harness.id}} to="/inbox/$harnessId">
+              {pending > 0 ? `Open inbox (${pending} pending)` : "Open inbox"}
+            </Link>
+          }
+          description="Proposals are approved, edited or rejected outside settings."
+          title="Inbox"
+        />
       </SettingsGroup>
 
       <SettingsGroup title="Model">
@@ -113,6 +139,10 @@ export default function CuratorEditor(props: CuratorEditorProps) {
           title="Plan log"
         />
       </SettingsGroup>
+
+      <CuratorSchedule config={limits} onChange={patch} />
+
+      <CuratorSignals metrics={curation.data?.metrics} />
 
       <SettingsGroup title="Spend limits">
         <SettingsRow
@@ -147,24 +177,7 @@ export default function CuratorEditor(props: CuratorEditorProps) {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="Reviews">
-        <div className="space-y-2 px-3 sm:px-4">
-          {reviews.map((review) => (
-            <ConfigCard key={review.id} className="space-y-1 p-3">
-              <p className="text-xs text-ink-muted">
-                {relativeTime(review.startedAt)} · {review.trigger} · {review.status} · {review.proposals} proposals · {review.applied} applied
-                {spendLabel(review.spentUsd) && ` · ${spendLabel(review.spentUsd)}`}
-              </p>
-              {review.status === "failed" && (
-                <p className="truncate text-xs text-danger-ink" title={review.error ?? undefined}>
-                  {review.error ?? "No reason given."}
-                </p>
-              )}
-            </ConfigCard>
-          ))}
-          {!reviews.length && <ConfigCard className="text-sm text-ink-muted">No reviews yet.</ConfigCard>}
-        </div>
-      </SettingsGroup>
+      <CuratorRequests requests={curation.data?.requests ?? []} />
     </SettingsPageShell>
   );
 }

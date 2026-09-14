@@ -1,6 +1,6 @@
 import {useState} from "react";
 import type {ReactNode} from "react";
-import PiOrb from "@/components/brand/pi-orb";
+import ConstantOrb from "@/components/brand/constant-orb";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
@@ -9,17 +9,16 @@ import AgentMark from "@/features/harnesses/components/agent-mark";
 import type {AgentMarkKind} from "@/features/harnesses/components/agent-mark";
 import ConfigChoice from "@/features/harnesses/components/config-choice";
 import EditorTabs from "@/features/harnesses/components/editor-tabs";
-import {agentColor} from "@/features/harnesses/lib/agent-identity";
+import {agentMarks} from "@/features/harnesses/lib/agent-identity";
 import {cn} from "@/lib/cn";
 
-export type AgentEditorSection = "settings" | "prompt" | "skills" | "memory";
+export type AgentEditorSection = "settings" | "prompt" | "skills";
 
-/** The four panels every agent-like role is edited through. Memory is part of the agent, not a place of its own. */
+/** The three panels every agent is edited through. Memory belongs to the project, not to the agent. */
 const agentEditorSections: readonly {value: AgentEditorSection; label: string}[] = [
   {value: "settings", label: "Settings"},
   {value: "prompt", label: "Instructions"},
   {value: "skills", label: "Skills"},
-  {value: "memory", label: "Memory"},
 ];
 
 interface AgentWorkbenchProps {
@@ -28,7 +27,7 @@ interface AgentWorkbenchProps {
   selection?: {
     label: string;
     value: string;
-    items: readonly {id: string; name: string; color?: string; subtitle: string; searchText?: string}[];
+    items: readonly {id: string; name: string; color?: string; kind?: AgentMarkKind; subtitle: string; searchText?: string}[];
     onChange: (id: string) => void;
     onAdd?: () => void;
   };
@@ -37,18 +36,14 @@ interface AgentWorkbenchProps {
   children: ReactNode;
 }
 
-/** Shared identity, selector, navigation and scroll ownership for every agent-like role: orchestrator, leads, specialists. */
+/** Shared list, identity and scroll ownership for the agents of one harness. */
 export default function AgentWorkbench(props: AgentWorkbenchProps) {
   const {kind, identity, selection, section, onSectionChange, children} = props;
   const [query, setQuery] = useState("");
-  const prefix = kind === "lead" ? "lead" : "agent";
   const filtered = selection?.items.filter((item) => `${item.name} ${item.searchText ?? ""}`.toLowerCase().includes(query.toLowerCase())) ?? [];
-  const detailNavigation = section && onSectionChange && (
-    <EditorTabs label={kind === "lead" ? "Lead editor tabs" : "Agent editor tabs"} value={section} items={agentEditorSections} onChange={onSectionChange} />
-  );
 
   return (
-    <div className="harness-agent-layout flex h-full min-h-0 overflow-hidden" data-testid={`${prefix}-workbench`}>
+    <div className="harness-agent-layout flex h-full min-h-0 overflow-hidden" data-testid="agent-workbench">
       {selection && (
         <>
           <div className="agent-compact-picker shrink-0 items-center gap-3 border-b border-border px-6 py-3">
@@ -89,24 +84,24 @@ export default function AgentWorkbench(props: AgentWorkbenchProps) {
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3" data-testid={`${prefix}-list-scroll`}>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3" data-testid="agent-list-scroll">
               {filtered.map((item) => (
                 <Button
                   key={item.id}
-                  aria-label={`Configure ${item.name}${kind === "lead" ? " lead" : ""}`}
+                  aria-label={`Configure ${item.name}`}
                   aria-pressed={selection.value === item.id}
                   onClick={() => selection.onChange(item.id)}
                   className={cn(
-                    "agent-editor-row mb-1 flex min-h-18 w-full items-center gap-3 rounded-xl corner-superellipse/1.3 px-2 py-2 text-left outline-none hover:bg-overlay-hover focus-visible:bg-overlay-hover",
+                    "agent-editor-row mb-1 flex min-h-14 w-full items-center gap-3 rounded-xl corner-superellipse/1.3 px-2 py-2 text-left outline-none hover:bg-overlay-hover focus-visible:bg-overlay-hover",
                     selection.value === item.id && "bg-surface-control"
                   )}
                 >
-                  <AgentMark name={item.id} color={item.color} kind={kind} className="size-10 shrink-0" />
+                  <AgentMark name={item.id} color={item.color} kind={item.kind ?? kind} className="size-8 shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-2 text-sm leading-5" title={item.name}>
                       {item.name}
                     </span>
-                    <span className="mt-1 block truncate text-xs text-ink-muted" title={item.subtitle}>
+                    <span className="mt-0.5 block truncate text-xs text-ink-muted" title={item.subtitle}>
                       {item.subtitle}
                     </span>
                   </span>
@@ -119,23 +114,26 @@ export default function AgentWorkbench(props: AgentWorkbenchProps) {
       )}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="agent-editor-detail">
         {identity && (
-          <header className="agent-editor-header shrink-0 border-b border-border px-5 pt-5 sm:px-6">
+          <header className="agent-editor-header shrink-0 border-b border-border px-5 pt-3 sm:px-6">
             <div className="mx-auto w-full max-w-4xl">
-              <div className="agent-editor-hero flex min-h-24 items-center gap-4">
-                <PiOrb label={`${identity.name} ${kind} identity`} className="agent-editor-portrait size-24" color={agentColor(identity.id, identity.color)} state="idle" />
+              <div className="agent-editor-hero flex min-h-12 items-center gap-3">
+                <ConstantOrb constant={agentMarks[kind].constant} label={`${identity.name} ${kind} identity`} className="agent-editor-portrait size-12" state="idle" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs uppercase tracking-wider text-ink-muted">{identity.role}</p>
-                  <h2 className="mt-1 line-clamp-2 text-xl font-medium leading-snug" title={identity.name}>
+                  <h2 className="truncate text-base font-medium leading-snug" title={identity.name}>
                     {identity.name}
                   </h2>
-                  {identity.description && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink-muted">{identity.description}</p>}
+                  <p className="truncate text-xs text-ink-muted">{identity.description ? `${identity.role} · ${identity.description}` : identity.role}</p>
                 </div>
               </div>
-              {detailNavigation && <div className="mt-3">{detailNavigation}</div>}
+              {section && onSectionChange && (
+                <div className="mt-1">
+                  <EditorTabs label="Agent editor tabs" value={section} items={agentEditorSections} onChange={onSectionChange} />
+                </div>
+              )}
             </div>
           </header>
         )}
-        <SettingsPageShell testId={`${prefix}-detail-scroll`}>{children}</SettingsPageShell>
+        <SettingsPageShell testId="agent-detail-scroll">{children}</SettingsPageShell>
       </section>
     </div>
   );

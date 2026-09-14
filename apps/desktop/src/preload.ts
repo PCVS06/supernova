@@ -10,6 +10,7 @@ function readArgument(prefix: string): string | undefined {
 const desktopApi = {
   environment: process.platform === "darwin" ? "mac" : process.platform === "win32" ? "windows" : "linux",
   serverUrl: readArgument("--supernova-server-url=") ?? "",
+  dataDirectory: readArgument("--supernova-data-directory=") ?? "",
   appVersion: readArgument("--supernova-app-version=") ?? "",
   nightly: process.argv.includes("--supernova-nightly"),
 
@@ -23,6 +24,7 @@ const desktopApi = {
   reloadWorkspaceBrowser: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.reloadWorkspaceBrowser),
 
   getUpdateState: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.getUpdateState),
+  checkForUpdates: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.checkForUpdates),
   downloadUpdate: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.downloadUpdate),
   installUpdate: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.installUpdate),
   onUpdateState: (listener) => {

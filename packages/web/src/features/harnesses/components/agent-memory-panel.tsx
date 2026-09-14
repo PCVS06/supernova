@@ -31,7 +31,7 @@ export default function AgentMemoryPanel(props: AgentMemoryPanelProps) {
   const unavailable = memory.data?.unavailableReason;
 
   return (
-    <SettingsGroup title="Memory">
+    <SettingsGroup title="Memory · read-only">
       {projects.length > 1 && (
         <SettingsRow
           control={

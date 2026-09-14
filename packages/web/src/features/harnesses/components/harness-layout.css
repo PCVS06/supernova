@@ -48,11 +48,11 @@
   }
 
   .agent-editor-portrait {
-    width: 5rem;
-    height: 5rem;
+    width: 2.5rem;
+    height: 2.5rem;
   }
 
   .agent-editor-hero {
-    min-height: 5rem;
+    min-height: 3rem;
   }
 }
