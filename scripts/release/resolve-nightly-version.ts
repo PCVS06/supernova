@@ -29,7 +29,7 @@ const version = `${resolveNightlyBaseVersion(readDesktopVersion())}-nightly.${da
 const outputs = [
   ["version", version],
   ["tag", `v${version}`],
-  ["release_name", `Supernova Nightly ${version} (${sha.slice(0, 12)})`],
+  ["release_name", `Radian Nightly ${version} (${sha.slice(0, 12)})`],
 ] as const;
 
 const githubOutput = process.env.GITHUB_OUTPUT;

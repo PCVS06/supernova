@@ -8,6 +8,7 @@
     "apps/*"
   ],
   "scripts": {
+    "generate:brand": "bun scripts/generate-constant-artwork.ts && bun run --filter @supernova/desktop generate:brand",
     "dev:server": "bun scripts/dev.ts",
     "dev:desktop": "bun scripts/dev.ts --desktop",
     "start:server": "turbo run start --filter=@supernova/server",

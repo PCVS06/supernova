@@ -1,0 +1,356 @@
+.chat-orbits {
+  --orb-glow: 0.75px;
+  --orb-digit-fade: 0.72;
+  --white-glow-soft: none;
+  --white-glow-focused: none;
+  position: relative;
+  color: var(--theme-ink);
+  isolation: isolate;
+  container-type: inline-size;
+}
+.chat-orbits button:focus-visible,
+.chat-orbits a:focus-visible,
+.chat-orbits input:focus-visible {
+  outline: 1px solid var(--theme-ink-muted);
+  outline-offset: 4px;
+}
+.chat-orbit-toolbar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 12;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 2rem;
+}
+.chat-orbit-back {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: calc(100% - 2rem);
+  font-size: 0.75rem;
+  color: var(--theme-ink-muted);
+}
+.chat-orbit-back span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-orbit-canvas {
+  --orbit-stage-height: 30rem;
+  position: relative;
+  width: 100%;
+  height: 5rem;
+  overflow: clip;
+  touch-action: pan-y;
+  transition: height 680ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chat-orbit-canvas[data-expanded="true"] {
+  height: var(--orbit-stage-height);
+}
+.chat-orbit-canvas[data-expanded="false"] {
+  overflow: clip;
+}
+.chat-orbit-canvas[data-expanded="false"] .chat-orbit-sun .chat-orbit-caption {
+  left: calc(100% + 0.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: left;
+}
+.chat-orbit-canvas[data-expanded="true"][data-orbit-empty="true"] {
+  --orbit-stage-height: 12rem;
+  height: var(--orbit-stage-height);
+}
+.chat-orbit-paths {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: var(--orbit-stage-height);
+  overflow: visible;
+  pointer-events: none;
+}
+.chat-orbit-bodies {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.chat-orbit-paths,
+.chat-orbit-bodies {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 260ms ease,
+    visibility 260ms;
+}
+[data-expanded="true"] > .chat-orbit-paths,
+[data-expanded="true"] > .chat-orbit-bodies {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 180ms, 0ms;
+}
+.chat-orbit-track {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 0.5 5;
+  stroke-linecap: round;
+  opacity: 0.3;
+}
+.chat-orbit-track[data-active="true"],
+.chat-orbit-track[data-selected="true"] {
+  opacity: 0.5;
+}
+.chat-orbit-moon-track {
+  stroke-dasharray: 0.5 4;
+  opacity: 0.22;
+}
+.chat-orbit-packet line {
+  stroke: currentColor;
+  stroke-dasharray: 1 4;
+  stroke-linecap: round;
+  stroke-width: 1;
+  opacity: 0.55;
+}
+.chat-orbit-packet circle {
+  fill: currentColor;
+}
+.chat-orbit-packet .chat-orbit-packet-halo {
+  opacity: 0.14;
+}
+.chat-orbit-body,
+.chat-orbit-sun {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+}
+.chat-orbit-body {
+  width: 2.75rem;
+  height: 2.75rem;
+  pointer-events: none;
+}
+.chat-orbit-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: var(--orbit-hit-area, inset(0));
+  pointer-events: auto;
+}
+.chat-orbit-body > * {
+  pointer-events: none;
+}
+.chat-orbit-sun {
+  width: 5rem;
+  height: 5rem;
+  left: 2.5rem;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  transition:
+    left 680ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 680ms ease,
+    height 680ms ease;
+}
+[data-expanded="true"] > .chat-orbit-sun {
+  left: 50%;
+  width: 7rem;
+  height: 7rem;
+}
+[data-expanded="true"] > .chat-orbit-sun > .constant-orb {
+  width: 7rem;
+  height: 7rem;
+}
+.chat-orbit-sun > .constant-orb {
+  position: relative;
+  z-index: 1;
+  transition:
+    width 680ms ease,
+    height 680ms ease;
+}
+.chat-orbit-body:hover,
+.chat-orbit-body:focus-visible {
+  z-index: 10 !important;
+}
+.chat-orbit-mark,
+.chat-orbit-moon-mark {
+  opacity: var(--orbit-luminance, 1);
+}
+.chat-orbit-mark {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+.chat-orbit-body[data-kind="orchestrator"] .chat-orbit-mark {
+  width: 3rem;
+  height: 3rem;
+}
+.chat-orbit-canvas .constant-orb-digits {
+  shape-rendering: geometricPrecision;
+}
+.chat-orbit-canvas .constant-orb-digits path {
+  opacity: clamp(0.58, calc(var(--digit-opacity) * 1.6), 1);
+}
+.chat-orbit-body[data-active="true"] .constant-orb-digits path,
+.chat-orbit-body:hover .constant-orb-digits path {
+  opacity: clamp(0.76, calc(var(--digit-opacity) * 1.8), 1);
+}
+.chat-orbit-body[data-independent="true"]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 0.25rem;
+  height: 0.25rem;
+  background: var(--theme-ink-muted);
+  border-radius: 50%;
+}
+.chat-orbit-caption {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  width: max-content;
+  max-width: 13rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--theme-surface);
+  color: var(--theme-ink-muted);
+  border-radius: 0.25rem;
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0;
+  z-index: 4;
+}
+.chat-orbit-body:hover .chat-orbit-caption,
+.chat-orbit-body[aria-pressed="true"] .chat-orbit-caption,
+.chat-orbit-body:focus-visible .chat-orbit-caption,
+.chat-orbit-sun:hover .chat-orbit-caption,
+.chat-orbit-sun:focus-visible .chat-orbit-caption {
+  opacity: 1;
+}
+.chat-orbit-body[data-label-edge="left"] .chat-orbit-caption {
+  left: 0;
+  transform: none;
+}
+.chat-orbit-body[data-label-edge="right"] .chat-orbit-caption {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.chat-orbit-body[data-label-side="above"] .chat-orbit-caption {
+  top: auto;
+  bottom: calc(100% + 0.5rem);
+}
+.chat-orbit-cluster {
+  display: grid;
+  place-items: center;
+  font:
+    1.75rem/1 Georgia,
+    serif;
+  color: var(--theme-ink-muted);
+}
+.chat-orbit-cluster-mark {
+  width: 2.75rem;
+  height: 2.75rem;
+  fill: currentColor;
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chat-orbit-body[aria-pressed="true"] .chat-orbit-cluster-mark,
+.chat-orbit-body:hover .chat-orbit-cluster-mark {
+  transform: scale(1.16) rotate(-8deg);
+}
+.chat-orbit-count {
+  position: absolute;
+  top: 100%;
+  color: var(--theme-ink);
+  font: 500 0.75rem/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.chat-orbit-attention {
+  position: absolute;
+  top: -0.15rem;
+  right: -0.15rem;
+  font-size: 0.75rem;
+  color: var(--theme-ink);
+}
+.chat-orbit-inspector,
+.chat-orbit-members {
+  margin-top: 1rem;
+  padding-block: 0.75rem;
+  animation: orbit-detail-arrive 240ms ease-out;
+}
+.chat-constellation-link {
+  display: inline-flex;
+  padding-block: 0.25rem;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+.chat-orbit-canvas[data-expanded="true"][data-motion="true"] .constant-orb[data-state="idle"] .constant-orb-digits {
+  animation: var(--orb-motion) var(--orb-cycle) linear infinite;
+  animation-delay: calc(var(--digit-phase) * var(--orb-cycle) * -1);
+}
+.chat-orbit-canvas[data-motion="false"],
+.chat-orbit-canvas[data-motion="false"] * {
+  transition: none;
+  animation: none;
+}
+@container (width < 540px) {
+  .chat-orbit-canvas {
+    --orbit-stage-height: 27rem;
+  }
+  .chat-orbit-sun {
+    width: 3.5rem;
+    height: 3.5rem;
+    left: 1.75rem;
+  }
+  .chat-orbit-sun > .constant-orb {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+  .chat-orbit-mark,
+  .chat-orbit-body[data-kind="orchestrator"] .chat-orbit-mark {
+    width: 2rem;
+    height: 2rem;
+  }
+  [data-expanded="true"] > .chat-orbit-sun > .constant-orb {
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+  [data-expanded="true"] > .chat-orbit-sun {
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-orbits *,
+  .chat-orbits *::before,
+  .chat-orbits *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.chat-orbit-moon-target {
+  width: 1.5rem;
+  height: 1.5rem;
+  z-index: 6;
+}
+.chat-orbit-moon-mark {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+@keyframes orbit-detail-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

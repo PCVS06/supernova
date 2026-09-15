@@ -1,37 +1,39 @@
 import Button from "@/components/ui/button";
+import {SettingsRow} from "@/features/settings/components/settings-group";
 import AgentMark from "@/features/harnesses/components/agent-mark";
-import {ConfigField} from "@/features/harnesses/components/config-fields";
+import type {AgentMarkKind} from "@/features/harnesses/components/agent-mark";
 import {agentColor, agentColors} from "@/features/harnesses/lib/agent-identity";
 import {cn} from "@/lib/cn";
 
 interface AgentIdentityPickerProps {
   name: string;
   color?: string;
-  kind: "lead" | "specialist";
+  kind: AgentMarkKind;
   onChange: (color: string) => void;
 }
 
-/** Identical palette geometry; a role's pi variant remains distinct. */
+/** Retains editable role accents alongside the monochrome mathematical marks. */
 export default function AgentIdentityPicker(props: AgentIdentityPickerProps) {
   const {name, color, kind, onChange} = props;
+
   return (
-    <ConfigField label="Identity">
+    <SettingsRow description="Stored with this role for color accents. Its mathematical identity mark stays white." title="Role color">
       <div className="flex flex-wrap gap-2">
         {["#ffffff", ...agentColors].map((choice) => (
           <Button
             key={choice}
-            aria-label={`${kind === "lead" ? "Lead" : "Agent"} color ${choice}`}
+            aria-label={`${kind === "lead" || kind === "orchestrator" ? "Lead" : "Agent"} color ${choice}`}
             aria-pressed={agentColor(name, color) === choice}
             onClick={() => onChange(choice)}
             className={cn(
-              "rounded-full border border-transparent p-1 outline-none focus-visible:ring-1 focus-visible:ring-ink-faint",
+              "rounded-full border border-transparent p-1 outline-none hover:border-border focus-visible:ring-1 focus-visible:ring-ink-faint",
               agentColor(name, color) === choice && "border-ink-faint"
             )}
           >
-            <AgentMark name={name} kind={kind} color={choice} className="size-9" />
+            <AgentMark name={name} kind={kind} color={choice} colorPreview className="size-9" />
           </Button>
         ))}
       </div>
-    </ConfigField>
+    </SettingsRow>
   );
 }

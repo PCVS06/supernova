@@ -23,6 +23,8 @@ describe("appearance upgrade", () => {
       matchMedia: () => ({addEventListener: vi.fn(), matches: false}),
     });
     vi.stubGlobal("document", {
+      addEventListener: vi.fn(),
+      hidden: false,
       documentElement: {dataset: {}, style: {removeProperty: vi.fn(), setProperty: vi.fn()}},
     });
   });
@@ -57,7 +59,7 @@ describe("appearance upgrade", () => {
       uiFont: "Inter",
       fontSmoothing: false,
     });
-    expect(JSON.parse(localStorage.getItem(storageKey) ?? "{}").version).toBe(1);
+    expect(JSON.parse(localStorage.getItem(storageKey) ?? "{}").version).toBe(3);
     expect(localStorage.getItem("supernova-projects")).toBe(projects);
   });
 
@@ -65,10 +67,13 @@ describe("appearance upgrade", () => {
     const {useAppearanceStore} = await import("@/features/settings/stores/appearance-store");
     useAppearanceStore.getState().setMode("light");
     useAppearanceStore.getState().setTranslucentSidebar(true);
+    useAppearanceStore.getState().setMathematicalMotion("off");
+    useAppearanceStore.getState().setWhiteGlow("soft");
 
     vi.resetModules();
     const reloaded = await import("@/features/settings/stores/appearance-store");
     reloaded.initializeAppearance();
-    expect(reloaded.useAppearanceStore.getState()).toMatchObject({mode: "light", resolvedMode: "light", translucentSidebar: true});
+    expect(reloaded.useAppearanceStore.getState()).toMatchObject({mode: "light", resolvedMode: "light", translucentSidebar: true, mathematicalMotion: "off", whiteGlow: "soft"});
+    expect(document.documentElement.dataset).toMatchObject({mathematicalMotion: "off", whiteGlow: "soft"});
   });
 });

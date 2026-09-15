@@ -5,7 +5,7 @@ import {basename, isAbsolute, join, resolve} from "node:path";
 import {getAgentDir, loadSkills, parseFrontmatter} from "@earendil-works/pi-coding-agent";
 import {Schema} from "effect";
 import {HarnessLibrary, HarnessSnapshot} from "@supernova/contracts/harnesses/schemas";
-import type {HarnessAgent, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
+import type {CurationTarget, HarnessAgent, HarnessConfig, HarnessProject, InstructionVersion} from "@supernova/contracts/harnesses/schemas";
 import {createDefaultHarness, normalizeHarnessHierarchy, resolveHarnessProject, validateHarness} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 
 async function optionalText(path: string): Promise<string> {
@@ -25,6 +25,55 @@ async function directory(path: string): Promise<string> {
   return canonical;
 }
 
+/** True when the path is an existing directory. A vanished project folder is reported to the UI, not thrown at every reader. */
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function missingFolderError(path: string): Error {
+  return new Error(`The project folder is missing: ${path}. Restore the folder, or remove the project and add it again, before starting a chat.`);
+}
+
+/** Rechecks the current lead relationship instead of trusting a chat's old project list. */
+function requireHarnessLead(actor: HarnessSnapshot, library: HarnessLibrary): HarnessConfig {
+  const harness = library.harnesses.find((item) => item.id === actor.harness.id);
+  const project = library.projects.find((item) => item.id === actor.project.id && item.harnessId === actor.harness.id && item.path === actor.project.path);
+  if (!harness || !project || harness.coordinatorProjectId !== project.id || actor.harness.coordinatorProjectId !== actor.project.id)
+    throw new Error("Only this harness's current lead can manage its projects.");
+  return harness;
+}
+
+/** Keeps an identifier usable as one path segment; project and agent identifiers are already narrow, legacy ones are not. */
+function safeSegment(value: string): string {
+  const safe = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
+  if (!safe || safe === "." || safe === "..") throw new Error("Invalid instruction version key.");
+  return safe;
+}
+
+/** The folder one instruction artefact's history lives in, derived from the target the curator addresses it by. */
+export function instructionVersionKey(target: CurationTarget): string {
+  switch (target.kind) {
+    case "harness":
+      return "harness";
+    case "context":
+      return "context";
+    case "project":
+      if (!target.projectId) throw new Error("A project instruction version needs a project.");
+      return `project-${safeSegment(target.projectId)}`;
+    case "role": {
+      if (!target.agentName) throw new Error("A role instruction version needs an agent name.");
+      const role = `role-${safeSegment(target.agentName)}`;
+      return target.projectId ? `project-${safeSegment(target.projectId)}-${role}` : role;
+    }
+    default:
+      throw new Error("Only instruction texts have a version history.");
+  }
+}
+
 /** Server-owned, revision-checked configuration store. Never writes into imported projects. */
 export class HarnessStore {
   private queue: Promise<unknown> = Promise.resolve();
@@ -34,6 +83,17 @@ export class HarnessStore {
   public async list(): Promise<HarnessLibrary> {
     const contents = await optionalText(join(this.root, "harnesses.json"));
     return normalizeHarnessHierarchy(contents ? Schema.decodeUnknownSync(HarnessLibrary)(JSON.parse(contents)) : {revision: 0, harnesses: [createDefaultHarness()], projects: []});
+  }
+
+  /** Marks projects whose folder disappeared so the UI can warn before a chat fails. */
+  public async withFolderStatus(library: HarnessLibrary): Promise<HarnessLibrary> {
+    const projects = await Promise.all(library.projects.map(async (project) => ((await isDirectory(project.path)) ? project : {...project, folderMissing: true})));
+    return {...library, projects};
+  }
+
+  /** The library as the UI should see it: persisted configuration plus folder availability. */
+  public async describe(): Promise<HarnessLibrary> {
+    return this.withFolderStatus(await this.list());
   }
 
   private async update(expectedRevision: number, mutate: (library: HarnessLibrary) => Promise<HarnessLibrary>): Promise<HarnessLibrary> {
@@ -53,6 +113,7 @@ export class HarnessStore {
           const current = await this.list();
           if (current.revision !== expectedRevision) throw new Error("Configuration changed elsewhere. Reload before saving.");
           const next = normalizeHarnessHierarchy({...(await mutate(current)), revision: current.revision + 1});
+          await this.archiveInstructions(current, next);
           const temporary = join(this.root, `harnesses-${randomUUID()}.tmp`);
           await writeFile(temporary, JSON.stringify(next, null, 2), {mode: 0o600});
           await rename(temporary, join(this.root, "harnesses.json"));
@@ -63,6 +124,76 @@ export class HarnessStore {
       });
     this.queue = operation;
     return operation;
+  }
+
+  private versionDirectory(target: CurationTarget): string {
+    return join(this.root, "versions", safeSegment(target.harnessId), instructionVersionKey(target));
+  }
+
+  /**
+   * Keeps the text every changed instruction artefact had at `current.revision`, so an applied curation or a hand
+   * edit can be read back and restored. Unchanged text is never written, and text that was empty has nothing to keep.
+   */
+  private async archiveInstructions(current: HarnessLibrary, next: HarnessLibrary): Promise<void> {
+    const changes: {target: CurationTarget; text: string}[] = [];
+    const keep = (target: CurationTarget, before: string, after: string | undefined) => {
+      if (before && before !== after) changes.push({target, text: before});
+    };
+    for (const harness of current.harnesses) {
+      const after = next.harnesses.find((item) => item.id === harness.id);
+      keep({kind: "harness", harnessId: harness.id}, harness.systemPrompt, after?.systemPrompt);
+      keep({kind: "context", harnessId: harness.id}, harness.context.instructions, after?.context.instructions);
+      for (const agent of harness.agents) {
+        keep({kind: "role", harnessId: harness.id, agentName: agent.name}, agent.systemPrompt, after?.agents.find((item) => item.name === agent.name)?.systemPrompt);
+      }
+    }
+    for (const project of current.projects) {
+      const after = next.projects.find((item) => item.id === project.id);
+      keep({kind: "project", harnessId: project.harnessId, projectId: project.id}, project.systemPrompt, after?.systemPrompt);
+      for (const agent of project.agents) {
+        keep(
+          {kind: "role", harnessId: project.harnessId, projectId: project.id, agentName: agent.name},
+          agent.systemPrompt,
+          after?.agents.find((item) => item.name === agent.name)?.systemPrompt
+        );
+      }
+    }
+    for (const change of changes) {
+      const directory = this.versionDirectory(change.target);
+      await mkdir(directory, {recursive: true, mode: 0o700});
+      const temporary = join(directory, `${randomUUID()}.tmp`);
+      await writeFile(temporary, change.text, {mode: 0o600});
+      await rename(temporary, join(directory, `${current.revision}.md`));
+    }
+  }
+
+  /** The saved previous texts of one instruction artefact, newest first. */
+  public async listVersions(target: CurationTarget): Promise<InstructionVersion[]> {
+    const directory = this.versionDirectory(target);
+    let names: string[];
+    try {
+      names = await readdir(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+    const versions: InstructionVersion[] = [];
+    for (const name of names.filter((name) => /^\d+\.md$/.test(name))) {
+      const info = await stat(join(directory, name));
+      versions.push({target, revision: Number(name.slice(0, -3)), savedAt: info.mtime.toISOString(), size: info.size});
+    }
+    return versions.sort((a, b) => b.revision - a.revision);
+  }
+
+  /** The exact text one instruction artefact had at the given library revision. */
+  public async readVersion(target: CurationTarget, revision: number): Promise<string> {
+    if (!Number.isInteger(revision) || revision < 0) throw new Error("A version is addressed by its library revision.");
+    try {
+      return await readFile(join(this.versionDirectory(target), `${revision}.md`), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("No saved version of this instruction text at that revision.");
+      throw error;
+    }
   }
 
   /** Saves one shared harness without changing any project overrides. */
@@ -90,9 +221,10 @@ export class HarnessStore {
       const harness = library.harnesses.find((item) => item.id === project.harnessId);
       if (!harness) throw new Error("Harness not found.");
       if (!/^[a-zA-Z0-9_-]{1,100}$/.test(project.id) || !project.name.trim()) throw new Error("A project needs a valid ID and name.");
-      const path = await directory(project.path);
-      if (library.projects.some((item) => item.id !== project.id && item.path === path)) throw new Error("This folder is already linked to a harness project.");
       const existing = library.projects.find((item) => item.id === project.id);
+      // A linked project stays editable while its folder is unavailable; reassigning the folder is refused below either way.
+      const path = existing && !(await isDirectory(existing.path)) ? existing.path : await directory(project.path);
+      if (library.projects.some((item) => item.id !== project.id && item.path === path)) throw new Error("This folder is already linked to a harness project.");
       if (existing && (existing.path !== path || existing.harnessId !== project.harnessId)) throw new Error("An existing project's folder and harness cannot be reassigned.");
       const saved = {...project, path};
       resolveHarnessProject(harness, saved, library.revision);
@@ -100,7 +232,101 @@ export class HarnessStore {
     });
   }
 
-  /** Grants the head access to its known labs; project leads can change only their own presentation. */
+  /** Lists the lead's current project directory, including projects added after its chat began. */
+  public async projectsForLead(actor: HarnessSnapshot): Promise<HarnessLibrary> {
+    const library = await this.list();
+    requireHarnessLead(actor, library);
+    return {
+      ...library,
+      harnesses: library.harnesses.filter((item) => item.id === actor.harness.id),
+      projects: library.projects.filter((item) => item.harnessId === actor.harness.id),
+    };
+  }
+
+  /** Creates or links a project under the lead, or updates its brief; never rewrites existing files or moves other harnesses' projects. */
+  public manageProject(
+    actor: HarnessSnapshot,
+    change: {
+      action: "create" | "assign" | "update";
+      projectId: string;
+      name?: string;
+      path?: string;
+      createDirectory?: boolean;
+      systemPrompt?: string;
+      contextInstructions?: string;
+    },
+    expectedRevision: number
+  ): Promise<HarnessLibrary> {
+    return this.update(expectedRevision, async (library) => {
+      const harness = requireHarnessLead(actor, library);
+      const existing = library.projects.find((item) => item.id === change.projectId);
+      if (existing && (existing.harnessId !== harness.id || existing.id === actor.project.id)) throw new Error("Choose a child project in this harness.");
+      if (change.action === "update" && !existing) throw new Error("Project not found. List the projects first.");
+      if (existing && change.path !== undefined && resolve(change.path) !== existing.path) throw new Error("An existing project's folder cannot be reassigned.");
+      if (change.action === "create" && existing) throw new Error("This project already exists. List its status before retrying.");
+      const name = change.name?.trim() ?? existing?.name;
+      if (!name || name.length > 120) throw new Error("Use a project name between 1 and 120 characters.");
+      if (!/^[a-zA-Z0-9_-]{1,100}$/.test(change.projectId)) throw new Error("Use a valid project ID.");
+      // Validate instructions before creating anything on disk.
+      resolveHarnessProject(
+        harness,
+        {
+          ...(existing ?? {id: change.projectId, harnessId: harness.id, agents: [], systemPrompt: "", contextInstructions: ""}),
+          name,
+          path: existing?.path ?? change.path ?? "",
+          ...(change.systemPrompt !== undefined && {systemPrompt: change.systemPrompt}),
+          ...(change.contextInstructions !== undefined && {contextInstructions: change.contextInstructions}),
+        },
+        library.revision
+      );
+      let path = existing?.path;
+      if (!path) {
+        if (!change.path || !isAbsolute(change.path)) throw new Error("Provide an absolute project folder path.");
+        // Creating a folder is explicit; linking an existing directory never writes into it.
+        const parent = await directory(resolve(change.path, ".."));
+        const target = join(parent, basename(change.path));
+        if (library.projects.some((item) => item.path === target)) throw new Error("This folder is already assigned to a project.");
+        if (change.createDirectory) await mkdir(target, {mode: 0o700});
+        path = await directory(target);
+        if (library.projects.some((item) => item.path === path)) throw new Error("This folder is already assigned to a project.");
+      }
+      const project: HarnessProject = {
+        ...(existing ?? {id: change.projectId, harnessId: harness.id, agents: [], systemPrompt: "", contextInstructions: ""}),
+        name,
+        path,
+        parentProjectId: actor.project.id,
+        ...(change.systemPrompt !== undefined && {systemPrompt: change.systemPrompt}),
+        ...(change.contextInstructions !== undefined && {contextInstructions: change.contextInstructions}),
+      };
+      resolveHarnessProject(harness, project, library.revision);
+      return {...library, projects: existing ? library.projects.map((item) => (item.id === project.id ? project : item)) : [...library.projects, project]};
+    });
+  }
+
+  /** Resolves a currently assigned child with fresh settings before starting a new delegated run. */
+  public async delegatedProject(actor: HarnessSnapshot, projectId: string): Promise<HarnessSnapshot> {
+    const library = await this.projectsForLead(actor);
+    const project = library.projects.find((item) => item.id === projectId && item.parentProjectId === actor.project.id);
+    if (!project) throw new Error("This project does not report to this harness lead.");
+    await directory(project.path);
+    return resolveHarnessProject(library.harnesses[0]!, project, library.revision);
+  }
+
+  /** Unlinks a project. Its folder and files stay on disk; chats already bound to it keep their pinned snapshot. */
+  public removeProject(projectId: string, expectedRevision: number): Promise<HarnessLibrary> {
+    return this.update(expectedRevision, async (library) => {
+      if (!library.projects.some((item) => item.id === projectId)) throw new Error("Harness project not found.");
+      const labs = library.projects.filter((item) => item.parentProjectId === projectId).length;
+      if (labs) throw new Error(`This project coordinates ${labs === 1 ? "one lab" : `${labs} labs`}. Remove the labs first.`);
+      return {
+        ...library,
+        harnesses: library.harnesses.map((harness) => (harness.coordinatorProjectId === projectId ? {...harness, coordinatorProjectId: undefined} : harness)),
+        projects: library.projects.filter((item) => item.id !== projectId),
+      };
+    });
+  }
+
+  /** Grants the current head access to its assigned projects; project leads can change only their own presentation. */
   public updateView(
     actor: HarnessSnapshot,
     change: {projectId: string; name?: string; color?: string; beforeProjectId?: string},
@@ -111,10 +337,7 @@ export class HarnessStore {
       const target = library.projects.find((item) => item.id === change.projectId && item.harnessId === actor.harness.id);
       const harness = library.harnesses.find((item) => item.id === actor.harness.id);
       const head = harness?.coordinatorProjectId === currentActor?.id && actor.harness.coordinatorProjectId === actor.project.id;
-      const allowed =
-        currentActor &&
-        target &&
-        (target.id === currentActor.id || (head && target.parentProjectId === currentActor.id && actor.delegation?.projects.some((item) => item.id === target.id)));
+      const allowed = currentActor && target && (target.id === currentActor.id || (head && target.parentProjectId === currentActor.id));
       if (!allowed || !target || !harness) throw new Error("This lead cannot manage that lab's view.");
       if (change.name !== undefined && (!change.name.trim() || change.name.length > 120)) throw new Error("Use a name between 1 and 120 characters.");
       if (change.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(change.color)) throw new Error("Use a six-digit hex color.");
@@ -160,10 +383,15 @@ export class HarnessStore {
         ...createDefaultHarness("science", "Science Pi"),
         source,
         agents,
-        description: "Scientific research, evidence, literature, memory, and Idea Graph tools. Imported from your local Science Pi setup.",
+        description: "Scientific research, evidence, literature, and memory tools. Imported from your local Science Pi setup.",
         systemPrompt: await readFile(join(source.packagePath, "APPEND_SYSTEM.md"), "utf8"),
-        // The app supplies isolated specialists in place of the package's CLI subprocess tool.
-        extensions: (manifest.pi.extensions as string[]).filter((path) => !path.includes("/subagent/")).map((path) => resolve(source.packagePath, path)),
+        // The app supplies isolated specialists in place of the package's CLI subprocess tool and does not expose Idea Graph in the harness.
+        extensions: (manifest.pi.extensions as string[])
+          .filter((path) => {
+            const extensionName = path.split(/[\\/]/).at(-2);
+            return extensionName !== "subagent" && extensionName !== "idea-graph";
+          })
+          .map((path) => resolve(source.packagePath, path)),
         skills: [join(source.packagePath, "skills")],
         graph: {steps: ["research-architect", "methodologist", "source-verifier", "scientific-synthesizer"].filter((name) => agents.some((agent) => agent.name === name))},
       };
@@ -195,6 +423,7 @@ export class HarnessStore {
     const project = library.projects.find((item) => item.id === projectId);
     const harness = library.harnesses.find((item) => item.id === project?.harnessId);
     if (!project || !harness) throw new Error("Harness project not found.");
+    if (!(await isDirectory(project.path))) throw missingFolderError(project.path);
     await directory(project.path);
     const snapshot = resolveHarnessProject(harness, project, library.revision);
     return harness.coordinatorProjectId === project.id
@@ -243,6 +472,15 @@ export class HarnessStore {
     return Boolean(await optionalText(join(this.root, "sessions", `${sessionId}.json`)));
   }
 
+  /** The project a chat was pinned to, without the folder checks a full snapshot read performs. */
+  public async projectOfSession(sessionId: string): Promise<{id: string; path: string} | undefined> {
+    if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid session ID.");
+    const saved = await optionalText(join(this.root, "sessions", `${sessionId}.json`));
+    if (!saved) return undefined;
+    const snapshot = Schema.decodeUnknownSync(HarnessSnapshot)(JSON.parse(saved));
+    return {id: snapshot.project.id, path: snapshot.project.path};
+  }
+
   /** Loads a chat's pinned configuration, or current defaults for an imported legacy chat. */
   public async forSession(sessionId: string, cwd: string): Promise<HarnessSnapshot | undefined> {
     if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) throw new Error("Invalid session ID.");
@@ -265,4 +503,6 @@ export class HarnessStore {
   }
 }
 
-export const harnessStore = new HarnessStore(join(homedir(), ".config", "pi-plus"));
+// A configured server home isolates the complete workspace, including harness
+// snapshots and run receipts. Normal installs keep their existing library path.
+export const harnessStore = new HarnessStore(process.env.SUPERNOVA_HOME?.trim() ? join(getAgentDir(), "harnesses") : join(homedir(), ".config", "pi-plus"));

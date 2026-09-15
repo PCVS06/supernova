@@ -1,5 +1,5 @@
 import type {QueryClient} from "@tanstack/react-query";
-import {CheckpointConflictError, CheckpointUncapturedError} from "@supernova/contracts/session-runtime/procedures";
+import {CheckpointConflictError, CheckpointReviewRequired, CheckpointUncapturedError} from "@supernova/contracts/session-runtime/procedures";
 import type {SessionStreamEvent} from "@supernova/contracts/session-runtime/procedures";
 import type {ModelReference, Session, SessionContextUsage, Turn, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
 import {QueryClient as TanStackQueryClient} from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import {allSessionsQueryKey, sessionQueryKey} from "@/features/sessions/hooks/ap
 import {connectSessionEvents} from "@/features/sessions/lib/streaming/session-event-stream";
 import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store";
 import {hasUnseenActivity, useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
-import type {RpcClient, RpcClientFiber, RpcProtocolClient} from "@/rpc/transport/protocol";
+import type {RpcClient, RpcClientFiber, RpcExecute, RpcProtocolClient} from "@/rpc/transport/protocol";
 
 vi.mock("@/rpc/transport/client", () => ({
   RpcProtocolClientService: class RpcProtocolClientService {},
@@ -91,7 +91,13 @@ function streamRpcClient(events: readonly SessionStreamEvent[]): RpcClient {
   } as RpcClient & {readonly interrupted: boolean};
 }
 
-function commandRpcClient(input?: {readonly rejectNavigation?: boolean; readonly rejectSend?: boolean}): RpcClient {
+function commandRpcClient(input?: {
+  readonly rejectNavigation?: boolean;
+  readonly rejectSend?: boolean;
+  readonly rejectSteer?: boolean;
+  readonly steerDelivery?: "steered" | "queued";
+  readonly sendAck?: Promise<void>;
+}): RpcClient {
   return {
     dispose: vi.fn(async () => undefined),
     fork: vi.fn(),
@@ -101,7 +107,9 @@ function commandRpcClient(input?: {readonly rejectNavigation?: boolean; readonly
         compactSession: () => Effect.void,
         redoCheckpoint: () => (input?.rejectNavigation ? Effect.fail(new Error("Checkpoint unavailable")) : Effect.void),
         revertToMessage: () => (input?.rejectNavigation ? Effect.fail(new Error("Checkpoint unavailable")) : Effect.void),
-        sendMessage: () => (input?.rejectSend ? Effect.fail(new Error("Model unavailable")) : Effect.void),
+        sendMessage: () => (input?.sendAck ? Effect.promise(() => input.sendAck!) : input?.rejectSend ? Effect.fail(new Error("Model unavailable")) : Effect.void),
+        steerSession: () =>
+          input?.rejectSteer ? Effect.fail(new Error("The turn is no longer running")) : Effect.succeed({delivery: input?.steerDelivery ?? "steered", messageId: "correction-1"}),
         undoCheckpoint: () => (input?.rejectNavigation ? Effect.fail(new Error("Checkpoint unavailable")) : Effect.void),
       } as unknown as RpcProtocolClient;
       return await Effect.runPromise(execute(protocol));
@@ -116,14 +124,14 @@ describe("session live store", () => {
   beforeEach(() => {
     vi.stubGlobal("window", {clearTimeout, setTimeout});
     disconnect();
-    useSessionLiveStore.setState({activeSessionId: null, sessions: {}});
+    useSessionLiveStore.setState({openSessions: {}, sessions: {}});
     useSessionVisitsStore.setState({visits: {}});
   });
 
   afterEach(() => {
     disconnect();
     disconnect = () => undefined;
-    useSessionLiveStore.setState({activeSessionId: null, sessions: {}});
+    useSessionLiveStore.setState({openSessions: {}, sessions: {}});
     useSessionVisitsStore.setState({visits: {}});
     vi.unstubAllGlobals();
   });
@@ -225,6 +233,57 @@ describe("session live store", () => {
     expect(queryClient.getQueryData(sessionQueryKey("session-1"))).toEqual(previousSession);
   });
 
+  it.each(["before snapshot", "after snapshot"])("does not confuse send acceptance %s with transcript commitment", async (order) => {
+    let acknowledge = (): void => {
+      throw new Error("Missing acknowledgement");
+    };
+    const sendAck = new Promise<void>((resolve) => {
+      acknowledge = resolve;
+    });
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(sessionQueryKey("session-1"), session());
+    const delivery = useSessionLiveStore.getState().sendMessage({contentParts, modelReference: model, queryClient, rpcClient: commandRpcClient({sendAck}), sessionId: "session-1"});
+    expect(useSessionLiveStore.getState().sessions["session-1"]?.liveTurn?.userMessage.contentParts).toEqual(contentParts);
+    if (order === "before snapshot") {
+      acknowledge();
+      expect(await delivery).toBe(true);
+      expect(useSessionLiveStore.getState().sessions["session-1"]?.status).toBe("streaming");
+    }
+    const committed = session({turns: [turn({status: "completed"})]});
+    disconnect = connectSessionEvents({queryClient, rpcClient: streamRpcClient([{revision: 1, sessionId: "session-1", session: committed, type: "session.snapshot"}])});
+    await waitUntil(() => expect(useSessionLiveStore.getState().sessions["session-1"]?.liveTurn).toBeNull());
+    if (order === "after snapshot") {
+      acknowledge();
+      expect(await delivery).toBe(true);
+    }
+    expect(queryClient.getQueryData(sessionQueryKey("session-1"))).toEqual(committed);
+    expect(useSessionLiveStore.getState().sessions["session-1"]).toMatchObject({status: "idle", liveTurn: null});
+  });
+
+  it.each([
+    {status: "streaming", rejectSteer: false, accepted: true, sends: 1},
+    {status: "streaming", rejectSteer: true, accepted: false, sends: 1},
+    {status: "idle", rejectSteer: false, accepted: false, sends: 0},
+    {status: "stopping", rejectSteer: false, accepted: false, sends: 0},
+    {status: "compacting", rejectSteer: false, accepted: false, sends: 0},
+  ] as const)("reports steering acceptance=$accepted in $status (provider rejection=$rejectSteer)", async ({status, rejectSteer, accepted, sends}) => {
+    const liveTurn = turn();
+    useSessionLiveStore.setState({sessions: {"session-1": {status, revision: 1, liveTurn, liveContext: null, error: null}}});
+    const rpcClient = commandRpcClient({rejectSteer});
+    const delivery = useSessionLiveStore.getState().steerSession({sessionId: "session-1", text: "Use the fixture", rpcClient});
+    if (rejectSteer) await expect(delivery).rejects.toThrow("The turn is no longer running");
+    else expect(await delivery).toBe(accepted);
+    expect(rpcClient.run).toHaveBeenCalledTimes(sends);
+    expect(useSessionLiveStore.getState().sessions["session-1"]?.liveTurn).toBe(liveTurn);
+  });
+
+  it.each(["streaming", "idle"] as const)("accepts a durable correction when the turn has finished but the composer still offers steering (%s)", async (status) => {
+    useSessionLiveStore.setState({sessions: {"session-1": {status, revision: 1, liveTurn: null, liveContext: null, error: null}}});
+    const rpcClient = commandRpcClient({steerDelivery: "queued"});
+    expect(await useSessionLiveStore.getState().steerSession({sessionId: "session-1", text: "Correct the result", fallback: {modelReference: model}, rpcClient})).toBe(true);
+    expect(rpcClient.run).toHaveBeenCalledOnce();
+  });
+
   it.each(
     [
       {outcome: "conflict", error: new CheckpointConflictError({message: "Conflicting changes."})},
@@ -232,7 +291,7 @@ describe("session live store", () => {
     ].flatMap((item) =>
       ["confirm", "cancel", "failed retry"].flatMap((decision) => ["undoCheckpoint", "redoCheckpoint", "revertToMessage"].map((operation) => ({...item, decision, operation})))
     )
-  )("keeps $operation optimistic on $outcome until $decision", async ({outcome, error, decision, operation}) => {
+  )("keeps the conversation unchanged for $operation on $outcome until $decision", async ({outcome, error, decision, operation}) => {
     const forceFlags: Array<boolean | undefined> = [];
     const rpcClient = {
       dispose: vi.fn(async () => undefined),
@@ -262,8 +321,8 @@ describe("session live store", () => {
     expect(typeof refused).toBe("object");
     if (typeof refused === "string") throw new Error("Expected confirmation.");
     expect(refused.reason).toBe(outcome);
-    const optimisticTurns = operation === "redoCheckpoint" ? ["kept", "undone", "redoable"] : ["kept"];
-    expect(queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.turns.map((item) => item.id)).toEqual(optimisticTurns);
+    const unchangedTurns = ["kept", "undone"];
+    expect(queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.turns.map((item) => item.id)).toEqual(unchangedTurns);
     expect(useSessionLiveStore.getState().sessions["session-1"]?.status).toBe("checkpoint-navigating");
     expect(await store.undoCheckpoint(input)).toBe("failed");
     store.sendMessage({...input, contentParts, modelReference: model});
@@ -280,14 +339,14 @@ describe("session live store", () => {
       expect(forceFlags).toEqual([undefined, true]);
     }
     if (decision === "confirm") {
-      expect(queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.turns.map((item) => item.id)).toEqual(optimisticTurns);
+      expect(queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.turns.map((item) => item.id)).toEqual(unchangedTurns);
     } else {
       expect(queryClient.getQueryData(sessionQueryKey("session-1"))).toEqual(before);
       expect(useSessionLiveStore.getState().sessions["session-1"]?.status).toBe("idle");
     }
   });
 
-  it("optimistically moves turns when navigating checkpoints and rolls back failures", async () => {
+  it("keeps turns unchanged until an authoritative checkpoint snapshot arrives", async () => {
     const cases = [
       {
         name: "undo",
@@ -326,11 +385,11 @@ describe("session live store", () => {
       expect(
         queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.turns.map((item) => item.id),
         item.name
-      ).toEqual(item.after.turns);
+      ).toEqual(item.before.turns.map((turn) => turn.id));
       expect(
         queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.undoneTurns.map((item) => item.id),
         item.name
-      ).toEqual(item.after.undoneTurns);
+      ).toEqual(item.before.undoneTurns.map((turn) => turn.id));
     }
 
     const queryClient = createQueryClient();
@@ -340,8 +399,55 @@ describe("session live store", () => {
 
     useSessionLiveStore.getState().undoCheckpoint({queryClient, rpcClient: commandRpcClient({rejectNavigation: true}), sessionId: "session-1"});
 
-    expect(queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.turns.map((item) => item.id)).toEqual(["kept"]);
+    expect(queryClient.getQueryData<Session>(sessionQueryKey("session-1"))?.turns.map((item) => item.id)).toEqual(["kept", "undone"]);
     await waitUntil(() => expect(queryClient.getQueryData(sessionQueryKey("session-1"))).toEqual(before));
+  });
+
+  it("requires a fresh preview when files change after review and never changes the conversation on cancel", async () => {
+    const before = session({turns: [turn({id: "kept"}), turn({id: "last"})]});
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(sessionQueryKey("session-1"), before);
+    const requests: unknown[] = [];
+    let generation = 0;
+    const rpcClient: RpcClient = {
+      ...commandRpcClient(),
+      run: async <A, E>(execute: RpcExecute<A, E>) =>
+        Effect.runPromise(
+          execute({
+            undoCheckpoint: (input: unknown) => {
+              requests.push(input);
+              return Effect.fail(
+                new CheckpointReviewRequired({
+                  message: "Review this restore",
+                  preview: {fingerprint: `preview-${++generation}`, filesCaptured: true, manualChanges: true, files: [{path: "changed.txt", action: "restore"}], patches: []},
+                })
+              );
+            },
+          } as unknown as RpcProtocolClient)
+        ),
+    };
+    const first = await useSessionLiveStore.getState().undoCheckpoint({queryClient, rpcClient, sessionId: "session-1"});
+    if (typeof first === "string") throw new Error("Expected review");
+    expect(first).toMatchObject({reason: "review", turnsBefore: 2, turnsAfter: 1});
+    const second = await first.confirm();
+    if (typeof second === "string") throw new Error("Expected refreshed review");
+    expect(second.preview?.fingerprint).toBe("preview-2");
+    expect(requests).toEqual([
+      {sessionId: "session-1", force: undefined, review: true, reviewFingerprint: undefined},
+      {sessionId: "session-1", force: true, review: true, reviewFingerprint: "preview-1"},
+    ]);
+    second.cancel();
+    expect(queryClient.getQueryData(sessionQueryKey("session-1"))).toEqual(before);
+    expect(useSessionLiveStore.getState().sessions["session-1"]?.status).toBe("idle");
+  });
+
+  it("clears an interrupted live overlay on reconnect and accepts replay from a surviving worker", () => {
+    const store = useSessionLiveStore.getState();
+    store.applyEvent({revision: 100, sessionId: "session-1", context: contextUsage, turn: turn(), type: "session.turn"});
+    store.resetRevisions();
+    expect(useSessionLiveStore.getState().sessions["session-1"]).toMatchObject({status: "idle", liveTurn: null, revision: 0, error: expect.stringContaining("last saved turn")});
+    store.applyEvent({revision: 1, sessionId: "session-1", context: contextUsage, turn: turn(), type: "session.turn"});
+    expect(useSessionLiveStore.getState().sessions["session-1"]).toMatchObject({status: "streaming", liveTurn: turn(), error: null});
   });
 
   it("guards session commands while work is active", () => {
@@ -370,8 +476,8 @@ describe("session live store", () => {
   });
 
   it("stamps the open session as visited when authoritative activity arrives", () => {
-    const {applyEvent, setActiveSession} = useSessionLiveStore.getState();
-    setActiveSession("session-open");
+    const {applyEvent, openSession} = useSessionLiveStore.getState();
+    openSession("session-open");
 
     applyEvent({revision: 1, session: session({id: "session-open", updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-open", type: "session.snapshot"});
     applyEvent({revision: 1, session: session({updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-1", type: "session.snapshot"});
@@ -379,12 +485,31 @@ describe("session live store", () => {
     expect(useSessionVisitsStore.getState().visits).toEqual({"session-open": "2026-01-01T00:05:00.000Z"});
   });
 
+  it("stamps every chat a pane has open, not only the routed one", () => {
+    const {applyEvent, closeSession, openSession} = useSessionLiveStore.getState();
+    openSession("session-routed");
+    openSession("session-paned");
+
+    applyEvent({revision: 1, session: session({id: "session-routed", updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-routed", type: "session.snapshot"});
+    applyEvent({revision: 1, session: session({id: "session-paned", updatedAt: "2026-01-01T00:06:00.000Z"}), sessionId: "session-paned", type: "session.snapshot"});
+
+    expect(useSessionVisitsStore.getState().visits).toEqual({
+      "session-paned": "2026-01-01T00:06:00.000Z",
+      "session-routed": "2026-01-01T00:05:00.000Z",
+    });
+
+    closeSession("session-paned");
+    applyEvent({revision: 2, session: session({id: "session-paned", updatedAt: "2026-01-01T00:08:00.000Z"}), sessionId: "session-paned", type: "session.snapshot"});
+
+    expect(useSessionVisitsStore.getState().visits["session-paned"]).toBe("2026-01-01T00:06:00.000Z");
+  });
+
   it("keeps visit stamps at the activity time so later activity stays unseen", () => {
-    const {applyEvent, setActiveSession} = useSessionLiveStore.getState();
-    setActiveSession("session-1");
+    const {applyEvent, closeSession, openSession} = useSessionLiveStore.getState();
+    openSession("session-1");
     applyEvent({revision: 1, session: session({updatedAt: "2026-01-01T00:05:00.000Z"}), sessionId: "session-1", type: "session.snapshot"});
 
-    setActiveSession(null);
+    closeSession("session-1");
     applyEvent({revision: 2, session: session({updatedAt: "2026-01-01T00:09:00.000Z"}), sessionId: "session-1", type: "session.snapshot"});
 
     expect(useSessionVisitsStore.getState().visits["session-1"]).toBe("2026-01-01T00:05:00.000Z");

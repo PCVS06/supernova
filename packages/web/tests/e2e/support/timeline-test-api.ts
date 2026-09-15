@@ -6,6 +6,10 @@ export interface TimelineMockState {
 }
 
 export interface TimelineMockController {
+  readonly setOrbitSize: (count: number) => void;
+  readonly setOrbitProjects: () => void;
+  readonly removeOrbitProject: (id: string) => void;
+  readonly setConstellationStatus: (status: "running" | "completed" | "failed" | "offline") => void;
   readonly breakForReasoning: () => void;
   readonly completeStream: () => void;
   readonly emitLines: (lineCount: number) => void;

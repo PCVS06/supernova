@@ -12,15 +12,22 @@ import {
   TIMELINE_SESSION_ID,
 } from "@e2e/mocks/timeline-data";
 import type {TimelineMockState} from "@e2e/support/timeline-test-api";
+import {constellationLibrary, constellationRuns, constellationSessions, constellationWorkflow} from "@e2e/mocks/constellation-data";
 
 export {RpcProtocolClientService} from "@/rpc/transport/protocol";
 export type {RpcClient, RpcClientFiber, RpcProtocolClient} from "@/rpc/transport/protocol";
+
+import {curatorProposal, curatorReview} from "@e2e/mocks/curator-data";
 
 const STREAM_LINES_PER_FRAME = 2;
 
 class TimelineRpcClient implements RpcClient {
   private readonly events = Effect.runSync(PubSub.unbounded<SessionStreamEvent>());
   private readonly sessions = createTimelineSessions();
+  private constellationStatus: "running" | "completed" | "failed" | "offline" = "completed";
+  private orbitSize = 0;
+  private projectScenario = false;
+  private library = structuredClone(constellationLibrary);
   private activeContentParts: readonly UserMessageContentPart[] | null = null;
   private activeSessionId = TIMELINE_SESSION_ID;
   private lineCount = 0;
@@ -32,7 +39,20 @@ class TimelineRpcClient implements RpcClient {
   private streamTargetLineCount = 0;
 
   public constructor() {
+    for (const session of constellationSessions()) this.sessions.set(session.id, session);
     window.__supernovaTimelineMock = {
+      setOrbitProjects: () => {
+        this.projectScenario = true;
+      },
+      removeOrbitProject: (id) => {
+        this.library = {...this.library, revision: this.library.revision + 1, projects: this.library.projects.filter((project) => project.id !== id)};
+      },
+      setOrbitSize: (count) => {
+        this.orbitSize = count;
+      },
+      setConstellationStatus: (status) => {
+        this.constellationStatus = status;
+      },
       breakForReasoning: () => this.breakForReasoning(),
       completeStream: () => this.settleStream("completed"),
       emitLines: (lineCount) => this.emitLines(lineCount),
@@ -73,6 +93,34 @@ class TimelineRpcClient implements RpcClient {
     return session;
   }
 
+  /** Generates a finite, contract-shaped large system without transcript payloads. */
+  private orbitRuns() {
+    const runs = constellationRuns(this.constellationStatus === "offline" ? "running" : this.constellationStatus);
+    if (this.projectScenario)
+      return [
+        ...runs,
+        {...runs[0]!, id: "earlier-research", task: "Earlier research assignment", startedAt: "2026-09-12T08:00:00Z"},
+        {...runs[0]!, id: "removed-lead", projectId: "removed", agentName: "Removed project"},
+        ...runs.slice(0, 3).map((run, index) => ({
+          ...run,
+          id: `modeling-${index}`,
+          parentRunId: index ? "modeling-0" : undefined,
+          projectId: "modeling",
+          agentName: index ? `Modeling worker ${index}` : "Cost modeling lead",
+        })),
+      ];
+    if (!this.orbitSize) return runs;
+    return Array.from({length: this.orbitSize}, (_, index) => ({
+      ...runs[1]!,
+      id: `bulk-${index}`,
+      parentRunId: undefined,
+      agentName: `Participant ${String(index).padStart(4, "0")}`,
+      status: index < Math.floor(this.orbitSize / 5) ? ("running" as const) : ("completed" as const),
+      transcript: undefined,
+      output: `Recorded result ${index}`,
+    }));
+  }
+
   /** Exposes the same protocol boundary consumed by the real application. */
   private protocol(): RpcProtocolClient {
     return {
@@ -82,8 +130,41 @@ class TimelineRpcClient implements RpcClient {
       compactSession: () => Effect.void,
       createFolder: () => Effect.void,
       createSession: () => Effect.succeed(this.session(EMPTY_SESSION_ID)),
+      createHarnessSession: () => Effect.succeed(this.session(EMPTY_SESSION_ID)),
       getFolderStatus: () => Effect.succeed({exists: true, kind: "directory"}),
+      getHarnessLibrary: () => Effect.succeed(this.library),
+      listCuration: () => Effect.succeed({proposals: [curatorProposal], reviews: [curatorReview]}),
+      getWorkspaceOverview: () =>
+        this.constellationStatus === "offline"
+          ? Effect.fail(new Error("Connection interrupted"))
+          : Effect.succeed({
+              revision: this.revision,
+              capturedAt: new Date().toISOString(),
+              projects: constellationLibrary.projects.map((project) => {
+                const sessions = [...this.sessions.values()].filter((session) => session.projectPath === project.path);
+                return {projectId: project.id, projectPath: project.path, total: sessions.length, sessions: sessions.map(timelineSessionSummary)};
+              }),
+              runs: this.orbitRuns(),
+              workflows: this.orbitSize ? [] : [{...constellationWorkflow, status: this.constellationStatus}],
+              controls: [],
+              curators: [{harnessId: "science", pending: 1, updatedAt: curatorProposal.createdAt}],
+              activityTotals: [],
+              errors: [],
+            }),
+      listHarnessRuns: ({sessionId}: {sessionId: string}) =>
+        this.constellationStatus === "offline" ? Effect.fail(new Error("Connection interrupted")) : Effect.succeed(sessionId === TIMELINE_SESSION_ID ? this.orbitRuns() : []),
+      getHarnessRun: ({runId}: {runId: string}) =>
+        this.constellationStatus === "offline" ? Effect.fail(new Error("Connection interrupted")) : Effect.succeed(this.orbitRuns().find((run) => run.id === runId)),
+      listWorkflowRuns: ({sessionId}: {sessionId: string}) =>
+        Effect.succeed(
+          sessionId === TIMELINE_SESSION_ID && !this.orbitSize
+            ? [{...constellationWorkflow, status: this.constellationStatus === "offline" ? "running" : this.constellationStatus}]
+            : []
+        ),
+      getWorkflowRun: () => Effect.succeed(constellationWorkflow),
       getSession: ({sessionId}: {readonly sessionId: string}) => Effect.sync(() => this.session(sessionId)),
+      getSessionControls: ({sessionId}: {readonly sessionId: string}) => Effect.succeed({sessionId, revision: 0, goal: null, queue: [], queuePaused: false}),
+      updateSessionControls: ({sessionId}: {readonly sessionId: string}) => Effect.succeed({sessionId, revision: 0, goal: null, queue: [], queuePaused: false}),
       listComposerSuggestions: () => Effect.succeed({items: []}),
       listFolderFiles: () => Effect.succeed({items: []}),
       listFolderSuggestions: ({query}: {readonly query: string}) =>
@@ -95,10 +176,10 @@ class TimelineRpcClient implements RpcClient {
           suggestions: [],
         }),
       listModels: () => Effect.succeed([timelineModelDetails]),
-      listProjectSessions: () =>
+      listProjectSessions: ({projectPath}: {projectPath: string}) =>
         Effect.succeed({
-          projectPath: TIMELINE_PROJECT_PATH,
-          sessions: [...this.sessions.values()].map(timelineSessionSummary),
+          projectPath,
+          sessions: [...this.sessions.values()].filter((session) => session.projectPath === projectPath).map(timelineSessionSummary),
         }),
       listProviders: () => Effect.succeed([]),
       logoutProvider: () => Effect.void,

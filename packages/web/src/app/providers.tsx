@@ -1,5 +1,6 @@
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {useState} from "react";
+import WorkspaceOverviewProvider from "@/features/workspace/components/workspace-overview-provider";
 import ToastProvider from "@/components/ui/toast";
 import SessionEventsProvider from "@/features/sessions/components/session-events-provider";
 import type {RpcClient} from "@/rpc/transport/protocol";
@@ -18,7 +19,9 @@ export default function AppProviders(props: AppProvidersProps) {
     <RpcProvider client={rpcClient}>
       <QueryClientProvider client={queryClient}>
         <SessionEventsProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <WorkspaceOverviewProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </WorkspaceOverviewProvider>
         </SessionEventsProvider>
       </QueryClientProvider>
     </RpcProvider>

@@ -21,7 +21,11 @@ export const timelineModelDetails = {
   name: "Timeline Test Model",
   providerId: timelineModel.providerId,
   providerName: "Timeline Test Provider",
-  thinkingLevels: [{label: "High", value: "high"}],
+  thinkingLevels: [
+    {label: "Low", value: "low"},
+    {label: "Medium", value: "medium"},
+    {label: "High", value: "high"},
+  ],
 } satisfies ModelDetails;
 
 function timestamp(offsetMs: number): string {

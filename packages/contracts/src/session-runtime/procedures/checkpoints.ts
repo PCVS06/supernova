@@ -4,6 +4,8 @@ import {Schema} from "effect";
 const CheckpointNavigationFields = {
   /** Allows discarding conflicting or uncaptured workspace changes. */
   force: Schema.optional(Schema.Boolean),
+  review: Schema.optional(Schema.Boolean),
+  reviewFingerprint: Schema.optional(Schema.String),
   sessionId: Schema.String,
 };
 
@@ -33,8 +35,23 @@ export class CheckpointUncapturedError extends Schema.TaggedErrorClass<Checkpoin
   message: Schema.String,
 }) {}
 
-export const CheckpointNavigationError = Schema.Union([CheckpointGenericError, CheckpointConflictError, CheckpointUncapturedError]);
+export const CheckpointPreview = Schema.Struct({
+  fingerprint: Schema.String,
+  filesCaptured: Schema.Boolean,
+  manualChanges: Schema.Boolean,
+  files: Schema.Array(Schema.Struct({path: Schema.String, action: Schema.Literals(["restore", "delete"])})),
+  patches: Schema.Array(Schema.Struct({repository: Schema.String, patch: Schema.String, unavailable: Schema.Boolean})),
+});
 
+/** Read-only restore plan, returned before navigation so the user can inspect its exact scope. */
+export class CheckpointReviewRequired extends Schema.TaggedErrorClass<CheckpointReviewRequired>()("CheckpointReviewRequired", {
+  message: Schema.String,
+  preview: CheckpointPreview,
+}) {}
+
+export const CheckpointNavigationError = Schema.Union([CheckpointGenericError, CheckpointConflictError, CheckpointUncapturedError, CheckpointReviewRequired]);
+
+export type CheckpointPreview = typeof CheckpointPreview.Type;
 export type CheckpointNavigationError = typeof CheckpointNavigationError.Type;
 export type RevertToMessagePayload = typeof RevertToMessagePayload.Type;
 export type UndoCheckpointPayload = typeof UndoCheckpointPayload.Type;

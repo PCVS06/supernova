@@ -42,6 +42,7 @@ export function MenuLabel(props: {readonly children: ReactNode; readonly classNa
 }
 
 interface MenuProps {
+  finalFocus?: ComponentProps<typeof BaseMenu.Popup>["finalFocus"];
   align?: ComponentProps<typeof BaseMenu.Positioner>["align"];
   alignOffset?: ComponentProps<typeof BaseMenu.Positioner>["alignOffset"];
   children: ReactNode;
@@ -56,7 +57,7 @@ interface MenuProps {
 }
 
 export default function Menu(props: MenuProps) {
-  const {align = "end", alignOffset, children, className, onOpenChange, onOpenChangeComplete, open, side = "bottom", sideOffset = 8, trigger, triggerLabel} = props;
+  const {align = "end", alignOffset, children, className, finalFocus, onOpenChange, onOpenChangeComplete, open, side = "bottom", sideOffset = 8, trigger, triggerLabel} = props;
 
   const handleTriggerClick = (event: MouseEvent<HTMLButtonElement>, onClick: MenuTriggerProps["onClick"]): void => {
     event.stopPropagation();
@@ -85,6 +86,7 @@ export default function Menu(props: MenuProps) {
       <BaseMenu.Portal>
         <BaseMenu.Positioner align={align} alignOffset={alignOffset} className="z-50 outline-none" side={side} sideOffset={sideOffset}>
           <BaseMenu.Popup
+            finalFocus={finalFocus}
             className={cn(
               "min-w-45 overflow-hidden rounded-xl border border-border-strong bg-surface-drawer p-1 text-ink shadow-lg outline-none",
               "origin-(--transform-origin) translate-y-0 scale-100 transform-gpu opacity-100 will-change-[opacity,transform] transition-[opacity,scale,translate] duration-200 ease-out data-closed:translate-y-1 data-closed:scale-[0.985] data-closed:opacity-0 data-ending-style:translate-y-1 data-ending-style:scale-[0.985] data-ending-style:opacity-0 data-starting-style:translate-y-1 data-starting-style:scale-[0.985] data-starting-style:opacity-0",

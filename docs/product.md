@@ -1,14 +1,14 @@
 # Product
 
-What Supernova is, who it is for, and why it exists.
+What Radian is, who it is for, and why it exists.
 
-## What is Supernova
+## What is Radian
 
-Supernova is a remote-controllable agentic development environment built on Pi. Pi provides the agent execution foundation; Supernova adds an opinionated workflow and product layer around it.
+Radian is a remote-controllable agentic development environment built on Pi. Pi provides the agent execution foundation; Radian adds an opinionated workflow and product layer around it.
 
-Calling Supernova a GUI for Pi is useful shorthand, but incomplete. Supernova does not only display Pi through a different interface. It adds server-owned remote sessions, committed/live state, Git-backed checkpoint navigation, project organization, structured messages, and explicit recovery behavior. These capabilities change how agent work is controlled and recovered, not only how it is presented.
+Calling Radian a GUI for Pi is useful shorthand, but incomplete. Radian does not only display Pi through a different interface. It adds server-owned remote sessions, committed/live state, Git-backed checkpoint navigation, project organization, structured messages, and explicit recovery behavior. These capabilities change how agent work is controlled and recovered, not only how it is presented.
 
-The desktop and browser clients turn sessions, reasoning, tools, diffs, context, models, and checkpoints into one coherent workspace. Pi remains the engine underneath that experience rather than the boundary of what Supernova can provide.
+The desktop and browser clients turn sessions, reasoning, tools, diffs, context, models, and checkpoints into one coherent workspace. Pi remains the engine underneath that experience rather than the boundary of what Radian can provide.
 
 The project is intentionally opinionated and is not designed for every agent workflow. It favors focused tools, explicit state, and engineering control over an all-in-one “vibe coding” surface. Agents accelerate the work; they do not replace review, product judgment, or responsibility for the result.
 
@@ -18,27 +18,27 @@ The project is pre-release. This document describes current product direction an
 
 ### Quality still matters
 
-Supernova is for people who use agents but still care about the product they are building. Generated code is work to understand, review, test, and refine—not an opaque result to accept because it appeared quickly.
+Radian is for people who use agents but still care about the product they are building. Generated code is work to understand, review, test, and refine—not an opaque result to accept because it appeared quickly.
 
 The interface keeps assistant output, reasoning, tool activity, file changes, failures, and context visible. Checkpoint navigation makes experimentation reversible so users can move quickly without giving up control of the conversation or workspace.
 
 ### Minimal by choice
 
-Supernova is not trying to become an everything platform. A feature must improve a real agentic coding workflow enough to justify its complexity, interface weight, and maintenance cost.
+Radian is not trying to become an everything platform. A feature must improve a real agentic coding workflow enough to justify its complexity, interface weight, and maintenance cost.
 
 Minimalism here means fewer concepts, fewer competing workflows, and less chrome, not fewer safeguards. Reliability, checkpointing, failure states, and recovery remain first-class because removing them would make the product simpler only on the surface.
 
 ### Pi under the hood
 
-Pi is one of the strongest agent harnesses available. Supernova uses it as an execution engine instead of rebuilding one.
+Pi is one of the strongest agent harnesses available. Radian uses it as an execution engine instead of rebuilding one.
 
-Provider protocols, model execution, durable session storage, resource loading, and coding tools remain Pi responsibilities. Supernova builds above that foundation: remote runtime ownership, committed/live session behavior, Git-backed checkpoint navigation, project workflows, recovery policy, and the graphical interaction model.
+Provider protocols, model execution, durable session storage, resource loading, and coding tools remain Pi responsibilities. Radian builds above that foundation: remote runtime ownership, committed/live session behavior, Git-backed checkpoint navigation, project workflows, recovery policy, and the graphical interaction model.
 
-The boundary is deliberate. Supernova should reuse Pi wherever Pi already owns the problem, then add product behavior where an opinionated development environment needs stronger workflow guarantees.
+The boundary is deliberate. Radian should reuse Pi wherever Pi already owns the problem, then add product behavior where an opinionated development environment needs stronger workflow guarantees.
 
 ### Remote control is architectural
 
-Remote control is not a desktop feature added later. Supernova is client-server from the beginning:
+Remote control is not a desktop feature added later. Radian is client-server from the beginning:
 
 - the server owns Pi, sessions, credentials, filesystem access, subprocesses, and Git checkpoints
 - browser and Electron clients observe and control that server over typed WebSocket RPC
@@ -53,18 +53,18 @@ Long sessions, rapid streams, code rendering, and project navigation must remain
 
 ### Details are part of the feature
 
-Supernova should look and feel considered. Scroll behavior, keyboard and pointer interaction, loading and failure states, typography, spacing, transitions, and native window behavior are part of the product contract.
+Radian should look and feel considered. Scroll behavior, keyboard and pointer interaction, loading and failure states, typography, spacing, transitions, and native window behavior are part of the product contract.
 
 Visual quality is not decoration applied after the workflow works. The interface should make dense agent activity calm, readable, and easy to control.
 
-## Why use Supernova
+## Why use Radian
 
 - **Pi as a foundation, not a UI constraint** — Use Pi's harness, providers, models, sessions, and tools inside a broader development workflow with remote control, Git checkpoints, and explicit recovery.
 - **Fast session work** — Navigate projects and long-running streams without the interface degrading as history grows.
 - **A polished development surface** — Read messages, reasoning, tool activity, code, and diffs in an interface designed for sustained use.
 - **Remote control by design** — Run the agent and project environment on one machine and control them from a browser or desktop client without transferring execution ownership to the client.
 - **Full checkpoint navigation** — Undo, redo, or revert conversation turns. In Git projects, private checkpoint snapshots also restore the files changed between turns without moving `HEAD`, resetting staged changes, or disturbing stash entries.
-- **Opinionated restraint** — Get the workflow Supernova believes in instead of a growing collection of loosely related agent features and configuration.
+- **Opinionated restraint** — Get the workflow Radian believes in instead of a growing collection of loosely related agent features and configuration.
 
 ## How it works
 
@@ -88,9 +88,9 @@ Different sessions can run concurrently. One session accepts one mutating comman
 
 ### Providers and models
 
-Pi's model runtime is the authority for providers, authentication, and available models. Supernova presents provider-defined OAuth and API-key flows, distinguishes Pi-stored credentials from externally managed credentials, and lets users select currently available models and supported thinking levels.
+Pi's model runtime is the authority for providers, authentication, and available models. Radian presents provider-defined OAuth and API-key flows, distinguishes Pi-stored credentials from externally managed credentials, and lets users select currently available models and supported thinking levels.
 
-Supernova adapts this state into one consistent interface; it does not implement provider protocols.
+Radian adapts this state into one consistent interface; it does not implement provider protocols.
 
 ### Desktop and browser
 
@@ -100,7 +100,7 @@ Electron is an operating-system shell, not a second agent runtime. Browser behav
 
 ## Target user
 
-Supernova is for developers who:
+Radian is for developers who:
 
 - already use or want to use Pi but prefer a graphical workspace to a TUI
 - use agents on real codebases and still review, test, and take responsibility for the result

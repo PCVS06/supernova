@@ -72,6 +72,7 @@ class PiTurnDraft {
         case "toolCall": {
           const invocation = PiToolInvocationFactory.create(part.name, part.arguments);
           const toolEvent: ToolTurnEvent = {
+            toolCallId: part.id,
             id,
             timestamp: entry.timestamp,
             tool: invocation.toTool(),
@@ -104,7 +105,13 @@ class PiTurnDraft {
     invocation.complete(completion);
 
     const completedTool = invocation.toTool();
-    const toolEvent: ToolTurnEvent = {id: generateStableId("evt", [entry.id, "toolResult"]), timestamp: entry.timestamp, tool: completedTool, type: "tool"};
+    const toolEvent: ToolTurnEvent = {
+      toolCallId: message.toolCallId,
+      id: generateStableId("evt", [entry.id, "toolResult"]),
+      timestamp: entry.timestamp,
+      tool: completedTool,
+      type: "tool",
+    };
 
     if (!existingTool) {
       this.events.push(toolEvent);

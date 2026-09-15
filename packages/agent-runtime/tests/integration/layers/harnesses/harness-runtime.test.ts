@@ -1,4 +1,5 @@
-import {mkdtemp, mkdir, rm, symlink, writeFile} from "node:fs/promises";
+import {HarnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
+import {mkdtemp, mkdir, realpath, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
@@ -7,7 +8,7 @@ import type {ExtensionContext} from "@earendil-works/pi-coding-agent";
 import type {PiSdkServiceShape} from "@supernova/agent-runtime/layers/pi-sdk";
 import {createDefaultHarness, resolveHarnessProject} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
 import {createHarnessResources, createHarnessTools} from "@supernova/agent-runtime/layers/harnesses/internal/harness-runtime";
-import {selectedPiModel} from "@tests/support/layers/pi-session-test-utils";
+import {fauxAssistantMessage, selectedPiModel} from "@tests/support/layers/pi-session-test-utils";
 
 describe("harness runtime resources", () => {
   let root: string;
@@ -39,6 +40,17 @@ describe("harness runtime resources", () => {
     expect(resourceLoader.getExtensions().errors).toEqual([]);
   });
 
+  it("appends project planning documents and skips one that is missing", async () => {
+    await writeFile(join(root, "roadmap.md"), "Ship the planning editor");
+    snapshot = {...snapshot, project: {...snapshot.project, planningDocuments: ["roadmap.md", "plans/gone.md"]}};
+
+    const {resourceLoader} = await createHarnessResources(snapshot);
+
+    const prompt = resourceLoader.getAppendSystemPrompt().join("\n");
+    expect(prompt).toContain("Project planning document: roadmap.md\n\nShip the planning editor");
+    expect(prompt).not.toContain("gone.md");
+  });
+
   it("rejects context symlinks that escape the project", async () => {
     await symlink(tmpdir(), join(root, "outside"));
     snapshot = {...snapshot, harness: {...snapshot.harness, context: {...snapshot.harness.context, files: ["outside"]}}};
@@ -51,7 +63,7 @@ describe("harness runtime resources", () => {
       bindExtensions: vi.fn(async () => {}),
       prompt: vi.fn(async () => {}),
       agent: {waitForIdle: vi.fn(async () => {})},
-      state: {messages: [{role: "assistant", content: [{type: "text", text: "Verified result"}], stopReason: "stop"}]},
+      state: {messages: [fauxAssistantMessage("Verified result")]},
       dispose,
     };
     const createAgentSession = vi.fn(async (options: Parameters<PiSdkServiceShape["createAgentSession"]>[0]) => {
@@ -63,7 +75,7 @@ describe("harness runtime resources", () => {
     const tool = createHarnessTools(snapshot, sdk)[0]!;
     const result = await tool.execute("call", {agent: "reviewer", task: "Review the evidence"}, undefined, undefined, {} as ExtensionContext);
     expect(createAgentSession).toHaveBeenCalledWith(
-      expect.objectContaining({tools: ["read", "grep"], excludeTools: ["subagent", "harness_workflow", "lab_agent", "manage_lab_view"]})
+      expect.objectContaining({tools: ["read", "grep"], excludeTools: ["subagent", "harness_workflow", "lab_agent", "manage_lab_view", "manage_projects"]})
     );
     const options = createAgentSession.mock.calls[0]![0]!;
     expect(options.resourceLoader?.getSystemPrompt()).toBeUndefined();
@@ -102,7 +114,7 @@ describe("harness runtime resources", () => {
         bindExtensions: vi.fn(),
         prompt: vi.fn(),
         agent: {waitForIdle: vi.fn()},
-        state: {messages: [{role: "assistant", content: [{type: "text", text: "Done"}], stopReason: "stop"}]},
+        state: {messages: [fauxAssistantMessage("Done")]},
         dispose: vi.fn(),
       },
     }));
@@ -125,7 +137,7 @@ describe("harness runtime resources", () => {
         bindExtensions: vi.fn(),
         prompt: vi.fn(),
         agent: {waitForIdle: vi.fn()},
-        state: {messages: [{role: "assistant", content: [{type: "text", text: options?.cwd}], stopReason: "stop"}]},
+        state: {messages: [fauxAssistantMessage(options?.cwd ?? "")]},
         dispose: vi.fn(),
       },
     }));
@@ -135,13 +147,17 @@ describe("harness runtime resources", () => {
     const harness = {...snapshot.harness, coordinatorProjectId: "head", systemPrompt: "GLOBAL", orchestratorPrompt: "HEAD ROLE"};
     const lab = {...snapshot.project, id: "lab", parentProjectId: "head", path: labPath, systemPrompt: "LAB RULES", orchestratorPrompt: "LAB ROLE"};
     const head = {...snapshot.project, id: "head", systemPrompt: "HEAD PROJECT"};
-    const resolved = {...resolveHarnessProject(harness, head, 1), delegation: {harness, projects: [lab]}};
-    const tool = createHarnessTools(resolved, sdk).find((item) => item.name === "lab_agent")!;
+    const configuration = new HarnessStore(join(root, "config"));
+    await configuration.save({...harness, coordinatorProjectId: undefined}, 0);
+    await configuration.saveProject(head, 1);
+    await configuration.saveProject(lab, 2);
+    await configuration.save(harness, 3);
+    const tool = createHarnessTools(await configuration.resolveProject("head"), sdk, undefined, configuration).find((item) => item.name === "lab_agent")!;
     await expect(tool.execute("bad", {projectId: "unrelated", task: "Check"}, undefined, undefined, {} as ExtensionContext)).rejects.toThrow("does not report");
     expect(createAgentSession).not.toHaveBeenCalled();
     await tool.execute("good", {projectId: "lab", task: "Check"}, undefined, undefined, {} as ExtensionContext);
     const options = createAgentSession.mock.calls[0]![0]!;
-    expect(options.cwd).toBe(labPath);
+    expect(options.cwd).toBe(await realpath(labPath));
     const prompt = options.resourceLoader!.getAppendSystemPrompt().join("\n");
     expect(prompt).toContain("GLOBAL\n\nLAB RULES");
     expect(prompt).toContain("LAB ROLE");

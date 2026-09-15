@@ -1,3 +1,4 @@
+import {getWorkspaceOverview} from "@supernova/agent-runtime/layers/workspace/operations/workspace-overview";
 import {AgentRpcGroup} from "@supernova/contracts";
 import {Effect} from "effect";
 import {FoldersService} from "@supernova/agent-runtime/services/folders-service";
@@ -7,6 +8,12 @@ import {SessionRuntimeService} from "@supernova/agent-runtime/services/session-r
 import {SessionsService} from "@supernova/agent-runtime/services/sessions-service";
 import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 import {harnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
+import {PiSdkService} from "@supernova/agent-runtime/layers/pi-sdk";
+import {curatorStore} from "@supernova/agent-runtime/layers/curator/curator-store";
+import {decideCuration, rollbackCuration} from "@supernova/agent-runtime/layers/curator/curator-decisions";
+import {runCuratorReview} from "@supernova/agent-runtime/layers/curator/curator-run";
+import {curatorScheduler} from "@supernova/agent-runtime/layers/curator/curator-scheduler";
+import {curatorMetrics} from "@supernova/agent-runtime/layers/curator/lib/curator-metrics";
 import {harnessPromptLayers} from "@supernova/agent-runtime/layers/harnesses/lib/harness-prompts";
 import {getHarnessResources, getHarnessMemory} from "@supernova/agent-runtime/layers/harnesses/internal/harness-resources";
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
@@ -24,15 +31,20 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
     const projects = yield* ProjectsService;
     const sessionRuntime = yield* SessionRuntimeService;
     const sessions = yield* SessionsService;
+    const piSdk = yield* PiSdkService;
+    curatorScheduler.start(piSdk);
 
     return {
+      getWorkspaceOverview: (payload) => configurationEffect(() => getWorkspaceOverview(piSdk, payload.projectPaths, payload.pinnedSessionIds)),
       getHarnessResources: ({harnessId, projectId}) => configurationEffect(() => getHarnessResources(harnessId, projectId)),
       getHarnessMemory: ({harnessId, projectId}) => configurationEffect(() => getHarnessMemory(harnessId, projectId)),
       getToolCredentials: () => configurationEffect(() => toolCredentials.status()),
       saveToolCredential: ({name, value}) => configurationEffect(() => toolCredentials.save(name, value)),
-      getHarnessLibrary: () => configurationEffect(() => harnessStore.list()),
+      getHarnessLibrary: () => configurationEffect(() => harnessStore.describe()),
       updateHarnessView: ({projectId, beforeProjectId, expectedRevision}) =>
-        configurationEffect(async () => harnessStore.updateView(await harnessStore.resolveProject(projectId), {projectId, beforeProjectId}, expectedRevision)),
+        configurationEffect(async () =>
+          harnessStore.withFolderStatus(await harnessStore.updateView(await harnessStore.resolveProject(projectId), {projectId, beforeProjectId}, expectedRevision))
+        ),
       getChatHarness: ({sessionId}) =>
         configurationEffect(async () => {
           const session = await Effect.runPromise(sessions.get(sessionId));
@@ -54,10 +66,38 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
           await Effect.runPromise(sessions.get(sessionId));
           return harnessRunStore.get(sessionId, runId);
         }),
+      listWorkflowRuns: ({sessionId}) =>
+        configurationEffect(async () => {
+          await Effect.runPromise(sessions.get(sessionId));
+          return harnessRunStore.listWorkflowRuns(sessionId);
+        }),
+      getWorkflowRun: ({sessionId, runId}) =>
+        configurationEffect(async () => {
+          await Effect.runPromise(sessions.get(sessionId));
+          return harnessRunStore.getWorkflowRun(sessionId, runId);
+        }),
       getHarnessSkills: ({harnessId}) => configurationEffect(async () => (await harnessStore.listSkills(harnessId)).map(({name, description}) => ({name, description}))),
-      saveHarness: ({harness, expectedRevision}) => configurationEffect(() => harnessStore.save(harness, expectedRevision)),
-      saveHarnessProject: ({project, expectedRevision}) => configurationEffect(() => harnessStore.saveProject(project, expectedRevision)),
-      importScienceHarness: ({packagePath, rootPath, expectedRevision}) => configurationEffect(() => harnessStore.importScience(packagePath, rootPath, expectedRevision)),
+      saveHarness: ({harness, expectedRevision}) => configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.save(harness, expectedRevision))),
+      removeHarnessProject: ({projectId, expectedRevision}) =>
+        configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.removeProject(projectId, expectedRevision))),
+      saveHarnessProject: ({project, expectedRevision}) =>
+        configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.saveProject(project, expectedRevision))),
+      importScienceHarness: ({packagePath, rootPath, expectedRevision}) =>
+        configurationEffect(async () => harnessStore.withFolderStatus(await harnessStore.importScience(packagePath, rootPath, expectedRevision))),
+      listCuration: ({harnessId}) =>
+        configurationEffect(async () => ({
+          proposals: await curatorStore.listProposals(harnessId),
+          reviews: await curatorStore.listReviews(harnessId),
+          requests: await curatorStore.listRequests(harnessId),
+          metrics: await curatorMetrics({harnessId}),
+        })),
+      decideCuration: ({proposalId, decision, replace, reason, expectedRevision}) =>
+        configurationEffect(() => decideCuration({proposalId, decision, replace, reason, expectedRevision})),
+      rollbackCuration: ({proposalId, expectedRevision}) => configurationEffect(() => rollbackCuration({proposalId, expectedRevision})),
+      // One review is one model session, so this call takes as long as the review does.
+      runCuratorReview: ({harnessId, projectId}) => configurationEffect(() => runCuratorReview({harnessId, projectId, trigger: "manual", scope: "full", piSdk})),
+      listInstructionVersions: ({target}) => configurationEffect(async () => ({versions: await harnessStore.listVersions(target)})),
+      readInstructionVersion: ({target, revision}) => configurationEffect(async () => ({content: await harnessStore.readVersion(target, revision)})),
       createHarnessSession: ({projectId}) =>
         configurationEffect(async () => {
           const snapshot = await harnessStore.resolveProject(projectId);
@@ -66,6 +106,8 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
           return session;
         }),
       abortSession: ({sessionId}) => sessionRuntime.abortSession(sessionId),
+      getSessionControls: ({sessionId}) => sessionRuntime.getSessionControls(sessionId),
+      updateSessionControls: (input) => sessionRuntime.updateSessionControls(input),
       archiveProjectSession: ({projectPath, sessionId}) =>
         Effect.gen(function* () {
           yield* sessionRuntime.releaseSession(sessionId);
@@ -86,6 +128,9 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       getSession: ({sessionId}) =>
         Effect.flatMap(sessionRuntime.getCommittedSession(sessionId), (committedSession) => (committedSession ? Effect.succeed(committedSession) : sessions.get(sessionId))),
       listFolderFiles: ({projectPath, query}) => folders.listFiles(projectPath, query),
+      listFolderEntries: ({projectPath, path}) => folders.listEntries(projectPath, path),
+      readFolderFile: ({projectPath, path}) => folders.readFile(projectPath, path),
+      writeFolderFile: ({projectPath, path, content, expectedModifiedAt}) => folders.writeFile(projectPath, path, content, expectedModifiedAt),
       listFolderSuggestions: ({query}) => folders.listSuggestions(query),
       listProviders: () => providers.list(),
       listProjectSessions: (input) => projects.listSessions(input),
@@ -96,6 +141,7 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       renameSession: (input) => sessions.rename(input),
       revertToMessage: (input) => sessionRuntime.revertToMessage(input),
       sendMessage: (input) => sessionRuntime.sendMessage(input),
+      steerSession: (input) => sessionRuntime.steerSession(input),
       startProviderLogin: ({authType, providerId}) => providers.startLogin(providerId, authType),
       submitProviderLoginInput: ({input, loginSessionId}) => providers.submitLoginInput(loginSessionId, input),
       watchProviderLoginSession: ({loginSessionId}) => providers.watchLoginSession(loginSessionId),

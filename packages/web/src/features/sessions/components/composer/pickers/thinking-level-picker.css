@@ -1,0 +1,15 @@
+.effort-dial {
+  cursor: pointer;
+}
+.effort-dial-needle {
+  transform-origin: 16px 16px;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+:root[data-mathematical-motion="off"] .effort-dial-needle {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .effort-dial-needle {
+    transition: none;
+  }
+}

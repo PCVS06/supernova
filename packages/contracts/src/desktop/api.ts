@@ -2,7 +2,30 @@ export type DesktopEnvironment = "mac" | "windows" | "linux";
 
 export type DesktopTheme = "dark" | "light" | "system";
 
+export interface DesktopServerState {
+  readonly status: "running" | "stopped" | "restarting";
+  readonly revision: number;
+}
+
 export type DesktopUpdateStatus = "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
+
+export interface DesktopBrowserBounds {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface DesktopBrowserShowRequest {
+  readonly bounds: DesktopBrowserBounds;
+  readonly url: string;
+}
+
+/** Why an update cannot be installed in place, with where to fetch it by hand instead. */
+export interface DesktopUpdateInstallBlock {
+  readonly reason: string;
+  readonly downloadUrl: string;
+}
 
 export interface DesktopUpdateState {
   readonly status: DesktopUpdateStatus;
@@ -10,16 +33,30 @@ export interface DesktopUpdateState {
   readonly version: string | null;
   readonly downloadPercent: number | null;
   readonly message: string | null;
+  /** Set when the running copy can never be replaced by the updater, such as an unsigned macOS build. */
+  readonly installBlocked: DesktopUpdateInstallBlock | null;
 }
 
 export interface DesktopApi {
   readonly environment: DesktopEnvironment;
   readonly serverUrl: string;
+  /** Folder the bundled API keeps its data in, shown by the About page. */
+  readonly dataDirectory: string;
   readonly appVersion: string;
   readonly nightly: boolean;
+  readonly getServerState: () => Promise<DesktopServerState>;
+  readonly restartServer: () => Promise<void>;
+  readonly onServerState: (listener: (state: DesktopServerState) => void) => () => void;
   readonly openDirectory: (path: string) => Promise<void>;
   readonly setNativeTheme: (theme: DesktopTheme) => Promise<void>;
+  readonly showWorkspaceBrowser: (request: DesktopBrowserShowRequest) => Promise<void>;
+  readonly hideWorkspaceBrowser: () => Promise<void>;
+  readonly navigateWorkspaceBrowser: (url: string) => Promise<void>;
+  readonly goBackWorkspaceBrowser: () => Promise<void>;
+  readonly goForwardWorkspaceBrowser: () => Promise<void>;
+  readonly reloadWorkspaceBrowser: () => Promise<void>;
   readonly getUpdateState: () => Promise<DesktopUpdateState>;
+  readonly checkForUpdates: () => Promise<void>;
   readonly downloadUpdate: () => Promise<void>;
   readonly installUpdate: () => Promise<void>;
   readonly onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;

@@ -146,11 +146,13 @@ function CustomToolTitle({tool}: {tool: Extract<Tool, {kind: "custom"}>}) {
   const project = library.data?.projects.find((item) => item.id === activeProjectId);
   const targetLab = library.data?.projects.find((item) => item.id === tool.input?.projectId);
   const tasks = tool.input?.chain ?? tool.input?.tasks;
+  const workflowId = typeof tool.input?.workflowId === "string" ? tool.input.workflowId : undefined;
+  const workflow = harness?.workflows?.find((item) => item.id === workflowId) ?? harness?.workflows?.[0];
   const names =
     tool.name === "lab_agent"
       ? [targetLab?.name ?? "Lab orchestrator"]
       : tool.name === "harness_workflow"
-        ? (harness?.graph.steps ?? [])
+        ? (workflow?.steps.map((step) => step.agent) ?? harness?.graph.steps ?? [])
         : typeof tool.input?.agent === "string"
           ? [tool.input.agent]
           : Array.isArray(tasks)

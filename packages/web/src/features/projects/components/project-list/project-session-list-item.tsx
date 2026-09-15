@@ -1,5 +1,11 @@
+import {SidebarBranch, SidebarPresence} from "@/features/sidebar/components/sidebar-presence";
+import SidebarLabel from "@/features/sidebar/components/sidebar-label";
+import {useState} from "react";
+import {useLocation} from "@tanstack/react-router";
+import {useWorkspaceOverview} from "@/features/workspace/hooks/use-workspace-overview";
+import ChatAgentList from "@/features/sidebar/components/chat-agent-list";
+import ConversationStar from "@/components/brand/conversation-star";
 import Button from "@/components/ui/button";
-import PiOrb from "@/components/brand/pi-orb";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import SessionActionsMenu from "@/features/sessions/components/session-actions-menu";
@@ -7,60 +13,65 @@ import SessionTitleText from "@/features/sessions/components/session-title-text"
 import {useRenameSession} from "@/features/sessions/hooks/api/use-rename-session";
 import {useInlineRename} from "@/hooks/use-inline-rename";
 import {cn} from "@/lib/cn";
-import ChatRunList from "@/features/harnesses/components/chat-run-list";
+import WorkspaceActivityLink from "@/features/workspace/components/workspace-activity-link";
+import type {SessionLiveStatus} from "@/features/sessions/stores/session-live-store";
+import {ledgerDisclosureClassName, ledgerMarkClassName, ledgerPrimaryClassName, ledgerRowClassName} from "@/features/sidebar/lib/ledger-styles";
+import LedgerRowEnd from "@/features/sidebar/components/ledger-row-end";
 
 interface ProjectSessionListItemProps {
-  session: {id: string; title: string; pinned: boolean; updatedAt: string};
+  session: {id: string; title: string; pinned: boolean};
   projectPath: string;
-  color?: string;
   managed?: boolean;
+  orchestrator?: boolean;
   selected: boolean;
+  /** The owning chat remains contextual while one of its workers is selected. */
+  current?: boolean;
   streaming: boolean;
+  status?: SessionLiveStatus;
   unseen: boolean;
   onOpen: () => void;
   onPrefetch: () => void;
   onTogglePinned: () => void;
 }
 
-/** Renders a sidebar session with shared actions and local inline renaming. */
+/** Renders a sidebar chat with shared actions and local inline renaming. */
 export default function ProjectSessionListItem(props: ProjectSessionListItemProps) {
-  const {session, projectPath, selected, streaming, unseen, onOpen, onPrefetch, onTogglePinned, color, managed} = props;
+  const {session, projectPath, selected, current = selected, streaming, status, unseen, onOpen, onPrefetch, onTogglePinned, managed, orchestrator} = props;
+  const overview = useWorkspaceOverview();
+  const {pathname} = useLocation();
+  const [agentView, setAgentView] = useState<{path: string; open: boolean}>();
+  const agentSelected = pathname.startsWith(`/session/${session.id}/run/`);
+  const expanded = agentView?.path === pathname ? agentView.open : agentSelected;
+  const workers = overview.model.items.filter((item) => item.sessionId === session.id && item.kind === "agent");
+  const hasAgents = workers.length > 0 || agentSelected || (overview.data?.activityTotals.find((item) => item.sessionId === session.id)?.runs ?? 0) > 0;
+  const agentsWorking = workers.some((item) => item.active);
   const renameSession = useRenameSession();
   const {draftName, handleBlur, handleChange, handleClick, handleFocus, handleInputRef, handleKeyDown, renaming, startRenaming} = useInlineRename({
     initialValue: session.title,
     onSave: (title) => renameSession.mutate({sessionId: session.id, title}),
   });
 
+  const activityLabel = status === "stopping" ? "Stopping" : status === "compacting" ? "Compacting" : streaming ? "Working" : unseen ? "Unread chat" : "Chat";
+
   return (
-    <li onFocusCapture={onPrefetch} onPointerDown={onPrefetch} onPointerEnter={onPrefetch}>
-      <Button
-        as="div"
-        className={cn(
-          "group/session flex w-full items-center gap-2 border-l-2 border-transparent py-1.5 pl-2 pr-1 text-left",
-          selected && "border-l-ink bg-overlay-pressed text-ink"
-        )}
-        onClick={onOpen}
-        style={selected ? {borderLeftColor: color, color} : undefined}
-        variant="primary"
-      >
-        <IconButton
-          className={cn("group/pin-toggle size-4 shrink-0", !session.pinned && "invisible group-hover/session:visible")}
-          label={session.pinned ? "Unpin session" : "Pin session"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onTogglePinned();
-          }}
-        >
-          <Icon
-            className="origin-center transition-transform duration-250 ease-[cubic-bezier(0.2,0.9,0.2,1.15)] group-active/pin-toggle:scale-85 group-active/pin-toggle:-rotate-8 motion-reduce:transition-none"
-            name="pin"
-            size="xs"
-          />
-        </IconButton>
-        {renaming && (
+    <SidebarPresence as="li" level="chat" onPrefetch={onPrefetch}>
+      <div className={cn(ledgerRowClassName, current && "bg-overlay-pressed text-ink-strong", selected && !current && "text-ink")} title={session.title}>
+        <span className="ml-2 grid w-3 shrink-0 place-items-center">
+          {hasAgents && (
+            <IconButton
+              label={`${expanded ? "Collapse" : "Expand"} agents in ${session.title}`}
+              aria-expanded={expanded}
+              className="sidebar-row-disclosure grid h-8 w-3 shrink-0 place-items-center"
+              onClick={() => setAgentView({path: pathname, open: !expanded})}
+            >
+              <Icon name="chevron-right" size="xs" className={cn(ledgerDisclosureClassName, expanded && "rotate-90")} />
+            </IconButton>
+          )}
+        </span>
+        {renaming ? (
           <input
-            aria-label="Session title"
-            className="min-w-0 flex-1 truncate bg-transparent text-sm outline-none"
+            aria-label="Chat title"
+            className="m-2 min-w-0 flex-1 rounded-md bg-overlay-hover px-2 py-2 text-sm text-ink outline-none focus-visible:ring-1 focus-visible:ring-border-strong"
             onBlur={handleBlur}
             onChange={handleChange}
             onClick={handleClick}
@@ -70,28 +81,45 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
             ref={handleInputRef}
             value={draftName}
           />
+        ) : (
+          <Button aria-current={current ? "page" : undefined} aria-label={`Open chat: ${session.title}`} className={cn(ledgerPrimaryClassName, "gap-1 py-0 pl-1")} onClick={onOpen}>
+            <span className={ledgerMarkClassName} role="img" aria-label={activityLabel} title={activityLabel}>
+              <ConversationStar className="size-5" active={streaming || agentsWorking} />
+            </span>
+            <SidebarLabel constant={orchestrator ? "tau" : "phi"} text={session.title} className="min-w-0 flex-1 truncate text-xs leading-5">
+              <SessionTitleText title={session.title} />
+            </SidebarLabel>
+          </Button>
         )}
-        {!renaming && <SessionTitleText className="min-w-0 flex-1 truncate text-sm" title={session.title} />}
-        <span className="grid w-12 shrink-0 place-items-center justify-items-end">
-          <span className="col-start-1 row-start-1 w-full justify-self-end whitespace-nowrap pr-1.5 text-right text-xs text-ink-muted group-hover/session:invisible group-focus-within/session:invisible group-has-[[data-popup-open]]/session:invisible">
-            {streaming ? (
-              <PiOrb color={color} className="ml-auto size-5" label="Session streaming" state="working" />
-            ) : unseen ? (
-              <span className="inline-block size-1.5 bg-ink" aria-label="Finished while closed" role="status" />
-            ) : (
-              session.updatedAt
-            )}
-          </span>
-          <SessionActionsMenu
-            onRename={startRenaming}
-            projectPath={projectPath}
-            sessionId={session.id}
-            sessionTitle={session.title}
-            triggerClassName="col-start-1 row-start-1 size-5 opacity-0 group-hover/session:opacity-100 group-focus-within/session:opacity-100 data-popup-open:opacity-100"
-          />
-        </span>
-      </Button>
-      {managed && <ChatRunList sessionId={session.id} live={selected || streaming} />}
-    </li>
+        <LedgerRowEnd
+          actions={
+            <>
+              <IconButton
+                aria-pressed={session.pinned}
+                className="sidebar-pin size-6 rounded-md text-white hover:bg-overlay-pressed"
+                label={session.pinned ? "Unpin chat" : "Pin chat"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onTogglePinned();
+                }}
+              >
+                <Icon name={session.pinned ? "pin-filled" : "pin"} size="xs" />
+              </IconButton>
+              <SessionActionsMenu
+                onRename={startRenaming}
+                projectPath={projectPath}
+                sessionId={session.id}
+                sessionTitle={session.title}
+                triggerClassName="size-6 rounded-md hover:bg-overlay-pressed"
+              />
+            </>
+          }
+        />
+      </div>
+      <SidebarBranch open={hasAgents && expanded}>
+        <ChatAgentList sessionId={session.id} live={streaming || agentsWorking} />
+      </SidebarBranch>
+      {managed && <WorkspaceActivityLink sessionId={session.id} />}
+    </SidebarPresence>
   );
 }

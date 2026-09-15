@@ -1,13 +1,171 @@
 # Changelog
 
-All notable changes to Supernova are documented in this file.
+All notable changes to Radian are documented in this file.
 
 ## [Unreleased]
 
 ### Breaking Changes
 
+- Renamed the standalone server command to `radian-server`.
+
+### Changed
+
+- Changed chat history to compact backward and forward controls that apply ordinary steps directly, with manual-edit conflicts shown inline and saved-turn details available on demand.
+- Expanded the mathematical night sky across the interface with smaller drifting formulas, scattered stars and occasional shooting stars; motion pauses in the background and respects reduced-motion preferences.
+
+- Changed the primary chat to remove its top bar and moved the reverse action into the message composer.
+- Changed the effort dial to open clickable level choices with keyboard selection and draft-focus restoration.
+
+- Changed queued messages to support pausing, editing and reordering, with saved order and protection against stale edits or uncertain delivery.
+- Changed checkpoint actions to preview affected files, manual changes and conversation scope before restoring, with a fresh review required when files change.
+- Changed chat and workspace views to show their owner, worker assignments and collapsible completed history.
+- Changed settings to explain new-chat defaults and immediate saves, and goals to show turn usage and the reported outcome while collapsed.
+- Changed context usage to label estimates and show remaining capacity, and marked the terminal as unavailable before selection.
+
+- Changed follow-ups to offer explicit Steer now and Queue next actions; Enter queues the complete draft, and steering explains when attachments stay in the composer.
+- Changed worker inspection to show the latest response or final result immediately while keeping supporting details expandable.
+- Changed context inspection to distinguish saved configurations from current defaults and show the runtime capture time, recorded model and available resources.
+
+- Changed the planetary background to more numerous, smaller, slowly drifting mathematical formulas, with reduced-motion support.
+- Changed planetary views to keep ordinary project teams visible individually, retaining surrounding agents and grouping only larger histories.
+- Changed goals to expand into an editable objective and use the normal send button to update and run it; the goal header now contains only expand and delete.
+- Simplified the effort dial and participant finder, added matching identity marks to summaries, and kept conversation text free of repeated decorative symbols.
+- Changed effort selection to a compact dial with discrete levels, pointer dragging, wheel adjustment and keyboard controls.
+- Changed project, agent and goal inspection to reveal details progressively, with compact worker summaries and animated expansion.
+- Changed numeric rings to rotate continuously and kept chat symbols, orbital entrances and sidebar rows aligned through transitions.
+- Changed deferred messages to a compact list with Steer and Delete actions and visible confirmation when steering is accepted.
+- Changed the composer to animate height changes and removed the divider beneath the Goal tray.
+- Changed project orbits to show one planet per current project, with earlier assignments available inside its history.
+
+- Added smooth sidebar expansion and a closing transition that dissolves names into their own mathematical digits, with fading symbols and inset workspace separators.
+
+- Moved the curator inbox out of Settings to its own page beside the chats, with the review history below the proposals; import paths, the opening harness and project rows no longer carry development defaults.
+- Moved the App settings into four pages: General keeps the workspace behaviour choices, Appearance folds its preview away and always lists the translucent sidebar, Providers & keys holds the app-wide tool credentials, and a new About page names the version, channel, updates and server endpoint.
+- Changed Settings into one navigation tree: the App pages and one expandable node per harness, with a page per URL and a page header instead of a breadcrumb.
+- Changed harness configuration to a single draft for the harness and all its projects, saved from one bar at the bottom; switching agent, project or workflow keeps unsaved edits.
+- Moved every harness setting to one place: Overview, Instructions, Agents, Skills & tools and Curator, with Setup, Lead, Instructions, Plan and Memory per project.
+- Changed chat solar systems to keep their original numeric symbols on fine dotted planet and moon orbits, without coronas or trailing effects.
+- Brightened the chat system’s numeric contours and participant counts, added finer planetary artwork, and preserved its compact reading view.
+- Simplified the composer to compact model and effort selections on the left, without repeated labels or an empty-message hint.
+- Simplified Context to mathematical role marks and a settings shortcut at the bottom, without a repeated header.
+- Changed chat orchestration to unfold from its compact mathematical symbol into a live solar system on click, with nested project and agent orbits, clickable results and connections for observed assignments and returns.
+- Aligned sidebar levels to a shared row layout with smaller disclosure arrows, consistent indentation and progressively smaller role symbols.
+
+- Changed sidebar headings to larger animated harness marks on the left, with compact uniform spacing, icon-only search and controls revealed on hover or keyboard focus.
+- Changed chats to expand their own agents beneath them, with direct result links and active worker signals.
+
+- Changed chat systems to show only their own recorded delegations, preserve earlier work and distinguish independently active conversations; motion and detail choices persist in Appearance.
+- Changed the sidebar to hide idle activity records and repeated role labels by default; detailed activity remains optional.
+- Changed agent views to put their result first, with assignment, conversation, activity and context available on demand, and a geometric branching mark for delegated work.
+
+- Changed chat maps and workflow graphs to free-standing mathematical symbols with fine white light, sharp connections and details on hover or selection, without surrounding cards.
+- Changed chat navigation to share recorded workspace activity, with compact sidebar counts, attention shortcuts, stable pin order and rows that stay still during interaction.
+
+- Renamed the app to Radian across navigation, desktop packaging, and app messages.
+- Changed identity marks to ornate white pixel symbols: π for harnesses, φ for projects, e for subagents, τ for the lead orchestrator, and i for the curator, with accurate numeric contours and reduced-motion support.
+- Changed all dark app surfaces to opaque black with crisp white lettering and adjustable glow for icons, markers and selected controls.
+- Changed the dark workspace to pure-black surfaces with hidden scrollbar chrome, a compact grouped Context inspector, and icon-only settings, theme and help controls.
+- Simplified Goal and dictation feedback by removing pass-count terminology, redundant continuation copy and empty-speech errors.
+- Changed the primary chat to a headerless workspace, with Split View beside the right-sidebar control and secondary panes retaining compact identity headers.
+- Changed the right workspace access to one hide/show control and closeable browser-style tabs for Files, Browser, Terminal and Context, with a plus button for opening another tool. Its default width now matches the main sidebar.
+- Changed project files to open in a wide reader beside a persistent project tree, with rendered Markdown, source view and a compact Add to chat action.
+- Changed chat context into independently collapsible Harness, Project, Role, Context, Resources and Runtime sections with one continuous scroll area.
+- Changed project files to use a compact resizable tree and horizontally scrollable source lines, with clearer scrollbars throughout the workspace.
+- Changed sidebar rows to keep action positions fixed while revealing controls on hover or keyboard focus and removed chat timestamps and other secondary row metadata.
+- Changed harness project rows to keep their colored π mark visible beside a separate disclosure chevron.
+- Reworked the harness settings: every agent page has Settings, Instructions, Skills and Memory tabs; Resources is harness-wide only; the Projects tab is a per-project planning tool with Plan, Instructions and Setup; Workflows shows Workflows and Limits.
+- Redesigned the sidebar: a search field, small-caps harness headers with hover-only actions, aligned project and chat rows whose actions no longer overlap the name, a Lead pill for the coordinating project, and a quiet footer.
+- The project Plan tab is a full-height workspace: a documents column beside the open document, Save, Revert and Cmd+S, a starting structure for files that do not exist yet, and a document list that saves as soon as it changes.
+
 ### Added
 
+- Added a quiet background of mathematical star constellations to the planetary view.
+- Added harness-lead project creation, folder assignment, instruction updates and recorded status, with immediate delegation to newly assigned projects.
+- Added acknowledged corrections to running delegated leads and specialists, with direct-owner controls and room for three workers per lead, up to twelve across a chat hierarchy.
+
+- Added an Inbox icon beside theme and help that opens the current harness’s curator proposals directly.
+
+- Added background specialist and lab delegation so leads can continue independent work, then retrieve or cancel saved results without launching duplicate workers; each chat supports three background agents.
+
+- Added bounded orbital groups with participant search and paging for large systems, with automatic pauses during inspection, offscreen and under reduced-motion settings.
+- Added bounded parallel workflow branches, shared validated outputs, explicit joins, exclusive workspace writes, persistent step progress and guarded continuation.
+- Added a live workflow entry at each initiating chat event, with real delegation states and details that remain open when the run finishes.
+
+- Added observed handoff and result signals inside the chat system; completed workers remain reachable without reopening a separate map.
+- Added symbol-specific working and completion animations, mathematical activity captions, and a skippable digit-to-text reveal at the start of live replies. Appearance settings include motion controls and a preview for all five identities.
+- Added microphone dictation to the empty message composer, with live start and stop controls and recognized text inserted into the draft.
+- Added `/goal` with a saved, editable objective and bounded continuation beside the composer.
+- Added a saved message queue with explicit steering and removal; Stop pauses pending work until the queue is resumed.
+- Added observed worker conversations alongside activity and context, linked from their owning chat and navigation rows.
+- Added the Curator, a background role per harness that keeps instructions, planning documents and the memory ledger correct and short from evidence only: run receipts, user steers and ledger records. It files minimal find/replace proposals into a new Inbox tab (approve, edit, reject, roll back), can supersede or retract memory records and append a dated plan log by itself when those switches are on, keeps a version history of every instruction piece, records steers, and runs a memory-only pass 15 minutes after a project's last run. Off until enabled under Agents → Curator; spend is capped per review and per day. Phases 3 and 4: repeated failures are grouped per agent and a role change needs three runs from one group, overlapping role prompts are reported, each artefact has a cooldown after a decision, additions are refused above 80 percent of the instruction budget, chats can send the Curator a decision or a problem with one tool, and a daily sweep with quiet hours runs the full review; the Curator panel gains Schedule, Signals (acceptance, steers per chat, instruction size, failures per agent, spend) and Requests.
+- Projects can be removed from a harness, from the project's Setup tab or the sidebar menu. The folder stays on disk, existing chats keep their settings, and a coordinating project cannot be removed while it still has labs.
+
+### Fixed
+
+- Fixed chat formulas displaying as raw LaTeX; inline, display and aligned math now render automatically in messages and worker results.
+- Fixed pasted paragraphs losing their line breaks when messages were sent, including multi-line formulas.
+
+- Fixed local-agent failures closing the desktop app; the workspace now stays open with a restart action, reconnect feedback and preserved drafts.
+
+- Fixed goal revisions being rejected and protected updated goals from results belonging to a superseded objective.
+- Fixed queued steering missing the next safe delivery boundary, and kept accepted corrections visible until their turn settles without persistent success popups.
+- Fixed nested composer animations restarting each other and automatic scrolling pulling readers to the bottom when opening details.
+- Fixed inconsistent peer-agent orbits and allowed their numeric contours to keep spinning during inspection.
+- Fixed mismatched workspace dividers and mouse-click focus rectangles while preserving visible keyboard focus.
+- Fixed repeated layout measurements interrupting detail expansion, and preserved the chat symbol through completed replies and Goal changes.
+- Fixed duplicate active project leads within one chat and allowed waiting leads to receive steering while their workers continue.
+- Fixed early worker corrections being rejected during session startup.
+- Fixed project systems overlapping during orbit and restored idle numeric motion when the solar system is open.
+- Fixed deleted projects lingering in chat solar systems and typing focus being lost after sending or changing model and effort.
+
+- Fixed corrections being rejected as an answer finishes saving; late steering is saved once in the message queue while stopped work remains paused.
+- Fixed hidden harness settings icons on hover and restored brighter, animated project symbols in chat solar systems.
+
+- Fixed slow workspace updates and workflow preparation with large agent histories and long dependency chains.
+- Reduced startup JavaScript by packaging only the UI icons the app uses, with their original artwork and offline availability.
+- Balanced the numeric contours of small sidebar identities and removed duplicate workflow workers from orbital views.
+- Fixed nearby orbital participants intercepting one another’s clicks and kept orchestration compact while reading replies.
+- Fixed the chat activity symbol changing the scroll height when a reply starts streaming.
+- Fixed pinning from chat menus before a project was locally saved, and made pinned chats visibly distinct with filled white pins.
+- Fixed chat row alignment when some chats have expandable agents and others do not.
+
+- Fixed provider errors appearing twice in a settled chat and removed duplicate workflow workers from the conversation activity list.
+
+- Fixed overlapping `/goal` suggestions and aligned goal actions and composer buttons.
+- Fixed transient project-list synchronization from clearing configured project identity during chat updates.
+
+- Fixed digit reveals to cover the complete arriving reply in its original text layout, with a shorter delay and an immediate skip.
+- Fixed conversation symbols disappearing after a reply; each identity now settles into a visible idle state.
+- Fixed chats in unmanaged folders being identified as harness leads.
+- Fixed the Goal tray and composer drawing overlapping frames, and kept the compact send arrow as the primary action when starting a goal.
+- Fixed desktop Browser stability by replacing the embedded webview with an isolated native browser surface that survives workspace tab changes.
+- Fixed late first-message acceptance from reopening its chat after the user had already navigated away, and aligned the Goal tray with the full composer width.
+- Fixed workspace tabs so their focus treatment and hidden tab-strip scrollbar no longer distort or overlap the tab row.
+- Fixed project and chat pinning so pinned items move to the top without moving the pin control on hover.
+- Fixed chat context to include configured and conventional project documents such as `GOAL.md`, without revision or capture-time noise.
+- Fixed workspace-tab close buttons so they remove their tab and close the panel when the final tab is removed; the title-bar control still hides and restores the whole panel.
+- Fixed `/goal` cancellation so typed goal commands return to a normal message draft, and removed unavailable steering actions from paused queues.
+- A project whose folder disappeared from disk no longer fails new chats with a generic "Please try again"; the sidebar and settings mark it as missing, the toast names the folder, and its plan and instructions stay editable.
+- Projects removed from a harness no longer linger in the sidebar as unmanaged folders.
+
+### Removed
+
+- Removed leftover sidebar guide lines and solid planet selection rings.
+- Removed the Science Pi Idea Graph extension from imported harnesses and its harness description.
+- Removed floating options and close buttons from planetary views and the duplicate decorative orb from worker conversation bodies.
+- Removed workspace-view keyboard shortcuts and their shortcut badges.
+- Removed the keyboard hint and `/goal` shortcut row beneath the composer; goals remain available by typing the command in the composer.
+- The separate Specialist memory list and the project-scoped Context page, both replaced by the reworked settings above.
+
+## [0.2.0]
+
+### Added
+
+- Added named workflows with typed handoffs: each step references an existing agent, reads only the outputs it declares, and returns output that is validated against its contract on every provider. Runs are saved and resume from the failed step without re-running completed work or repeating an external action; a run page beneath the chat shows every step's inputs, outputs, failures, spend and the exact resume instruction.
+- Added a workspace panel with a project file tree, a file viewer that can add a file reference to the chat, and a browser view.
+- Added split view: open up to three chats from any projects side by side, each with its own draft and live stream.
+- Added steering: while a turn is running, Send becomes Steer and interrupts the current step with your message.
+- Added project planning documents: Markdown files such as PLAN.md and GOALS.md kept in the project, edited in place, and included in every agent's instructions for that project so long-term plans survive across chats.
 - Added chat-owned worker receipts with nested delegation, status, tasks, working folders, model/effort, instruction layers, runtime tools/skills and final results.
 - Added bounded lab-view management for project leads: names, colors and ordering only, with revision and ownership checks.
 - Added per-agent model, reasoning effort, skills and colored pi identities, with project overrides and shared defaults.
@@ -17,6 +175,11 @@ All notable changes to Supernova are documented in this file.
 
 ### Changed
 
+- Moved harness configuration into Settings, with one header, one tab bar and one form vocabulary across Agents, Resources, Workflows and Projects. Memory now sits inside Agents, context rules and files inside Resources, and run limits inside Workflows.
+- Replaced the handoff list with a workflow graph: node cards connected by labelled edges, inline insert and remove, and a side-panel inspector for the selected step.
+- Every agent, lead and project mark now uses the particle ring in its role color; the three-dot specialist mark is gone.
+- Reworked the chat surface: a header with the project mark, title and role badge; a compact context strip with the project's planning documents; collapsed tool events; a composer with labelled model and effort controls and an unmistakable primary action.
+- Specialist workers now receive a wind-down message one turn before their turn cap and shortly before their timeout instead of stopping silently, and a configuration whose instructions cannot fit the model's window is refused before a session starts.
 - Split harness configuration into Agents, Resources, Memory and Graph / Workflows. Chats remain in the sidebar. Resources exposes registered tools and scientific connectors with separate, app-wide encrypted credential storage. Memory reads actual scientific ledgers and explicitly identifies the missing specialist-private memory layer. The new visual graph editor remains on hold.
 - Give Memory the same identity workbench as Agents, with consistent harness/project/specialist navigation, searchable records and evidence, and a separate scope/storage panel.
 
@@ -35,6 +198,8 @@ All notable changes to Supernova are documented in this file.
 
 ### Fixed
 
+- Fixed packaged desktop builds failing to start with "Supernova API exited before readiness": the bundled server's runtime dependencies were dropped during packaging, so the API could not load them.
+- An unsigned macOS copy of pi+ can never be replaced by the updater, and a downloaded update whose signature does not match is refused by macOS. Both cases now explain themselves and offer a download from the releases page instead of failing with a code-signature error.
 - Fixed Science extension loading in the packaged desktop app by shipping the Pi SDK's runtime dependencies.
 - Removed title generation from the first-answer critical path, bounded read-only checkpoint discovery and surfaced settled provider errors before after-turn checkpoint work.
 - Unified the skill picker and managed runtime skill catalogue, applied model/effort defaults to new chats, and preserved custom tool names and delegation outputs in the timeline.
@@ -43,6 +208,7 @@ All notable changes to Supernova are documented in this file.
 ### Removed
 
 - Removed repetitive explanations and status banners from harness settings, Memory, Resources and agent navigation.
+
 ## [0.1.1]
 
 ### Added

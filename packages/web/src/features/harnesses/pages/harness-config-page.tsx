@@ -1,429 +1,273 @@
-import {useEffect, useState} from "react";
-import {Link, useBlocker, useNavigate} from "@tanstack/react-router";
-import type {HarnessConfig, HarnessLibrary, HarnessProject} from "@supernova/contracts/harnesses/schemas";
+import {useState} from "react";
+import {useBlocker, useNavigate} from "@tanstack/react-router";
+import type {HarnessAgent, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
-import Input from "@/components/ui/input";
-import Switch from "@/components/ui/switch";
-import PiOrb from "@/components/brand/pi-orb";
-import {ConfigField, PromptEditor} from "@/features/harnesses/components/config-fields";
+import Dialog from "@/components/ui/dialog";
+import SettingsShell from "@/features/settings/components/settings-shell";
 import AgentsEditor from "@/features/harnesses/components/agents-editor";
-import LeadsEditor from "@/features/harnesses/components/leads-editor";
-import GraphEditor from "@/features/harnesses/components/graph-editor";
-import ExecutionEditor from "@/features/harnesses/components/execution-editor";
+import CuratorEditor from "@/features/harnesses/components/curator-editor";
+import HarnessConfigHeader from "@/features/harnesses/components/harness-config-header";
+import InstructionsPage from "@/features/harnesses/components/instructions-page";
+import OverviewPage from "@/features/harnesses/components/overview-page";
+import ProjectConfigEditor from "@/features/harnesses/components/project-config-editor";
+import type {ProjectSection} from "@/features/harnesses/components/project-config-editor";
 import ResourcesEditor from "@/features/harnesses/components/resources-editor";
-import MemoryEditor from "@/features/harnesses/components/memory-editor";
-import EditorTabs from "@/features/harnesses/components/editor-tabs";
-import WorkspaceChats from "@/features/harnesses/components/workspace-chats";
-import AgentRoleMap from "@/features/harnesses/components/agent-role-map";
-import {useHarnessLibrary, useSaveHarness, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
-import {agentColor, agentColors, agentLabel} from "@/features/harnesses/lib/agent-identity";
+import WorkflowsEditor from "@/features/harnesses/components/workflows-editor";
+import {useHarnessLibrary, useRemoveHarnessProject, useSaveHarness, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
+import {agentLabel} from "@/features/harnesses/lib/agent-identity";
+import type {HarnessPageId, HarnessPageSearch} from "@/features/harnesses/lib/harness-sections";
+import {resolveHarnessPage} from "@/features/harnesses/lib/harness-sections";
 import {saveWorkspaceDraft} from "@/features/harnesses/lib/save-workspace-draft";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
-import {cn} from "@/lib/cn";
+import {useMountEffect} from "@/lib/use-mount-effect";
+import type {AppEnvironment} from "@/lib/app-environment";
 import "@/features/harnesses/components/harness-layout.css";
 
-const sections = ["Chats", "Overview", "Team", "Prompts", "Skills", "Memory", "Graph", "Context", "Workflow", "Run limits"] as const;
-const tabs = [
-  {label: "Agents", section: "Overview"},
-  {label: "Resources", section: "Skills"},
-  {label: "Memory", section: "Memory"},
-  {label: "Graph / Workflows", section: "Graph"},
-] as const;
-type Section = (typeof sections)[number];
+interface SelectSettingsProjectProps {
+  readonly harnessId: string;
+  readonly projectId?: string;
+}
 
-function WorkspaceEditor(props: {harness: HarnessConfig; library: HarnessLibrary; section: Section; project?: HarnessProject; agentName?: string}) {
-  const {harness, library, section, project, agentName} = props;
-  const [draft, setDraft] = useState(harness);
-  const [projectDraft, setProjectDraft] = useState(project);
-  const [base, setBase] = useState({harness, project, revision: library.revision});
+/** Keeps persisted navigation aligned with the selected route, once per scope. */
+function SelectSettingsProject({harnessId, projectId}: SelectSettingsProjectProps) {
+  useMountEffect(() => {
+    useHarnessNavigationStore.getState().selectProject(harnessId, projectId);
+  });
+  return null;
+}
+
+interface WorkspaceEditorProps {
+  harness: HarnessConfig;
+  projects: readonly HarnessProject[];
+  revision: number;
+  page: HarnessPageId;
+  agent?: string;
+  project?: string;
+  workflow?: string;
+}
+
+/** Owns one draft for the harness and all its projects. Every page edits this draft; one bar saves it. */
+function WorkspaceEditor(props: WorkspaceEditorProps) {
+  const {harness, projects, revision, page, agent, project: projectId, workflow} = props;
+  const [draft, setDraft] = useState({harness, projects});
+  const [base, setBase] = useState({harness, projects, revision});
+  const [projectSection, setProjectSection] = useState<ProjectSection>("setup");
+  const [confirmReload, setConfirmReload] = useState(false);
   const saveHarness = useSaveHarness();
   const saveProject = useSaveHarnessProject();
+  const removeProject = useRemoveHarnessProject();
   const navigate = useNavigate();
-  const selectProject = useHarnessNavigationStore((state) => state.selectProject);
-  useEffect(() => {
-    selectProject(harness.id, project?.id);
-  }, [harness.id, project?.id, selectProject]);
-  const sharedDirty = JSON.stringify(draft) !== JSON.stringify(base.harness);
-  const dirty = JSON.stringify(projectDraft) !== JSON.stringify(base.project) || sharedDirty;
+  const head = draft.projects.find((item) => item.id === draft.harness.coordinatorProjectId);
+  const selectedProject = projectId ? draft.projects.find((item) => item.id === projectId) : (head ?? draft.projects[0]);
   const savePending = saveProject.isPending || saveHarness.isPending;
   const saveError = saveProject.error ?? saveHarness.error;
-  const projects = library.projects.filter((item) => item.harnessId === harness.id);
-  const head = projects.find((item) => item.id === harness.coordinatorProjectId);
-  const isHead = !!project && project.id === head?.id;
-  const activeTab = section === "Team" || section === "Prompts" ? "Overview" : ["Workflow", "Run limits"].includes(section) ? "Graph" : section === "Context" ? "Memory" : section;
-  const effectiveAgents = new Map(draft.agents.map((agent) => [agent.name, agent]));
-  for (const agent of projectDraft?.agents ?? []) effectiveAgents.set(agent.name, agent);
-  const effectiveHarness = {
-    ...draft,
-    execution: {...draft.execution, ...projectDraft?.execution},
-    enabledSkills: projectDraft?.enabledSkills ?? draft.enabledSkills,
-    agents: [...effectiveAgents.values()],
-  };
-  const patchProject = (change: Partial<HarnessProject>) => {
-    if (projectDraft) setProjectDraft({...projectDraft, ...change});
-  };
-  const changeScope = (projectId?: string, nextSection?: string, name?: string) => {
-    void navigate({to: "/harness/$harnessId", params: {harnessId: harness.id}, search: {projectId, section: nextSection ?? section, agentName: name}});
-  };
-  useBlocker({
-    shouldBlockFn: ({current, next}) =>
-      dirty &&
-      (current.pathname !== next.pathname || (current.search as {projectId?: string}).projectId !== (next.search as {projectId?: string}).projectId) &&
-      !window.confirm("Discard unsaved changes before switching workspace?"),
+  const harnessDirty = JSON.stringify(draft.harness) !== JSON.stringify(base.harness);
+  const changedProjects = draft.projects.filter((item) => JSON.stringify(item) !== JSON.stringify(base.projects.find((candidate) => candidate.id === item.id)));
+  const dirty = harnessDirty || changedProjects.length > 0;
+  const changed = [...(harnessDirty ? [draft.harness.name] : []), ...changedProjects.map((item) => agentLabel(item.name))].join(", ");
+  // Plan documents take effect on click, so that surface never carries a Save bar.
+  const immediate = page === "projects" && projectSection === "plan";
+
+  const blocker = useBlocker({
+    shouldBlockFn: ({next}) => dirty && !next.pathname.startsWith(`/settings/harness/${harness.id}/`),
     enableBeforeUnload: dirty,
+    withResolver: true,
   });
+
+  const goTo = (nextPage: HarnessPageId, search: HarnessPageSearch = {}): void => {
+    void navigate({to: "/settings/harness/$harnessId/$page", params: {harnessId: harness.id, page: nextPage}, search});
+  };
+
+  const goToProviders = (): void => {
+    void navigate({to: "/settings/$sectionId", params: {sectionId: "providers"}});
+  };
+
+  const reset = (): void => {
+    setDraft({harness, projects});
+    setBase({harness, projects, revision});
+    setConfirmReload(false);
+  };
+
+  const patchHarness = (change: Partial<HarnessConfig>): void => {
+    setDraft((current) => ({...current, harness: {...current.harness, ...change}}));
+  };
+
+  const patchProject = (change: Partial<HarnessProject>): void => {
+    if (!selectedProject) return;
+    const id = selectedProject.id;
+    setDraft((current) => ({...current, projects: current.projects.map((item) => (item.id === id ? {...item, ...change} : item))}));
+  };
+
+  // Renaming a specialist follows through into the handoff list and every workflow step that names it.
+  const patchAgents = (agents: readonly HarnessAgent[]): void => {
+    const current = draft.harness.agents;
+    const renamed = new Map(current.map((item, index) => [item.name, agents.length === current.length ? agents[index]!.name : item.name]));
+    const steps = draft.harness.graph.steps.map((name) => renamed.get(name) ?? name).filter((name) => agents.some((item) => item.name === name));
+    const workflows = draft.harness.workflows?.map((item) => ({...item, steps: item.steps.map((step) => ({...step, agent: renamed.get(step.agent) ?? step.agent}))}));
+    patchHarness({agents, graph: {steps}, workflows});
+  };
+
+  // The plan is an inventory of files, not prompt text, so it saves as soon as it changes and the draft follows.
+  const persistPlanningDocuments = async (planningDocuments: readonly string[]): Promise<void> => {
+    const id = selectedProject?.id;
+    const stored = base.projects.find((item) => item.id === id);
+    if (!id || !stored) return;
+    saveProject.reset();
+    const next = await saveProject.mutateAsync({project: {...stored, planningDocuments}, expectedRevision: base.revision});
+    const saved = next.projects.find((item) => item.id === id);
+    setBase((current) => ({...current, projects: current.projects.map((item) => (item.id === id ? (saved ?? item) : item)), revision: next.revision}));
+    setDraft((current) => ({
+      ...current,
+      projects: current.projects.map((item) => (item.id === id ? {...item, planningDocuments: saved?.planningDocuments ?? planningDocuments} : item)),
+    }));
+  };
+
+  const handleRemoveProject = async (): Promise<void> => {
+    const id = selectedProject?.id;
+    if (!id) return;
+    const next = await removeProject.mutateAsync({projectId: id, expectedRevision: base.revision});
+    setBase((current) => ({...current, projects: current.projects.filter((item) => item.id !== id), revision: next.revision}));
+    setDraft((current) => ({...current, projects: current.projects.filter((item) => item.id !== id)}));
+    goTo("projects");
+  };
+
+  const handleSave = (): void => {
+    saveHarness.reset();
+    saveProject.reset();
+    void saveWorkspaceDraft(base, {...draft, revision: base.revision}, {harness: saveHarness.mutateAsync, project: saveProject.mutateAsync}, setBase).catch(() => {
+      // Mutation errors render below. Saved owners stay saved; unsaved drafts are preserved.
+    });
+  };
+
   return (
     <>
-      <header className="relative z-20 flex min-h-20 shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border px-6 py-4 [-webkit-app-region:drag]">
-        <div className="flex min-w-0 items-center gap-3">
-          <PiOrb className="size-12" state="still" color={project ? (project.color ?? (isHead ? "#ffffff" : agentColor(project.id))) : undefined} />
-          <div className="[-webkit-app-region:no-drag]">
-            <Link className="text-xs text-ink-muted" to={project ? "/harness/$harnessId" : "/harnesses"} params={{harnessId: harness.id}} search={{section: "Chats"}}>
-              {project ? `${harness.name} /` : "Harnesses /"}
-            </Link>
-            <h1 className="mt-1 text-lg font-medium">{project ? agentLabel(project.name) : head ? "Science Space" : harness.name}</h1>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 [-webkit-app-region:no-drag]">
-          {dirty && (
-            <Button
-              className="text-xs text-ink-muted"
-              onClick={() => {
-                setDraft(harness);
-                setProjectDraft(project);
-                setBase({harness, project, revision: library.revision});
-              }}
-            >
-              Discard
-            </Button>
-          )}
-          {section !== "Chats" && (
-            <Button
-              variant="filled"
-              className="px-3 py-2 text-xs"
-              disabled={!dirty || savePending}
-              onClick={() => {
-                saveHarness.reset();
-                saveProject.reset();
-                void saveWorkspaceDraft(
-                  base,
-                  {harness: draft, project: projectDraft, revision: base.revision},
-                  {harness: saveHarness.mutateAsync, project: saveProject.mutateAsync},
-                  setBase
-                ).catch(() => {
-                  // Mutation errors render below. Successful owners remain saved; unsaved drafts are preserved.
-                });
-              }}
-            >
-              {savePending ? "Saving…" : "Save changes"}
-            </Button>
-          )}
-        </div>
-      </header>
-      <nav aria-label="Harness configuration tabs" className="flex shrink-0 flex-wrap gap-1 border-b border-border px-4 py-2">
-        {tabs.map((item) => (
-          <Button
-            key={item.label}
-            aria-current={activeTab === item.section ? "page" : undefined}
-            className={cn(
-              "whitespace-nowrap rounded-md px-3 py-2 text-sm text-ink-muted outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ink-faint",
-              activeTab === item.section ? "bg-surface-control text-ink" : "hover:bg-overlay-hover"
-            )}
-            onClick={() => changeScope(project?.id, item.section)}
-          >
-            {item.label}
-          </Button>
-        ))}
-      </nav>
-      {dirty && section !== "Chats" && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-surface-sidebar px-6 py-2 text-xs text-ink-muted">
-          <span>Unsaved changes{sharedDirty ? " · harness-wide" : ""}</span>
-          <span>New chats only</span>
-        </div>
-      )}
-      {base.revision !== library.revision && !savePending && (
-        <div role="status" className="px-6 py-2 text-xs text-ink-muted">
+      <SelectSettingsProject key={`${harness.id}:${selectedProject?.id}`} harnessId={harness.id} projectId={selectedProject?.id} />
+      <p className="shrink-0 border-b border-border-muted px-5 py-2 text-xs leading-relaxed text-ink-muted sm:px-6">
+        {immediate
+          ? "Plan-file selections save immediately. Saving a document updates the shared project file."
+          : "These are defaults for new chats. Chats with a saved configuration keep it; open Context in a chat to inspect its source. Save applies pending edits across this harness and its projects."}
+      </p>
+      {base.revision !== revision && !savePending && (
+        <div role="status" className="shrink-0 border-b border-border bg-surface-sidebar px-5 py-2 text-xs text-ink-muted sm:px-6">
           Settings changed elsewhere. Your draft has been kept.{" "}
-          <Button
-            className="underline"
-            onClick={() => {
-              if (!dirty || window.confirm("Discard your draft and load current settings?")) {
-                setDraft(harness);
-                setProjectDraft(project);
-                setBase({harness, project, revision: library.revision});
-              }
-            }}
-          >
+          <button className="cursor-pointer underline" type="button" onClick={() => (dirty ? setConfirmReload(true) : reset())}>
             Load current settings
-          </Button>
-        </div>
-      )}
-      {activeTab === "Overview" && <AgentRoleMap harness={effectiveHarness} project={project} projects={projects} specialists={section === "Team"} onSelect={changeScope} />}
-      {activeTab === "Graph" && (
-        <div className="shrink-0 border-b border-border px-6">
-          <EditorTabs
-            label="Graph and workflow sections"
-            value={section}
-            onChange={(value) => changeScope(project?.id, value)}
-            items={[
-              {label: "Overview", value: "Graph"},
-              {label: "Existing handoffs", value: "Workflow"},
-              {label: "Run limits", value: "Run limits"},
-            ]}
-          />
-        </div>
-      )}
-      {section === "Context" && (
-        <div className="flex shrink-0 justify-end border-b border-border px-6 py-2">
-          <Button className="text-xs text-ink-muted underline underline-offset-4" onClick={() => changeScope(project?.id, "Memory")}>
-            Back to saved memory
-          </Button>
+          </button>
         </div>
       )}
       {saveError && (
-        <p className="shrink-0 px-6 py-3 text-sm text-danger-ink" role="alert">
+        <p className="shrink-0 px-5 py-3 text-sm text-danger-ink sm:px-6" role="alert">
           {String(saveError)} Unsaved edits are still here.
         </p>
       )}
-      {section === "Team" ? (
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <AgentsEditor
-            key={agentName ?? "team"}
-            agents={effectiveHarness.agents}
-            selectedName={agentName}
-            harness={effectiveHarness}
-            inheritedAgents={project ? harness.agents : undefined}
-            onChange={(agents) => {
-              if (projectDraft) patchProject({agents: agents.filter((agent) => JSON.stringify(agent) !== JSON.stringify(harness.agents.find((item) => item.name === agent.name)))});
-              else {
-                const renamed = new Map(draft.agents.map((agent, index) => [agent.name, agents.length === draft.agents.length ? agents[index]!.name : agent.name]));
-                const steps = draft.graph.steps.map((name) => renamed.get(name) ?? name).filter((name) => agents.some((agent) => agent.name === name));
-                setDraft({...draft, agents, graph: {steps}});
-              }
-            }}
-          />
-        </div>
-      ) : section === "Overview" || section === "Prompts" ? (
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <LeadsEditor
-            key={section}
-            initialSection={section === "Prompts" ? "prompt" : "settings"}
-            harness={draft}
-            project={projectDraft}
-            projects={projects}
-            onChangeProject={patchProject}
-            onChangeHarness={(change) => setDraft({...draft, ...change})}
-            onSelect={(projectId) => changeScope(projectId, "Overview")}
-            onOpenSpecialists={() => changeScope(project?.id, "Team")}
-          />
-        </div>
-      ) : section === "Skills" ? (
-        <ResourcesEditor
-          harness={draft}
-          project={projectDraft}
-          onChange={(enabledSkills) => (projectDraft ? patchProject({enabledSkills}) : setDraft({...draft, enabledSkills}))}
+
+      {page === "overview" && <OverviewPage harness={draft.harness} projects={draft.projects} onChange={patchHarness} />}
+      {page === "instructions" && <InstructionsPage harness={draft.harness} onChange={patchHarness} />}
+      {page === "agents" && (
+        <AgentsEditor
+          harness={draft.harness}
+          coordinatorName={head ? agentLabel(head.name) : undefined}
+          selectedName={agent}
+          onSelect={(name) => goTo("agents", {agent: name})}
+          onChange={patchAgents}
+          onOpenPage={(target) => goTo(target)}
         />
-      ) : section === "Memory" ? (
-        <MemoryEditor harness={draft} project={projectDraft} projects={projects} onOpenContext={(projectId) => changeScope(projectId, "Context")} />
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6" data-testid="settings-content-scroll">
-          <div className="mx-auto max-w-4xl space-y-6">
-            {section === "Chats" && <WorkspaceChats harness={harness} project={project} projects={projects} />}
-            {section === "Graph" && (
-              <div className="rounded-xl border border-border p-6">
-                <p className="text-xs uppercase tracking-wider text-ink-muted">On hold</p>
-                <h2 className="mt-2 text-lg font-medium">Graph / Workflows</h2>
-              </div>
-            )}
-            {section === "Context" && (
-              <>
-                {!project && (
-                  <details className="rounded-lg border border-border p-4">
-                    <summary className="cursor-pointer text-sm">Default model for new projects</summary>
-                    <div className="mt-4">
-                      <ExecutionEditor value={draft.execution} inheritLabel="Choose in chat" onChange={(execution) => setDraft({...draft, execution})} />
-                    </div>
-                  </details>
-                )}
-                <details className="rounded-lg border border-border p-4">
-                  <summary className="cursor-pointer text-sm">Workspace appearance · name & color</summary>
-                  <div className="mt-4 space-y-4">
-                    <ConfigField label={project ? "Project display name" : "Harness name"}>
-                      <Input
-                        value={projectDraft?.name ?? draft.name}
-                        onChange={(event) => (projectDraft ? patchProject({name: event.target.value}) : setDraft({...draft, name: event.target.value}))}
-                      />
-                    </ConfigField>
-                    {projectDraft && (
-                      <ConfigField label="Project color">
-                        <div className="flex flex-wrap gap-2">
-                          {agentColors.map((color) => (
-                            <button
-                              key={color}
-                              aria-label={`Project color ${color}`}
-                              aria-pressed={(projectDraft.color ?? agentColor(projectDraft.id)) === color}
-                              className="size-6 rounded-full border-2 border-transparent aria-pressed:border-white"
-                              style={{backgroundColor: color}}
-                              onClick={() => patchProject({color})}
-                            />
-                          ))}
-                        </div>
-                      </ConfigField>
-                    )}
-                    {!project && (
-                      <ConfigField label="Description">
-                        <Input value={draft.description} onChange={(event) => setDraft({...draft, description: event.target.value})} />
-                      </ConfigField>
-                    )}
-                  </div>
-                </details>
-                <ConfigField label={project ? "Additional project context" : "Shared context instructions"}>
-                  <PromptEditor
-                    compact
-                    label="Context instructions"
-                    value={projectDraft?.contextInstructions ?? draft.context.instructions}
-                    onChange={(instructions) =>
-                      projectDraft ? patchProject({contextInstructions: instructions}) : setDraft({...draft, context: {...draft.context, instructions}})
-                    }
-                  />
-                </ConfigField>
-                {project && (
-                  <p className="text-sm text-ink-muted">
-                    <Button className="underline" onClick={() => changeScope(undefined, "Context")}>
-                      Open shared context settings
-                    </Button>
-                  </p>
-                )}
-                {!project && (
-                  <>
-                    <ConfigField label="Context files" description="Paths relative to each project. Loaded at chat startup.">
-                      <PromptEditor
-                        compact
-                        label="Context files"
-                        value={draft.context.files.join("\n")}
-                        onChange={(value) =>
-                          setDraft({
-                            ...draft,
-                            context: {
-                              ...draft.context,
-                              files: value
-                                .split("\n")
-                                .map((file) => file.trim())
-                                .filter(Boolean),
-                            },
-                          })
-                        }
-                      />
-                    </ConfigField>
-                    <ConfigField label="Include project AGENTS.md">
-                      <Switch
-                        aria-label="Include project instructions"
-                        checked={draft.context.includeProjectInstructions}
-                        onCheckedChange={(includeProjectInstructions) => setDraft({...draft, context: {...draft.context, includeProjectInstructions}})}
-                      />
-                    </ConfigField>
-                    <ConfigField label="Automatic compaction">
-                      <Switch
-                        aria-label="Automatic compaction"
-                        checked={draft.context.autoCompaction}
-                        onCheckedChange={(autoCompaction) => setDraft({...draft, context: {...draft.context, autoCompaction}})}
-                      />
-                    </ConfigField>
-                    <details className="rounded-lg border border-border p-4">
-                      <summary className="cursor-pointer text-sm">Context budget</summary>
-                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                        <ConfigField label="Reserved tokens">
-                          <Input
-                            type="number"
-                            min={1024}
-                            max={100000}
-                            value={draft.context.reserveTokens}
-                            onChange={(event) => setDraft({...draft, context: {...draft.context, reserveTokens: Number(event.target.value)}})}
-                          />
-                        </ConfigField>
-                        <ConfigField label="Recent tokens to keep">
-                          <Input
-                            type="number"
-                            min={1024}
-                            max={100000}
-                            value={draft.context.keepRecentTokens}
-                            onChange={(event) => setDraft({...draft, context: {...draft.context, keepRecentTokens: Number(event.target.value)}})}
-                          />
-                        </ConfigField>
-                      </div>
-                    </details>
-                  </>
-                )}
-              </>
-            )}
-            {section === "Workflow" && (
-              <>
-                {project && (
-                  <p className="text-sm text-ink-muted">
-                    Shared by all projects.{" "}
-                    <Button className="underline" onClick={() => changeScope(undefined, "Workflow")}>
-                      Edit shared workflow
-                    </Button>
-                  </p>
-                )}
-                <fieldset disabled={!!project}>
-                  <GraphEditor harness={effectiveHarness} onChange={(steps) => setDraft({...draft, graph: {steps}})} />
-                </fieldset>
-              </>
-            )}
-            {section === "Run limits" && (
-              <>
-                <h2 className="text-lg font-medium">Run limits</h2>
-                {project && <p className="text-sm text-ink-muted">Inherited</p>}
-                <fieldset disabled={!!project} className="grid gap-5 sm:grid-cols-2">
-                  <ConfigField label="Maximum turns">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={draft.loop.maxTurns}
-                      onChange={(event) => setDraft({...draft, loop: {...draft.loop, maxTurns: Number(event.target.value)}})}
-                    />
-                  </ConfigField>
-                  <ConfigField label="Timeout in seconds">
-                    <Input
-                      type="number"
-                      min={10}
-                      max={3600}
-                      value={draft.loop.timeoutSeconds}
-                      onChange={(event) => setDraft({...draft, loop: {...draft.loop, timeoutSeconds: Number(event.target.value)}})}
-                    />
-                  </ConfigField>
-                </fieldset>
-                <p className="text-xs leading-relaxed text-ink-muted">Approval-dialog actions unavailable.</p>
-              </>
-            )}
-          </div>
-        </div>
       )}
+      {page === "skills" && <ResourcesEditor harness={draft.harness} onChangeHarness={patchHarness} onOpenProviders={goToProviders} />}
+      {page === "workflows" && <WorkflowsEditor harness={draft.harness} selected={workflow} onChange={patchHarness} onSelect={(id) => goTo("workflows", {workflow: id})} />}
+      {page === "projects" && (
+        <ProjectConfigEditor
+          harness={draft.harness}
+          project={selectedProject}
+          projects={draft.projects}
+          section={projectSection}
+          onSectionChange={setProjectSection}
+          onChangeProject={patchProject}
+          onSelect={(id) => goTo("projects", {project: id})}
+          onOpenAgents={(name) => goTo("agents", name ? {agent: name} : {})}
+          onPersistPlanningDocuments={persistPlanningDocuments}
+          onRemoveProject={handleRemoveProject}
+        />
+      )}
+      {page === "curator" && <CuratorEditor harness={draft.harness} onChangeHarness={patchHarness} />}
+
+      {!immediate && <HarnessConfigHeader changed={changed} dirty={dirty} savePending={savePending} onDiscard={reset} onSave={handleSave} />}
+
+      <Dialog
+        className="max-w-md"
+        containerClassName="h-auto"
+        open={blocker.status === "blocked"}
+        title="Leave with unsaved changes?"
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
+      >
+        <p className="text-sm leading-relaxed text-ink-muted">Unsaved edits to {changed} are discarded when you leave this harness.</p>
+        <div className="flex justify-end gap-2 py-5">
+          <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={() => blocker.reset?.()}>
+            Keep editing
+          </Button>
+          <Button className="rounded-lg border border-border px-3 py-2 text-xs text-danger-ink hover:bg-overlay-hover" onClick={() => blocker.proceed?.()}>
+            Discard changes
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog className="max-w-md" containerClassName="h-auto" open={confirmReload} title="Load current settings?" onOpenChange={setConfirmReload}>
+        <p className="text-sm leading-relaxed text-ink-muted">Your unsaved edits to {changed} are replaced by the settings on the server.</p>
+        <div className="flex justify-end gap-2 py-5">
+          <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={() => setConfirmReload(false)}>
+            Keep editing
+          </Button>
+          <Button className="rounded-lg border border-border px-3 py-2 text-xs text-danger-ink hover:bg-overlay-hover" onClick={reset}>
+            Load current settings
+          </Button>
+        </div>
+      </Dialog>
     </>
   );
 }
 
-export default function HarnessConfigPage(props: {harnessId: string; section?: string; projectId?: string; agentName?: string}) {
-  const {harnessId, section, projectId, agentName} = props;
+interface HarnessConfigPageProps {
+  appEnvironment: AppEnvironment;
+  harnessId: string;
+  page: string;
+  agent?: string;
+  project?: string;
+  workflow?: string;
+}
+
+/** One harness page inside settings: the tree names it, the page header says where you are, one bar saves. */
+export default function HarnessConfigPage(props: HarnessConfigPageProps) {
+  const {appEnvironment, harnessId, page, agent, project, workflow} = props;
   const library = useHarnessLibrary();
   const harness = library.data?.harnesses.find((item) => item.id === harnessId);
-  if (!library.data || !harness) return <div className="p-8 text-sm text-ink-muted">{library.isError ? "Could not load the harness." : "Loading harness…"}</div>;
-  const ownerId = projectId ?? (section === "Overview" || section === "Prompts" ? harness.coordinatorProjectId : undefined);
-  const project = library.data.projects.find((item) => item.id === ownerId && item.harnessId === harnessId);
-  if (projectId && !project) return <p className="p-8 text-sm text-danger-ink">This workspace is not part of this harness.</p>;
-  const activeSection = sections.find((item) => item === section) ?? "Chats";
+  const resolved = resolveHarnessPage(page);
+
+  if (!library.data || !harness) {
+    return (
+      <SettingsShell activeHarnessId={harnessId} activePage={resolved.id} activeSectionId="harnesses" appEnvironment={appEnvironment} title={resolved.label}>
+        <p className="p-8 text-sm text-ink-muted">{library.isError ? "Could not load the harness." : "Loading harness…"}</p>
+      </SettingsShell>
+    );
+  }
+
+  const projects = library.data.projects.filter((item) => item.harnessId === harnessId).toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
   return (
-    <div className="harness-workspace flex min-h-0 flex-1 flex-col overflow-hidden pt-12 md:pt-0">
-      <WorkspaceEditor
-        key={harness.id + ":" + (project?.id ?? "shared")}
-        harness={harness}
-        library={library.data}
-        section={activeSection}
-        project={project}
-        agentName={agentName}
-      />
-    </div>
+    <SettingsShell activeHarnessId={harness.id} activePage={resolved.id} activeSectionId="harnesses" appEnvironment={appEnvironment} owner={harness.name} title={resolved.label}>
+      <div className="harness-workspace flex min-h-0 flex-1 flex-col overflow-hidden">
+        <WorkspaceEditor
+          key={harness.id}
+          agent={agent}
+          harness={harness}
+          page={resolved.id}
+          project={project}
+          projects={projects}
+          revision={library.data.revision}
+          workflow={workflow}
+        />
+      </div>
+    </SettingsShell>
   );
 }

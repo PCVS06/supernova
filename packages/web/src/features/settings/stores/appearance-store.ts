@@ -12,8 +12,14 @@ export const DEFAULT_UI_FONT = "-apple-system, BlinkMacSystemFont, Inter, sans-s
 export const DEFAULT_CODE_FONT = '"SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace';
 
 export type ResolvedAppearanceMode = Exclude<DesktopTheme, "system">;
+export type MathematicalMotion = "off" | "subtle" | "playful";
+export type WhiteGlow = "soft" | "balanced" | "bright";
 
 interface AppearanceState {
+  readonly mathematicalMotion: MathematicalMotion;
+  readonly whiteGlow: WhiteGlow;
+  readonly setMathematicalMotion: (motion: MathematicalMotion) => void;
+  readonly setWhiteGlow: (glow: WhiteGlow) => void;
   readonly codeFont: string | undefined;
   readonly fontSmoothing: boolean;
   readonly mode: DesktopTheme;
@@ -60,6 +66,16 @@ function applyAppearance(mode: DesktopTheme, themeId: ThemeId): ResolvedAppearan
 export const useAppearanceStore = create<AppearanceState>()(
   persist(
     (set) => ({
+      mathematicalMotion: "playful",
+      whiteGlow: "balanced",
+      setMathematicalMotion: (mathematicalMotion) => {
+        document.documentElement.dataset.mathematicalMotion = mathematicalMotion;
+        set({mathematicalMotion});
+      },
+      setWhiteGlow: (whiteGlow) => {
+        document.documentElement.dataset.whiteGlow = whiteGlow;
+        set({whiteGlow});
+      },
       codeFont: undefined,
       fontSmoothing: true,
       mode: "dark",
@@ -91,12 +107,14 @@ export const useAppearanceStore = create<AppearanceState>()(
     }),
     {
       name: APPEARANCE_STORAGE_KEY,
-      version: 1,
+      version: 3,
       // Adopt the new identity once; subsequent appearance choices remain saved.
       // Keep the storage key so projects, sessions, and other preferences are untouched.
       migrate: (persistedState) => {
         const saved = typeof persistedState === "object" && persistedState !== null ? persistedState : {};
         return {
+          mathematicalMotion: "playful" as const,
+          whiteGlow: "balanced" as const,
           codeFont: "codeFont" in saved && typeof saved.codeFont === "string" ? saved.codeFont : undefined,
           fontSmoothing: "fontSmoothing" in saved && typeof saved.fontSmoothing === "boolean" ? saved.fontSmoothing : true,
           mode: "dark" as const,
@@ -106,6 +124,8 @@ export const useAppearanceStore = create<AppearanceState>()(
         };
       },
       partialize: (state) => ({
+        mathematicalMotion: state.mathematicalMotion,
+        whiteGlow: state.whiteGlow,
         codeFont: state.codeFont,
         fontSmoothing: state.fontSmoothing,
         mode: state.mode,
@@ -123,6 +143,12 @@ export function initializeAppearance(): void {
   applyFont("--font-sans", state.uiFont);
   applyFont("--font-mono", state.codeFont);
   document.documentElement.dataset.fontSmoothing = String(state.fontSmoothing);
+  document.documentElement.dataset.mathematicalMotion = state.mathematicalMotion;
+  document.documentElement.dataset.whiteGlow = state.whiteGlow;
+  document.documentElement.dataset.motionPaused = String(document.hidden);
+  document.addEventListener("visibilitychange", () => {
+    document.documentElement.dataset.motionPaused = String(document.hidden);
+  });
   useAppearanceStore.setState({resolvedMode: applyAppearance(state.mode, state.themeId)});
 
   window.matchMedia(SYSTEM_DARK_MODE_QUERY).addEventListener("change", () => {

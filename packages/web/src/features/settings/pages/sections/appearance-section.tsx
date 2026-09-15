@@ -1,10 +1,12 @@
 import Input from "@/components/ui/input";
 import Switch from "@/components/ui/switch";
 import ModePicker from "@/features/settings/components/appearance/mode-picker";
+import MathematicalAppearance from "@/features/settings/components/appearance/mathematical-appearance";
 import ThemeLibrary from "@/features/settings/components/appearance/theme-library";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import {DEFAULT_CODE_FONT, DEFAULT_UI_FONT, useAppearanceStore} from "@/features/settings/stores/appearance-store";
 
+/** How the app looks: its colors, its type, and the light and motion around its symbols. */
 export default function AppearanceSection() {
   const codeFont = useAppearanceStore((state) => state.codeFont);
   const fontSmoothing = useAppearanceStore((state) => state.fontSmoothing);
@@ -14,6 +16,8 @@ export default function AppearanceSection() {
   const setUiFont = useAppearanceStore((state) => state.setUiFont);
   const translucentSidebar = useAppearanceStore((state) => state.translucentSidebar);
   const uiFont = useAppearanceStore((state) => state.uiFont);
+  const resolvedMode = useAppearanceStore((state) => state.resolvedMode);
+  const translucencyAvailable = resolvedMode === "light";
 
   return (
     <>
@@ -60,16 +64,18 @@ export default function AppearanceSection() {
           title="Code font"
         />
         <SettingsRow
-          control={<Switch aria-label="Enable font smoothing" checked={fontSmoothing} onCheckedChange={setFontSmoothing} />}
+          control={<Switch aria-label="Font smoothing" checked={fontSmoothing} onCheckedChange={setFontSmoothing} />}
           description="Use antialiasing for lighter, crisper text rendering."
           title="Font smoothing"
         />
       </SettingsGroup>
 
+      <MathematicalAppearance />
+
       <SettingsGroup title="Interface">
         <SettingsRow
-          control={<Switch aria-label="Translucent sidebar" checked={translucentSidebar} onCheckedChange={setTranslucentSidebar} />}
-          description="Let the desktop window material show through the sidebar."
+          control={<Switch aria-label="Translucent sidebar" checked={translucentSidebar} disabled={!translucencyAvailable} onCheckedChange={setTranslucentSidebar} />}
+          description={translucencyAvailable ? "Let the desktop window material show through the sidebar." : "The window material shows through in light mode only."}
           title="Translucent sidebar"
         />
       </SettingsGroup>

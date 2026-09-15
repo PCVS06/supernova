@@ -64,7 +64,7 @@ export class TimelineDriver {
     await this.page.goto(`/session/new?projectId=${projectId}`, {waitUntil: "commit"});
     await this.sendMessage();
     await expect(this.page).toHaveURL(`/session/${EMPTY_SESSION_ID}`);
-    await expect(this.page.getByRole("heading", {name: EMPTY_SESSION_TITLE})).toBeVisible();
+    await expect(this.page.getByRole("button", {name: `Open chat: ${EMPTY_SESSION_TITLE}`})).toHaveAttribute("aria-current", "page");
   }
 
   /** Navigates through the real sidebar to the second long session. */
@@ -360,14 +360,14 @@ export class TimelineDriver {
   }
 
   private async openSession(sessionId: string, title: string): Promise<void> {
-    await this.page.goto(`/session/${sessionId}`, {waitUntil: "commit"});
-    await expect(this.page.getByRole("heading", {name: title})).toBeVisible();
+    await this.page.goto(`/session/${sessionId}`, {waitUntil: "domcontentloaded"});
+    await expect(this.page.getByRole("button", {name: `Open chat: ${title}`})).toHaveAttribute("aria-current", "page", {timeout: 30000});
     await expect(this.timeline()).toBeVisible();
   }
 
   private async switchToSession(title: string): Promise<void> {
-    await this.page.getByText(title, {exact: true}).click();
-    await expect(this.page.getByRole("heading", {name: title})).toBeVisible();
+    await this.page.getByRole("button", {name: `Open chat: ${title}`}).click();
+    await expect(this.page.getByRole("button", {name: `Open chat: ${title}`})).toHaveAttribute("aria-current", "page");
     await expect(this.timeline()).toBeVisible();
   }
 
@@ -409,7 +409,8 @@ export class TimelineDriver {
 
   private async waitForSettledStatus(status: "aborted" | "completed"): Promise<void> {
     await expect.poll(() => this.mockState().then((state) => state.status)).toBe(status);
-    await expect(this.page.getByRole("button", {name: "Send message"})).toBeVisible();
+    await expect(this.page.locator('[contenteditable="true"]').first()).toBeEditable();
+    await expect(this.page.getByRole("button", {name: "Stop streaming"})).toHaveCount(0);
     await expect(this.page.locator('[data-slot="message-scroller-content"]')).toHaveAttribute("aria-busy", "false");
   }
 }

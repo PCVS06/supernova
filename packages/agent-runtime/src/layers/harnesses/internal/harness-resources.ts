@@ -50,13 +50,20 @@ export async function getHarnessResources(harnessId: string, projectId?: string,
     for (const error of loaded.errors) extensions.push({name: basename(dirname(error.path)), toolCount: 0, commands: [], loaded: false});
     if (harness.agents.length)
       tools.push(
-        {name: "subagent", description: "Delegate bounded work to configured specialists.", group: "pi+ orchestration"},
-        {name: "harness_workflow", description: "Run the configured specialist handoff sequence explicitly.", group: "pi+ orchestration"}
+        {name: "subagent", description: "Delegate bounded work to configured specialists.", group: "Radian orchestration"},
+        {name: "harness_workflow", description: "Run the configured specialist handoff sequence explicitly.", group: "Radian orchestration"}
       );
-    if (project) tools.push({name: "manage_lab_view", description: "Manage permitted project names, colors and ordering in the sidebar.", group: "pi+ orchestration"});
+    if (project) tools.push({name: "manage_lab_view", description: "Manage permitted project names, colors and ordering in the sidebar.", group: "Radian orchestration"});
     if (project?.id === harness.coordinatorProjectId)
-      tools.push({name: "lab_agent", description: "Delegate a task from Science Space to a project lead.", group: "pi+ orchestration"});
-    return {tools, extensions, warnings: loaded.errors.map(() => "An extension failed to register. Its tools are not available.")};
+      tools.push({name: "lab_agent", description: "Delegate a task from Science Space to a project lead.", group: "Radian orchestration"});
+    const warnings = loaded.errors.map(() => "An extension failed to register. Its tools are not available.");
+    if (project) {
+      for (const file of project.planningDocuments ?? []) {
+        // A configured plan that is gone is skipped when the agent starts, so it is reported here instead of failing the chat.
+        if (!(await stat(join(project.path, file)).catch(() => undefined))) warnings.push(`Planning document ${file} is missing. Agents run without it.`);
+      }
+    }
+    return {tools, extensions, warnings};
   })();
   catalogue.set(key, {until: Date.now() + 30000, value});
   if (catalogue.size > 30) catalogue.delete(catalogue.keys().next().value!);

@@ -48,10 +48,12 @@ function insertSuggestion(editor: Editor, match: ComposerSuggestionMatch, item: 
 interface ComposerEditorProps {
   readonly className?: string;
   readonly editor: Editor | null;
+  readonly editable?: boolean;
   readonly suggestionMatch: ComposerSuggestionMatch | null;
   readonly onSuggestionMatchChange: (match: ComposerSuggestionMatch | null) => void;
   readonly onPaste: (event: ClipboardEvent<HTMLElement> | globalThis.ClipboardEvent) => void;
   readonly onSubmit: () => void;
+  readonly onGoal?: () => void;
   readonly placeholder: string;
   readonly projectPath: string;
   readonly slashCommandActions?: ClientSlashCommandActions;
@@ -59,9 +61,17 @@ interface ComposerEditorProps {
 }
 
 export default function ComposerEditor(props: ComposerEditorProps) {
-  const {className, editor, onPaste, onSubmit, onSuggestionMatchChange, placeholder, projectPath, slashCommandActions, suggestionMatch, value} = props;
+  const {className, editor, editable = true, onPaste, onSubmit, onGoal, onSuggestionMatchChange, placeholder, projectPath, slashCommandActions, suggestionMatch, value} = props;
 
   const suggestionQuery = useComposerSuggestions(projectPath, suggestionMatch, {slashCommandActions});
+  // Goal is local and available even before remote skills/prompts finish loading.
+  const goalMatches = onGoal && suggestionMatch?.kind === "slash" && "goal".includes(suggestionMatch.query.toLowerCase());
+  const goalSuggestions: ComposerSuggestionItem[] = goalMatches
+    ? [{id: "goal", kind: "slash-command", icon: "gauge", title: "Goal", subtitle: "Keep working toward an outcome", onSelect: onGoal}]
+    : [];
+  const query = goalMatches
+    ? {...suggestionQuery, data: [...goalSuggestions, ...(suggestionQuery.data ?? [])], isLoading: false, isError: false, isSuccess: true}
+    : suggestionQuery;
 
   const suggestionOpen = Boolean(suggestionMatch);
 
@@ -84,8 +94,13 @@ export default function ComposerEditor(props: ComposerEditorProps) {
   };
 
   return (
-    <div onPasteCapture={handlePasteCapture}>
-      <ComposerSuggestionMenu onSelect={selectSuggestion} onSubmit={onSubmit} open={suggestionOpen} query={suggestionQuery}>
+    <div
+      onPasteCapture={handlePasteCapture}
+      ref={(element) => {
+        if (element && editor && !editor.isDestroyed && editor.isEditable !== editable) editor.setEditable(editable);
+      }}
+    >
+      <ComposerSuggestionMenu onSelect={selectSuggestion} onSubmit={onSubmit} onDismiss={() => onSuggestionMatchChange(null)} open={suggestionOpen} query={query}>
         <div className="grid min-w-0">
           {/* Reserve the editor's real text height before TipTap finishes mounting.
               This keeps timeline scroll restoration from running against a shorter

@@ -1,8 +1,10 @@
-import {useCallback, useRef, useState} from "react";
+import {useState} from "react";
+import ConstantOrb from "@/components/brand/constant-orb";
 import type {MouseEvent} from "react";
 import {useLocation, useNavigate} from "@tanstack/react-router";
 import {useQueryClient} from "@tanstack/react-query";
-import {autoAnimate} from "@formkit/auto-animate";
+import {AnimatePresence} from "framer-motion";
+import SidebarLabel from "@/features/sidebar/components/sidebar-label";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
@@ -15,11 +17,17 @@ import {useProjectsStore} from "@/features/projects/stores/projects-store";
 import {sessionQueryOptions} from "@/features/sessions/hooks/api/use-session";
 import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store";
 import {hasUnseenActivity, useSessionVisitsStore} from "@/features/sessions/stores/session-visits-store";
-import {formatUpdatedAt} from "@/features/projects/utils/format-updated-at";
+import {useWorkspaceMapStore} from "@/features/workspace/stores/workspace-map-store";
+import {useWorkspaceOverview} from "@/features/workspace/hooks/use-workspace-overview";
+import {workspaceActivity} from "@/features/workspace/lib/build-workspace-model";
 import {cn} from "@/lib/cn";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
+import {useHarnessLibrary, useRemoveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
+import {showToast} from "@/components/ui/toast-manager";
+import {ledgerDisclosureClassName, ledgerMarkClassName, ledgerPrimaryClassName, ledgerRowClassName} from "@/features/sidebar/lib/ledger-styles";
+import LedgerRowEnd from "@/features/sidebar/components/ledger-row-end";
 
 const INITIAL_SESSION_LIMIT = 5;
 const SESSION_LIMIT_INCREMENT = 5;
@@ -28,16 +36,17 @@ interface ProjectListItemProps {
   activeSessionId: string;
   dragging: boolean;
   expanded: boolean;
+  /** The project folder is gone from disk, so new chats cannot start. */
+  folderMissing?: boolean;
   project: ProjectListProject;
   onToggle: (projectId: string) => void;
 }
 
 export default function ProjectListItem(props: ProjectListItemProps) {
-  const {activeSessionId, dragging, expanded, onToggle, project} = props;
+  const {activeSessionId, dragging, expanded, folderMissing = false, onToggle, project} = props;
 
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [visibleSessionLimit, setVisibleSessionLimit] = useState(INITIAL_SESSION_LIMIT);
-  const animatedSessionListsRef = useRef(new WeakSet<HTMLElement>());
   const location = useLocation();
   const navigate = useNavigate();
   const selectProject = useHarnessNavigationStore((state) => state.selectProject);
@@ -61,25 +70,49 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   } = useInlineRename({initialValue: project.name, onSave: (name) => renameProject(project.id, name)});
   const sessionsQuery = useListProjectSessions({projectPath: project.path});
 
-  const sessions =
-    sessionsQuery.data?.sessions
-      .map((session) => ({
-        id: session.id,
-        pinned: project.pinnedSessionIds.includes(session.id),
-        title: session.title,
-        timestamp: Date.parse(session.updatedAt),
-        updatedAt: formatUpdatedAt(session.updatedAt),
-      }))
-      .toSorted((left, right) => Number(right.pinned) - Number(left.pinned) || right.timestamp - left.timestamp) ?? [];
+  const overview = useWorkspaceOverview();
+  const sidebarDetail = useWorkspaceMapStore((state) => state.sidebarDetail);
+  const activity = workspaceActivity(
+    overview.model.items,
+    undefined,
+    project.harnessProjectId ?? overview.model.items.find((item) => item.kind === "project" && item.projectPath === project.path)?.projectId ?? project.id
+  );
+  const [heldOrder, setHeldOrder] = useState<readonly string[]>();
+  const sessions = sessionsQuery.data
+    ? sessionsQuery.data.sessions
+        .map((session) => ({
+          id: session.id,
+          pinned: project.pinnedSessionIds.includes(session.id),
+          title: session.title,
+          timestamp: Date.parse(session.updatedAt),
+        }))
+        .toSorted((left, right) => {
+          if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+          if (left.pinned) return project.pinnedSessionIds.indexOf(left.id) - project.pinnedSessionIds.indexOf(right.id);
+          if (heldOrder) {
+            const a = heldOrder.indexOf(left.id);
+            const b = heldOrder.indexOf(right.id);
+            if (a !== b) return (a < 0 ? Number.MAX_SAFE_INTEGER : a) - (b < 0 ? Number.MAX_SAFE_INTEGER : b);
+          }
+          return right.timestamp - left.timestamp;
+        })
+    : [];
 
   const activeSession = sessions.find((session) => session.id === activeSessionId);
+  const delegatedSessionIds = new Set(overview.model.items.filter((item) => item.kind === "agent" && item.active).map((item) => item.sessionId));
+  const workingSessions = sessions.filter((session) => {
+    const status = sessionLiveStates[session.id]?.status;
+    return status === "streaming" || status === "stopping" || status === "compacting" || delegatedSessionIds.has(session.id);
+  });
 
   const pinnedSessions = sessions.filter((session) => session.pinned);
   const unpinnedSessions = sessions.filter((session) => !session.pinned);
-  const visibleSessionIds = new Set([...pinnedSessions, ...unpinnedSessions.slice(0, visibleSessionLimit), ...(activeSession ? [activeSession] : [])].map((session) => session.id));
+  const visibleSessionIds = new Set(
+    [...pinnedSessions, ...workingSessions, ...unpinnedSessions.slice(0, visibleSessionLimit), ...(activeSession ? [activeSession] : [])].map((session) => session.id)
+  );
   const visibleSessions = sessions.filter((session) => visibleSessionIds.has(session.id));
-  const displayedSessions = expanded ? visibleSessions : activeSession && !dragging ? [activeSession] : [];
-  const sessionsExpanded = expanded || (activeSession != null && !dragging);
+  const displayedSessions = dragging ? [] : expanded ? visibleSessions : visibleSessions.filter((session) => session.id === activeSessionId || workingSessions.includes(session));
+  const sessionsExpanded = expanded || displayedSessions.length > 0;
 
   const hasSessions = sessions.length > 0;
   const hasHiddenSessions = unpinnedSessions.some((session) => !visibleSessionIds.has(session.id));
@@ -87,25 +120,44 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   const canShowMoreSessions = expanded && hasHiddenSessions;
   const canShowLessAtEnd = expanded && canShowLessSessions && !canShowMoreSessions;
   const canOpenInFinder = window.desktopApi?.environment === "mac";
+  // A project without a harness has no harness pages and no lead; its row offers plain project actions instead.
+  const harnessId = project.harnessId;
+  const harnessProjectId = harnessId ? project.harnessProjectId : undefined;
+  const projectLabel = harnessProjectId ? agentLabel(project.name) : project.name;
+
+  const followHarness = (): void => {
+    if (harnessId) selectProject(harnessId, harnessProjectId);
+  };
 
   const handleToggle = (): void => {
-    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
-    if (project.harnessProjectId) {
-      if (!expanded) onToggle(project.id);
-      void navigate({to: "/harness/$harnessId", params: {harnessId: project.harnessId ?? "coding"}, search: {projectId: project.harnessProjectId, section: "Chats"}});
-    } else onToggle(project.id);
+    followHarness();
+    // Chats live in the sidebar, so a project row only expands or collapses; configuration is behind the gear.
+    onToggle(project.id);
   };
 
   const handleRemoveProject = (): void => {
     removeProject(project.id);
   };
 
+  const library = useHarnessLibrary();
+  const removeHarnessProject = useRemoveHarnessProject();
+  const handleRemoveFromHarness = (): void => {
+    const revision = library.data?.revision;
+    if (!harnessProjectId || revision === undefined) return;
+    if (!window.confirm(`Remove ${projectLabel} from its harness? The folder and its files stay on disk.`)) return;
+    removeHarnessProject.mutate(
+      {projectId: harnessProjectId, expectedRevision: revision},
+      {onError: (error) => showToast("Could not remove the project", error instanceof Error ? error.message : "Please try again.")}
+    );
+  };
+
   const handleToggleProjectPinned = (): void => {
-    toggleProjectPinned(project.id);
+    const stored = useProjectsStore.getState().addProject(project.path, project.harnessId);
+    if (stored) toggleProjectPinned(stored.id);
   };
 
   const handleOpenSession = (sessionId: string): void => {
-    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+    followHarness();
     void navigate({params: {sessionId}, to: "/session/$sessionId"});
   };
 
@@ -117,7 +169,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
 
   const handleNewSession = (event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
-    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
+    followHarness();
     void navigate({search: {projectId: project.id}, to: "/session/new"});
   };
 
@@ -133,165 +185,218 @@ export default function ProjectListItem(props: ProjectListItemProps) {
     setVisibleSessionLimit(INITIAL_SESSION_LIMIT);
   };
 
-  const attachSessionListAutoAnimateRef = useCallback((node: HTMLElement | null): void => {
-    if (!node || animatedSessionListsRef.current.has(node)) return;
-    autoAnimate(node, {
-      duration: 180,
-      easing: "ease-out",
-    });
-    animatedSessionListsRef.current.add(node);
-  }, []);
-
   return (
     <>
-      <Button
-        as="div"
-        className={cn("group relative flex w-full justify-between items-center gap-1 pl-1 pr-1 py-1 text-ink-muted hover:text-ink", actionsMenuOpen && "bg-overlay-hover")}
-        title={`${project.name}\n${project.path}`}
-        onClick={handleToggle}
-        variant="primary"
+      <div
+        className={cn(ledgerRowClassName, actionsMenuOpen && "bg-overlay-hover text-ink", folderMissing && "opacity-60")}
+        data-sidebar-level={project.isCoordinator ? "lead" : "project"}
+        title={folderMissing ? `Folder missing: ${project.path}` : `${project.name}\n${project.path}`}
       >
-        <div className="flex min-w-0 flex-1 flex-row gap-2 items-center">
-          {project.harnessProjectId && (
-            <IconButton
-              label={`${expanded ? "Collapse" : "Expand"} chats in ${project.name}`}
-              className="size-4 shrink-0 text-ink-faint"
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggle(project.id);
-              }}
-            >
-              <Icon name="chevron-down" size="xs" className={cn(!expanded && "-rotate-90")} />
-            </IconButton>
-          )}
-          {project.harnessProjectId ? (
-            <AgentMark name={project.harnessProjectId} kind="lead" color={project.color ?? (project.isCoordinator ? "#ffffff" : undefined)} className="size-7 shrink-0" />
-          ) : (
-            <Icon className="text-ink-muted" name={expanded ? "folder-open" : "folder"} size="sm" />
-          )}
-          {renaming && (
-            <input
-              className="min-w-0 flex-1 truncate bg-transparent text-sm text-ink-muted outline-none"
-              onBlur={handleRenameBlur}
-              onChange={handleRenameChange}
-              onClick={handleRenameClick}
-              onFocus={handleRenameFocus}
-              onKeyDown={handleRenameKeyDown}
-              onPointerDown={(event) => event.stopPropagation()}
-              ref={renameInputRef}
-              value={draftName}
-            />
-          )}
-          {!renaming && (
-            <span className="min-w-0 flex-1 pr-5 text-[13px] leading-snug">
-              <span className="line-clamp-2">{project.harnessProjectId ? agentLabel(project.name) : project.name}</span>
-              {project.isCoordinator && <span className="mt-0.5 block text-[10px] text-ink-faint">Coordinates all labs</span>}
+        {renaming ? (
+          <input
+            aria-label="Project name"
+            className="m-2 min-w-0 flex-1 rounded-md bg-overlay-hover px-2 py-2 text-sm text-ink outline-none focus-visible:ring-1 focus-visible:ring-border-strong"
+            onBlur={handleRenameBlur}
+            onChange={handleRenameChange}
+            onClick={handleRenameClick}
+            onFocus={handleRenameFocus}
+            onKeyDown={handleRenameKeyDown}
+            onPointerDown={(event) => event.stopPropagation()}
+            ref={renameInputRef}
+            value={draftName}
+          />
+        ) : (
+          <Button
+            aria-expanded={expanded}
+            aria-label={hasSessions ? `${expanded ? "Collapse" : "Expand"} chats in ${projectLabel}` : projectLabel}
+            className={cn(ledgerPrimaryClassName, "gap-1 py-0")}
+            onClick={handleToggle}
+          >
+            <Icon className={cn(ledgerDisclosureClassName, !expanded && "-rotate-90")} name="chevron-down" size="xs" />
+            <span className={ledgerMarkClassName}>
+              {folderMissing ? (
+                <Icon className="shrink-0 text-danger-ink" name="alert" size="sm" />
+              ) : harnessProjectId ? (
+                <AgentMark
+                  className={project.isCoordinator ? "size-8 shrink-0" : "size-7 shrink-0"}
+                  color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(harnessProjectId))}
+                  kind={project.isCoordinator ? "orchestrator" : "lead"}
+                  name={harnessProjectId}
+                  working={!overview.error && !overview.data?.errors.length && (activity.working > 0 || workingSessions.length > 0)}
+                />
+              ) : (
+                <ConstantOrb
+                  constant="phi"
+                  className="size-7"
+                  state={!overview.error && !overview.data?.errors.length && (activity.working > 0 || workingSessions.length > 0) ? "working" : "idle"}
+                />
+              )}
             </span>
-          )}
-        </div>
-        <div className="absolute right-1 flex items-center gap-0.5 rounded-md bg-surface-sidebar opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-          <div className={cn("opacity-0 group-hover:opacity-100", actionsMenuOpen && "opacity-100")}>
-            <Menu
-              onOpenChange={setActionsMenuOpen}
-              open={actionsMenuOpen}
-              trigger={(triggerProps) => (
-                <Button {...triggerProps} className="size-7" shape="icon" size="md" variant="ghost">
-                  <Icon name="more-horizontal" size="xs" />
-                </Button>
+            <span className="min-w-0 flex-1">
+              <SidebarLabel constant={project.isCoordinator ? "tau" : "phi"} text={projectLabel} className="block truncate text-sm font-medium leading-5" />
+              {(folderMissing || (sidebarDetail && (project.isCoordinator || workingSessions.length > 0 || activity.working > 0 || activity.attention > 0))) && (
+                <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-faint">
+                  {sidebarDetail && project.isCoordinator && <span>Harness lead</span>}
+                  {folderMissing ? (
+                    <span className="text-danger-ink">Folder missing</span>
+                  ) : activity.working > 0 || workingSessions.length > 0 || activity.attention > 0 ? (
+                    <span className="text-white">
+                      {overview.error || overview.data?.errors.length ? "Last saved · " : ""}
+                      {[
+                        Math.max(activity.working, workingSessions.length) > 0 ? `${Math.max(activity.working, workingSessions.length)} working` : "",
+                        activity.attention > 0 ? `${activity.attention} need attention` : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  ) : null}
+                </span>
               )}
-              triggerLabel={`Project actions for ${project.name}`}
-              sideOffset={2}
-            >
-              <MenuItem icon={<Icon name="pin" size="xs" />} onClick={handleToggleProjectPinned}>
-                {project.pinned ? "Unpin project" : "Pin project"}
-              </MenuItem>
-              {canOpenInFinder && (
-                <MenuItem icon={<Icon name="folder-open" size="xs" />} onClick={handleOpenInFinder}>
-                  Open in Finder
+            </span>
+          </Button>
+        )}
+        <LedgerRowEnd
+          actions={
+            <>
+              <IconButton
+                className="size-6 rounded-md text-ink-faint hover:bg-overlay-pressed hover:text-ink"
+                disabled={folderMissing}
+                label={`New chat in ${projectLabel}`}
+                onClick={handleNewSession}
+                title={folderMissing ? "Folder missing, so chats cannot start" : `New chat in ${projectLabel}`}
+              >
+                <Icon name="new-chat" size="xs" />
+              </IconButton>
+              <Menu
+                onOpenChange={setActionsMenuOpen}
+                open={actionsMenuOpen}
+                trigger={(triggerProps) => (
+                  <Button {...triggerProps} className="size-6 rounded-md text-ink-faint hover:bg-overlay-pressed hover:text-ink" shape="icon" size="md" variant="ghost">
+                    <Icon name="more-horizontal" size="xs" />
+                  </Button>
+                )}
+                triggerLabel={`Project actions for ${projectLabel}`}
+                sideOffset={2}
+              >
+                <MenuItem icon={<Icon name="pin" size="xs" />} onClick={handleToggleProjectPinned}>
+                  {project.pinned ? "Unpin project" : "Pin project"}
                 </MenuItem>
-              )}
-              {project.harnessProjectId && (
-                <MenuItem
-                  icon={<Icon name="settings" size="xs" />}
-                  onClick={() => {
-                    selectProject(project.harnessId ?? "coding", project.harnessProjectId);
-                    void navigate({
-                      to: "/harness/$harnessId",
-                      params: {harnessId: project.harnessId ?? "coding"},
-                      search: {projectId: project.harnessProjectId, section: "Prompts"},
-                    });
-                  }}
-                >
-                  Project instructions
-                </MenuItem>
-              )}
-              {!project.harnessProjectId && (
-                <MenuItem icon={<Icon name="edit" size="xs" />} onClick={startRenaming}>
-                  Rename project
-                </MenuItem>
-              )}
-              {!project.harnessProjectId && (
-                <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
-                  Remove
-                </MenuItem>
-              )}
-            </Menu>
-          </div>
-          <IconButton className="size-7" label={`New session in ${project.name}`} onClick={handleNewSession}>
-            <Icon name="new-session" size="xs" />
-          </IconButton>
-        </div>
-      </Button>
+                {canOpenInFinder && (
+                  <MenuItem icon={<Icon name="folder-open" size="xs" />} onClick={handleOpenInFinder}>
+                    Open in Finder
+                  </MenuItem>
+                )}
+                {harnessId && harnessProjectId && (
+                  <MenuItem
+                    icon={<Icon name="settings" size="xs" />}
+                    onClick={() => {
+                      selectProject(harnessId, harnessProjectId);
+                      void navigate({
+                        to: "/settings/harness/$harnessId/$page",
+                        params: {harnessId, page: "projects"},
+                        search: {project: harnessProjectId},
+                      });
+                    }}
+                  >
+                    Project settings
+                  </MenuItem>
+                )}
+                {!harnessProjectId && (
+                  <MenuItem icon={<Icon name="edit" size="xs" />} onClick={startRenaming}>
+                    Rename project
+                  </MenuItem>
+                )}
+                {!harnessProjectId && (
+                  <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveProject}>
+                    Remove
+                  </MenuItem>
+                )}
+                {harnessProjectId && (
+                  <MenuItem icon={<Icon name="x" size="xs" />} onClick={handleRemoveFromHarness}>
+                    Remove from harness
+                  </MenuItem>
+                )}
+              </Menu>
+            </>
+          }
+        />
+      </div>
 
-      <div className={cn("overflow-hidden", sessionsExpanded && "py-0.5")} onPointerDown={(event) => event.stopPropagation()}>
-        <ul className="flex flex-col gap-0.5" ref={attachSessionListAutoAnimateRef}>
+      <div className={cn("overflow-hidden", sessionsExpanded && "pb-0.5")} onPointerDown={(event) => event.stopPropagation()}>
+        <ul
+          aria-label={`Chats in ${projectLabel}`}
+          onPointerEnter={() => setHeldOrder(sessions.map((session) => session.id))}
+          onPointerLeave={(event) => {
+            if (!event.currentTarget.contains(document.activeElement)) setHeldOrder(undefined);
+          }}
+          onFocus={() => {
+            if (!heldOrder) setHeldOrder(sessions.map((session) => session.id));
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setHeldOrder(undefined);
+          }}
+          className="ml-3 flex flex-col gap-0.5"
+        >
           {expanded && sessionsQuery.isPending && (
-            <li className="ml-10 inline-flex items-center justify-start gap-2 px-0 py-1 text-sm text-ink-faint">
-              Loading sessions
+            <li className="flex items-center gap-2 px-2 py-1 text-xs text-ink-faint">
+              Loading chats
               <span className="size-2.5 animate-spin rounded-full border border-border-strong border-t-ink" aria-hidden="true" />
             </li>
           )}
-          {expanded && sessionsQuery.error != null && <li className="px-8 py-1 text-sm text-danger-ink">Unable to load sessions.</li>}
-          {displayedSessions.map((session) => {
-            const selected = location.pathname === `/session/${session.id}` || location.pathname.startsWith(`/session/${session.id}/`);
-            const sessionLive = sessionLiveStates[session.id];
-            const sessionStreaming = sessionLive?.status === "streaming" || sessionLive?.status === "stopping" || sessionLive?.status === "compacting";
-            const sessionUnseen = !sessionStreaming && hasUnseenActivity({activityAtMs: session.timestamp, visitedAt: sessionVisits[session.id]});
+          {expanded && sessionsQuery.error != null && (
+            <li role="status" className="px-2 py-1 text-xs text-danger-ink">
+              Unable to load chats.
+            </li>
+          )}
+          <AnimatePresence initial={false}>
+            {displayedSessions.map((session) => {
+              const selected = location.pathname === `/session/${session.id}` || location.pathname.startsWith(`/session/${session.id}/`);
+              const sessionLive = sessionLiveStates[session.id];
+              const sessionStreaming = sessionLive?.status === "streaming" || sessionLive?.status === "stopping" || sessionLive?.status === "compacting";
+              const sessionUnseen = !sessionStreaming && hasUnseenActivity({activityAtMs: session.timestamp, visitedAt: sessionVisits[session.id]});
 
-            return (
-              <ProjectSessionListItem
-                key={session.id}
-                onOpen={() => handleOpenSession(session.id)}
-                onPrefetch={() => handlePrefetchSession(session.id)}
-                onTogglePinned={() => toggleSessionPinned(project.id, session.id)}
-                projectPath={project.path}
-                selected={selected}
-                session={session}
-                color={project.color ?? (project.isCoordinator ? "#ffffff" : agentColor(project.harnessProjectId ?? project.id))}
-                managed={!!project.harnessProjectId}
-                streaming={sessionStreaming}
-                unseen={sessionUnseen}
-              />
-            );
-          })}
+              return (
+                <ProjectSessionListItem
+                  key={session.id}
+                  onOpen={() => handleOpenSession(session.id)}
+                  onPrefetch={() => handlePrefetchSession(session.id)}
+                  onTogglePinned={() => {
+                    const stored = useProjectsStore.getState().addProject(project.path, project.harnessId);
+                    if (stored) toggleSessionPinned(stored.id, session.id);
+                  }}
+                  projectPath={project.path}
+                  selected={selected}
+                  current={location.pathname === `/session/${session.id}`}
+                  session={session}
+                  managed={!!harnessProjectId}
+                  orchestrator={project.isCoordinator}
+                  streaming={sessionStreaming}
+                  status={sessionLive?.status}
+                  unseen={sessionUnseen}
+                />
+              );
+            })}
+          </AnimatePresence>
 
           {canShowMoreSessions && (
             <li>
-              <Button className="ml-8 inline-flex items-center justify-start gap-2 py-1 text-xs" onClick={handleLoadMoreSessions} variant="ghost">
-                Show more
+              <Button className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-ink-faint hover:bg-overlay-hover hover:text-ink" onClick={handleLoadMoreSessions}>
+                <Icon name="chevron-down" size="xs" />
+                Show more chats
               </Button>
             </li>
           )}
 
           {canShowLessAtEnd && (
             <li>
-              <Button className="ml-8 justify-start px-0 py-1 text-xs" onClick={handleShowLessSessions} variant="ghost">
-                Show less
+              <Button className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-ink-faint hover:bg-overlay-hover hover:text-ink" onClick={handleShowLessSessions}>
+                <Icon name="chevron-down" size="xs" className="rotate-180" />
+                Show fewer chats
               </Button>
             </li>
           )}
 
-          {expanded && !sessionsQuery.isPending && sessionsQuery.error == null && !hasSessions && <li className="px-8 py-1 text-sm text-ink-faint">No sessions</li>}
+          {expanded && !sessionsQuery.isPending && sessionsQuery.error == null && !hasSessions && <li className="px-2 py-1 text-xs text-ink-faint">No chats yet</li>}
         </ul>
       </div>
     </>

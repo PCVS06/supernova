@@ -1,137 +1,125 @@
 import {useState} from "react";
+import ConstantOrb from "@/components/brand/constant-orb";
 import {Link, useNavigate} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
-import {ConfigField} from "@/features/harnesses/components/config-fields";
-import {useHarnessLibrary, useImportScienceHarness, useSaveHarness} from "@/features/harnesses/hooks/api/use-harnesses";
+import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
+import {configCardClass} from "@/features/harnesses/components/config-card";
+import ScienceImport from "@/features/harnesses/components/science-import";
+import {useHarnessLibrary, useSaveHarness} from "@/features/harnesses/hooks/api/use-harnesses";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
+import {cn} from "@/lib/cn";
 
+/** The harness library, listed inside settings. Each entry opens its configuration on the settings harness route. */
 export default function HarnessesPage() {
   const library = useHarnessLibrary();
   const save = useSaveHarness();
-  const importer = useImportScienceHarness();
   const navigate = useNavigate();
   const select = useHarnessNavigationStore((state) => state.selectHarness);
   const [name, setName] = useState("");
   const [importOpen, setImportOpen] = useState(false);
-  const [packagePath, setPackagePath] = useState("~/Developer/pi-scientific-tools");
-  const [rootPath, setRootPath] = useState("~/Developer/Science-Space");
+
+  // The library is the whole content of this section, so it is narrowed once instead of guarded in every expression.
+  if (!library.data) {
+    return (
+      <SettingsGroup title="Harnesses">
+        <SettingsRow description="Different ways of working, in one app. Each harness owns its instructions, agents, resources, workflows, and projects." title="Your harnesses">
+          {library.isError ? (
+            <p className="text-sm text-danger-ink" role="alert">
+              Could not load your harnesses. {String(library.error)}
+            </p>
+          ) : (
+            <p className="text-sm text-ink-muted">Loading harnesses…</p>
+          )}
+        </SettingsRow>
+      </SettingsGroup>
+    );
+  }
+
+  const {harnesses, projects, revision} = library.data;
+
+  const handleCreate = (): void => {
+    const id = crypto.randomUUID();
+    save.mutate(
+      {
+        expectedRevision: revision,
+        harness: {
+          id,
+          name: name.trim(),
+          description: "Your custom Pi setup.",
+          systemPrompt: "",
+          agents: [],
+          extensions: [],
+          skills: [],
+          context: {instructions: "", files: [], includeProjectInstructions: true, autoCompaction: true, reserveTokens: 16384, keepRecentTokens: 20000},
+          graph: {steps: []},
+          workflows: [],
+          loop: {maxTurns: 40, timeoutSeconds: 900},
+        },
+      },
+      {
+        onSuccess: () => {
+          select(id);
+          setName("");
+          void navigate({to: "/settings/harness/$harnessId/$page", params: {harnessId: id, page: "overview"}});
+        },
+      }
+    );
+  };
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 pt-16 md:pt-8">
-      <div className="mx-auto max-w-5xl space-y-8">
-        <div>
-          <h1 className="text-2xl font-medium tracking-tight">Your harnesses</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-muted">
-            Different ways of working, in one app. Each harness owns its instructions, agents, context, workflow, and projects.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {library.data?.harnesses.map((harness) => (
-            <Link
-              key={harness.id}
-              params={{harnessId: harness.id}}
-              to="/harness/$harnessId"
-              onClick={() => select(harness.id)}
-              className="group rounded-2xl border border-border bg-surface-raised p-6 transition-colors hover:border-ink-faint"
-            >
-              <div className="flex items-center justify-between">
-                <Icon name="workflow" size="lg" />
-                <Icon className="text-ink-faint group-hover:text-ink" name="arrow-right" size="sm" />
-              </div>
-              <h2 className="mt-5 text-lg font-medium">{harness.name}</h2>
-              <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-muted">{harness.description}</p>
-              <p className="mt-5 font-mono text-xs text-ink-faint">
-                {library.data?.projects.filter((project) => project.harnessId === harness.id).length} projects · {harness.agents.length} agents
-              </p>
-            </Link>
-          ))}
-        </div>
-        <section className="space-y-4 rounded-xl border border-border p-5">
-          <h2 className="text-sm font-medium">Create a clean harness</h2>
-          <div className="flex gap-3">
-            <Input aria-label="New harness name" placeholder="e.g. Research, Coding, Writing" value={name} onChange={(event) => setName(event.target.value)} />
-            <Button
-              className="shrink-0 px-4 py-2 text-sm"
-              variant="filled"
-              disabled={!name.trim() || !library.data || save.isPending}
-              onClick={() => {
-                const id = crypto.randomUUID();
-                save.mutate(
-                  {
-                    expectedRevision: library.data!.revision,
-                    harness: {
-                      id,
-                      name: name.trim(),
-                      description: "Your custom Pi setup.",
-                      systemPrompt: "",
-                      agents: [],
-                      extensions: [],
-                      skills: [],
-                      context: {instructions: "", files: [], includeProjectInstructions: true, autoCompaction: true, reserveTokens: 16384, keepRecentTokens: 20000},
-                      graph: {steps: []},
-                      loop: {maxTurns: 40, timeoutSeconds: 900},
-                    },
-                  },
-                  {
-                    onSuccess: () => {
-                      select(id);
-                      void navigate({to: "/harness/$harnessId", params: {harnessId: id}});
-                    },
-                  }
-                );
-              }}
-            >
-              Create harness
+    <>
+      <SettingsGroup title="Harnesses">
+        <SettingsRow description="Different ways of working, in one app. Each harness owns its instructions, agents, resources, workflows, and projects." title="Your harnesses">
+          {harnesses.length === 0 && <p className={cn(configCardClass, "p-5 text-sm text-ink-muted")}>No harness yet. Create one below, then link its first project.</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {harnesses.map((harness) => (
+              <Link
+                key={harness.id}
+                params={{harnessId: harness.id, page: "overview"}}
+                to="/settings/harness/$harnessId/$page"
+                onClick={() => select(harness.id)}
+                className={cn(configCardClass, "group flex flex-col p-5 transition-colors hover:border-border-strong hover:bg-surface-control")}
+              >
+                <span className="flex items-center justify-between">
+                  <ConstantOrb constant="pi" className="size-10" state="still" />
+                  <Icon className="text-ink-faint group-hover:text-ink" name="arrow-right" size="sm" />
+                </span>
+                <span className="mt-4 text-sm font-medium text-ink-strong">{harness.name}</span>
+                <span className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-ink-muted">{harness.description}</span>
+                <span className="mt-4 font-mono text-xs text-ink-faint">
+                  {projects.filter((project) => project.harnessId === harness.id).length} projects · {harness.agents.length} agents
+                </span>
+              </Link>
+            ))}
+          </div>
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup title="Add a harness">
+        <SettingsRow description="Starts empty: no agents, no workflow, no projects." title="Create a clean harness">
+          <div className="flex flex-wrap gap-2">
+            <Input
+              aria-label="New harness name"
+              className="min-w-48 flex-1"
+              placeholder="e.g. Research, Coding, Writing"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <Button className="shrink-0 px-4 py-2 text-sm" variant="filled" disabled={!name.trim() || save.isPending} onClick={handleCreate}>
+              {save.isPending ? "Creating…" : "Create harness"}
             </Button>
           </div>
-        </section>
-        {!library.data?.harnesses.some((harness) => harness.id === "science") && (
-          <section className="space-y-4 rounded-xl border border-border p-5">
-            <Button className="flex w-full items-center justify-between text-sm" onClick={() => setImportOpen(!importOpen)}>
-              Import your Science Pi setup
-              <Icon name="chevron-down" size="sm" />
-            </Button>
-            {importOpen && (
-              <>
-                <ConfigField label="Science package">
-                  <Input value={packagePath} onChange={(event) => setPackagePath(event.target.value)} />
-                </ConfigField>
-                <ConfigField label="Science workspace">
-                  <Input value={rootPath} onChange={(event) => setRootPath(event.target.value)} />
-                </ConfigField>
-                <p className="text-xs leading-relaxed text-ink-muted">
-                  Imports prompts and specialist definitions, and links existing lab folders. Original files are not overwritten. Existing research gates stay in place; no agents
-                  or experiments start.
-                </p>
-                <Button
-                  variant="filled"
-                  className="px-4 py-2 text-sm"
-                  disabled={!library.data || importer.isPending}
-                  onClick={() =>
-                    importer.mutate(
-                      {packagePath, rootPath, expectedRevision: library.data!.revision},
-                      {
-                        onSuccess: () => {
-                          select("science");
-                          void navigate({to: "/harness/$harnessId", params: {harnessId: "science"}});
-                        },
-                      }
-                    )
-                  }
-                >
-                  {importer.isPending ? "Importing…" : "Import Science Pi"}
-                </Button>
-              </>
-            )}
-          </section>
-        )}
-        {(library.error || save.error || importer.error) && (
-          <p className="text-sm text-danger-ink" role="alert">
-            {String(library.error || save.error || importer.error)}
-          </p>
-        )}
-      </div>
-    </div>
+        </SettingsRow>
+        {!harnesses.some((harness) => harness.id === "science") && <ScienceImport open={importOpen} revision={revision} onToggle={() => setImportOpen(!importOpen)} />}
+      </SettingsGroup>
+
+      {save.error && (
+        <p className="px-3 text-sm text-danger-ink sm:px-4" role="alert">
+          {String(save.error)}
+        </p>
+      )}
+    </>
   );
 }

@@ -7,8 +7,7 @@
   display: none;
 }
 
-.agent-editor-header,
-.agent-editor-scroll {
+.agent-editor-header {
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
@@ -22,6 +21,17 @@
 .harness-workspace .agent-editor-row:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 1px var(--theme-ink-strong);
+}
+
+/* The rail a workflow node hangs from; one line through the whole graph. */
+.workflow-graph-rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(0.75rem - 0.5px);
+  width: 1px;
+  background: var(--theme-border);
 }
 
 @container harness (max-width: 720px) {
@@ -38,23 +48,11 @@
   }
 
   .agent-editor-portrait {
-    width: 5rem;
-    height: 5rem;
+    width: 2.5rem;
+    height: 2.5rem;
   }
 
   .agent-editor-hero {
-    min-height: 5rem;
-  }
-}
-
-@container harness (max-width: 440px) {
-  .agent-editor-header,
-  .agent-editor-scroll,
-  .agent-compact-picker {
-    padding-inline: 1rem;
-  }
-
-  .harness-execution-fields {
-    grid-template-columns: minmax(0, 1fr);
+    min-height: 3rem;
   }
 }

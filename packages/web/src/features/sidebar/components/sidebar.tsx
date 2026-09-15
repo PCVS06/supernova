@@ -1,20 +1,25 @@
+import "@/features/sidebar/components/sidebar.css";
 import {useState} from "react";
-import {Link, useLocation} from "@tanstack/react-router";
-import PiBrand from "@/components/brand/pi-brand";
+import {useLocation} from "@tanstack/react-router";
+import WorkspaceAttentionList from "@/features/workspace/components/workspace-attention-list";
+import IconButton from "@/components/ui/icon-button";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import {showToast} from "@/components/ui/toast-manager";
 import OpenProjectDialog from "@/features/projects/components/open-project-dialog";
 import SearchSessionsDialog from "@/features/projects/components/search-sessions-dialog";
+import SidebarFooter from "@/features/sidebar/components/sidebar-footer";
 import {useProjectList} from "@/features/projects/hooks/use-project-list";
 import {useProjectsStore} from "@/features/projects/stores/projects-store";
 import {useSidebarSections} from "@/features/sidebar/hooks/use-sidebar-sections";
 import HarnessSidebarSection from "@/features/harnesses/components/harness-sidebar-section";
 import {useHarnessLibrary, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
+import {sidebarSessionId} from "@/features/sidebar/lib/ledger-navigation";
+import {pinnedFirst} from "@/features/projects/lib/pinned-first";
 
 export default function Sidebar() {
-  const {collapseAllProjects, expandProject, expandedProjects, toggleProject} = useSidebarSections();
+  const {expandProject, expandedProjects, toggleProject} = useSidebarSections();
   const location = useLocation();
   const projects = useProjectList();
   const library = useHarnessLibrary();
@@ -23,7 +28,7 @@ export default function Sidebar() {
   const addProject = useProjectsStore((state) => state.addProject);
   const [addingToHarness, setAddingToHarness] = useState<string>();
   const [searchOpen, setSearchOpen] = useState(false);
-  const activeSessionId = location.pathname.startsWith("/session/") && location.pathname !== "/session/new" ? location.pathname.slice("/session/".length) : "";
+  const activeSessionId = sidebarSessionId(location.pathname);
 
   const handleOpenProject = (projectPath: string): void => {
     if (!library.data || !addingToHarness) return;
@@ -62,26 +67,23 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="flex h-full w-full shrink-0 flex-col">
-      <PiBrand />
-      <div className="px-3 pb-3">
-        <Button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-ink-muted hover:bg-overlay-hover" onClick={() => setSearchOpen(true)}>
+    <aside aria-label="Workspace ledger" className="flex h-full w-full shrink-0 flex-col">
+      <div className="flex shrink-0 items-center gap-1 px-4 py-2">
+        <IconButton label="Search chats" title="Search chats" className="size-8 text-white" onClick={() => setSearchOpen(true)}>
           <Icon name="search" size="sm" />
-          Search chats
-        </Button>
+        </IconButton>
       </div>
-      <div className="flex items-center justify-between px-5 pb-2 text-[10px] uppercase tracking-wider text-ink-faint">
-        <span>Harnesses</span>
-        <Button aria-label="Collapse all project chats" className="normal-case tracking-normal hover:text-ink" onClick={collapseAllProjects}>
-          Collapse chats
-        </Button>
-      </div>
-      <nav aria-label="Harness workspaces" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3" data-testid="harness-sidebar-scroll">
+      <nav
+        aria-label="Harness workspaces"
+        className="workspace-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 pb-4"
+        data-testid="harness-sidebar-scroll"
+      >
+        <WorkspaceAttentionList />
         {library.data?.harnesses.map((harness) => (
           <HarnessSidebarSection
             key={harness.id}
             harness={harness}
-            projects={projects.filter((project) => project.harnessId === harness.id)}
+            projects={pinnedFirst(projects.filter((project) => project.harnessId === harness.id))}
             configuredProjects={library.data.projects.filter((project) => project.harnessId === harness.id)}
             activeSessionId={activeSessionId}
             expandedProjectIds={expandedProjects}
@@ -89,11 +91,12 @@ export default function Sidebar() {
             onAddProject={setAddingToHarness}
           />
         ))}
-        {library.isPending && <p className="px-2 py-3 text-xs text-ink-muted">Loading harnesses…</p>}
+        {library.isPending && <p className="px-2 py-2 text-xs text-ink-faint">Loading harnesses…</p>}
         {library.isError && (
-          <p className="px-2 text-xs text-danger-ink">
+          <p className="px-2 py-2 text-xs text-danger-ink">
             Harnesses unavailable.{" "}
             <Button
+              className="underline decoration-dotted underline-offset-2"
               onClick={() => {
                 void library.refetch();
               }}
@@ -102,18 +105,8 @@ export default function Sidebar() {
             </Button>
           </p>
         )}
-        <Link to="/harnesses" className="mt-2 flex items-center gap-2 rounded-lg px-2 py-2 text-xs text-ink-muted hover:bg-overlay-hover">
-          <Icon name="plus" size="xs" />
-          Manage harnesses
-        </Link>
       </nav>
-      <div className="border-t border-border px-3 py-2">
-        <Link className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs text-ink-muted hover:bg-overlay-hover hover:text-ink" to="/settings">
-          <Icon name="settings" size="sm" />
-          <span>App settings</span>
-          {window.desktopApi?.nightly && <span className="text-xs text-ink-faint">Nightly</span>}
-        </Link>
-      </div>
+      <SidebarFooter settingsActive={location.pathname.startsWith("/settings")} />
       <OpenProjectDialog onClose={() => setAddingToHarness(undefined)} onOpenProject={handleOpenProject} open={!!addingToHarness} />
       <SearchSessionsDialog onClose={() => setSearchOpen(false)} open={searchOpen} />
     </aside>

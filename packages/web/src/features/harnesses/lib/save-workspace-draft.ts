@@ -1,12 +1,12 @@
 import type {HarnessConfig, HarnessLibrary, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 
-interface WorkspaceDraft {
+export interface WorkspaceDraft {
   harness: HarnessConfig;
-  project: HarnessProject | undefined;
+  projects: readonly HarnessProject[];
   revision: number;
 }
 
-/** Saves each owner with its revision. A partial success remains acknowledged if the next owner conflicts. */
+/** Saves each changed owner with the acknowledged revision. A partial success stays saved if the next owner conflicts. */
 export async function saveWorkspaceDraft(
   base: WorkspaceDraft,
   draft: WorkspaceDraft,
@@ -22,9 +22,11 @@ export async function saveWorkspaceDraft(
     saved = {...saved, harness: draft.harness, revision: library.revision};
     onSaved(saved);
   }
-  if (draft.project && JSON.stringify(draft.project) !== JSON.stringify(base.project)) {
-    const library = await writers.project({project: draft.project, expectedRevision: saved.revision});
-    saved = {...saved, project: draft.project, revision: library.revision};
+  for (const project of draft.projects) {
+    const previous = base.projects.find((item) => item.id === project.id);
+    if (!previous || JSON.stringify(previous) === JSON.stringify(project)) continue;
+    const library = await writers.project({project, expectedRevision: saved.revision});
+    saved = {...saved, projects: saved.projects.map((item) => (item.id === project.id ? project : item)), revision: library.revision};
     onSaved(saved);
   }
   return saved;

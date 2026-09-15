@@ -33,6 +33,8 @@ export const ReasoningTurnEvent = Schema.Struct({
 
 /** Tool invocation event produced during a turn. */
 export const ToolTurnEvent = Schema.Struct({
+  /** Stable runtime invocation identity, retained across live and saved projections. */
+  toolCallId: Schema.optional(Schema.String),
   /** Stable event identifier. */
   id: Schema.String,
   /** Event duration in milliseconds, when provided by the runtime. */

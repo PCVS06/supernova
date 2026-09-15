@@ -345,6 +345,11 @@ async function applyTree(repository: DiscoveredRepository, treeId: string, affec
   await withTemporaryIndex((indexPath) => restoreWorktreePaths(shadowTarget(repository), indexPath, treeId, restorePaths));
 }
 
+/** Rejects a plan if affected files changed while its preview was being prepared. */
+export async function verifyRestorePlan(plan: RepositoryRestorePlan): Promise<void> {
+  if ((await replaceTreePathsWithWorktree(plan.repository, plan.safetyTreeId, plan.affectedPaths)) !== plan.safetyTreeId) throw new CheckpointConflictError();
+}
+
 /** Applies one repository's plan and verifies the affected paths match the target tree exactly. */
 export async function applyRestorePlan(plan: RepositoryRestorePlan): Promise<void> {
   await applyTree(plan.repository, plan.targetTreeId, plan.affectedPaths, plan.restorePaths);

@@ -11,11 +11,13 @@ export interface StoredProject {
   readonly addedAt: string;
   readonly pinned?: boolean;
   readonly pinnedSessionIds?: string[];
+  /** Harness that mirrored this row into the list; such rows leave together with their harness project. */
+  readonly managedBy?: string;
 }
 
 interface ProjectsState {
   readonly projects: StoredProject[];
-  readonly addProject: (projectPath: string) => StoredProject | undefined;
+  readonly addProject: (projectPath: string, managedBy?: string) => StoredProject | undefined;
   readonly removeProject: (projectId: string) => void;
   readonly renameProject: (projectId: string, name: string) => void;
   readonly reorderProject: (projectId: string, targetProjectId: string) => void;
@@ -23,7 +25,8 @@ interface ProjectsState {
   readonly toggleSessionPinned: (projectId: string, sessionId: string) => void;
 }
 
-function toProjectId(projectPath: string): string {
+/** Stable navigation identity derived from the normalized workspace path. */
+export function toProjectId(projectPath: string): string {
   return btoa(encodeURIComponent(projectPath)).replaceAll("=", "");
 }
 
@@ -31,18 +34,24 @@ export const useProjectsStore = create<ProjectsState>()(
   persist(
     (set, get) => ({
       projects: [],
-      addProject: (projectPath) => {
+      addProject: (projectPath, managedBy) => {
         const normalizedPath = normalizeProjectPath(projectPath);
         if (normalizedPath.length === 0) return undefined;
 
         const existingProject = get().projects.find((project) => project.path === normalizedPath);
-        if (existingProject) return existingProject;
+        if (existingProject) {
+          if (managedBy === undefined || existingProject.managedBy === managedBy) return existingProject;
+          const claimed = {...existingProject, managedBy};
+          set((state) => ({projects: state.projects.map((project) => (project.id === claimed.id ? claimed : project))}));
+          return claimed;
+        }
 
         const project: StoredProject = {
           id: toProjectId(normalizedPath),
           name: projectNameFromPath(normalizedPath),
           path: normalizedPath,
           addedAt: new Date().toISOString(),
+          ...(managedBy !== undefined && {managedBy}),
         };
 
         set((state) => ({projects: [...state.projects, project]}));

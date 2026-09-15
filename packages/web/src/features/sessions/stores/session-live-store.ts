@@ -1,6 +1,6 @@
 import type {QueryClient} from "@tanstack/react-query";
-import {CheckpointConflictError, CheckpointUncapturedError} from "@supernova/contracts/session-runtime/procedures";
-import type {SessionStreamEvent} from "@supernova/contracts/session-runtime/procedures";
+import {CheckpointConflictError, CheckpointReviewRequired, CheckpointUncapturedError} from "@supernova/contracts/session-runtime/procedures";
+import type {CheckpointPreview, SessionStreamEvent, SteerSessionPayload} from "@supernova/contracts/session-runtime/procedures";
 import type {ModelReference, Session, SessionContextUsage, Turn, UserMessage, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
 import {create} from "zustand";
 import {useGeneralSettingsStore} from "@/features/settings/stores/general-settings-store";
@@ -16,7 +16,11 @@ export type CheckpointNavigationOutcome = "applied" | "failed" | CheckpointNavig
 
 /** Owns one optimistic navigation until the user cancels or retries the same command with force. */
 export interface CheckpointNavigationConfirmation {
-  readonly reason: "conflict" | "uncaptured";
+  readonly reason: "conflict" | "uncaptured" | "review";
+  readonly preview?: CheckpointPreview;
+  readonly message?: string;
+  readonly turnsBefore?: number;
+  readonly turnsAfter?: number;
   readonly cancel: () => void;
   readonly confirm: () => Promise<CheckpointNavigationOutcome>;
 }
@@ -118,6 +122,8 @@ interface CompactSessionInput {
 }
 
 interface CheckpointNavigationInput {
+  /** Direct bar navigation skips routine review while retaining workspace-conflict checks. */
+  readonly review?: boolean;
   /** Set when retrying after the user confirmed discarding manual workspace changes. */
   readonly force?: boolean;
   readonly queryClient: QueryClient;
@@ -129,18 +135,27 @@ interface RevertToMessageInput extends CheckpointNavigationInput {
   readonly turnId: string;
 }
 
+interface SteerSessionInput {
+  readonly fallback?: SteerSessionPayload["fallback"];
+  readonly rpcClient: RpcClient;
+  readonly sessionId: string;
+  readonly text: string;
+}
+
 interface SessionLiveStoreState {
-  /** Session currently open in the main view; its activity is stamped as seen. */
-  readonly activeSessionId: string | null;
+  /** Chats currently shown by a pane, counted per open pane; their activity is stamped as seen. */
+  readonly openSessions: Record<string, number>;
   readonly sessions: Record<string, SessionLiveState | undefined>;
   readonly abortSession: (input: {rpcClient: RpcClient; sessionId: string}) => void;
   readonly applyEvent: (event: SessionStreamEvent) => boolean;
+  readonly closeSession: (sessionId: string) => void;
   readonly compactSession: (input: CompactSessionInput) => void;
+  readonly openSession: (sessionId: string) => void;
   readonly redoCheckpoint: (input: CheckpointNavigationInput) => Promise<CheckpointNavigationOutcome>;
   readonly resetRevisions: () => void;
   readonly revertToMessage: (input: RevertToMessageInput) => Promise<CheckpointNavigationOutcome>;
-  readonly sendMessage: (input: SendSessionMessageInput) => void;
-  readonly setActiveSession: (sessionId: string | null) => void;
+  readonly sendMessage: (input: SendSessionMessageInput) => Promise<boolean>;
+  readonly steerSession: (input: SteerSessionInput) => Promise<boolean>;
   readonly undoCheckpoint: (input: CheckpointNavigationInput) => Promise<CheckpointNavigationOutcome>;
 }
 
@@ -158,29 +173,56 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
       return {sessions: {...state.sessions, [event.sessionId]: reduceSessionEvent(entry, event)}};
     });
 
-    // Activity in the open session is seen as it happens. Stamping the
-    // activity time rather than now keeps a later completion unseen.
+    // Activity in an open chat is seen as it happens, in any pane showing it.
+    // Stamping the activity time rather than now keeps a later completion unseen.
     const activityAt = applied ? sessionEventActivityAt(event) : null;
-    if (activityAt !== null && event.sessionId === get().activeSessionId) {
+    if (activityAt !== null && (get().openSessions[event.sessionId] ?? 0) > 0) {
       useSessionVisitsStore.getState().markSessionVisited(event.sessionId, activityAt);
     }
     return applied;
   };
 
-  const setActiveSession = (sessionId: string | null): void => {
-    set((state) => (state.activeSessionId === sessionId ? state : {activeSessionId: sessionId}));
+  // Panes open and close independently, so an open chat is counted rather than
+  // replaced; the same chat may be routed and paned at the same time.
+  const openSession = (sessionId: string): void => {
+    set((state) => ({openSessions: {...state.openSessions, [sessionId]: (state.openSessions[sessionId] ?? 0) + 1}}));
+  };
+
+  const closeSession = (sessionId: string): void => {
+    set((state) => {
+      const remaining = (state.openSessions[sessionId] ?? 0) - 1;
+      const openSessions = {...state.openSessions};
+      if (remaining > 0) openSessions[sessionId] = remaining;
+      else delete openSessions[sessionId];
+
+      return {openSessions};
+    });
   };
 
   const resetRevisions = (): void => {
     set((state) => ({
-      sessions: Object.fromEntries(Object.entries(state.sessions).map(([sessionId, entry]) => [sessionId, entry ? {...entry, revision: 0} : entry])),
+      sessions: Object.fromEntries(
+        Object.entries(state.sessions).map(([sessionId, entry]) => [
+          sessionId,
+          entry
+            ? {
+                ...entry,
+                revision: 0,
+                status: "idle",
+                liveTurn: null,
+                liveContext: null,
+                error: entry.status !== "idle" ? "Connection restored. Review the last saved turn before continuing." : entry.error,
+              }
+            : entry,
+        ])
+      ),
     }));
   };
 
-  const sendMessage = (input: SendSessionMessageInput): void => {
+  const sendMessage = async (input: SendSessionMessageInput): Promise<boolean> => {
     const {contentParts, modelReference, queryClient, rpcClient, sessionId} = input;
     const current = get().sessions[sessionId];
-    if (current && current.status !== "idle") return;
+    if (current && current.status !== "idle") return false;
 
     const liveTurn = createInitialStreamTurn({contentParts, modelReference});
     const previousSession = queryClient.getQueryData<Session>(sessionQueryKey(sessionId));
@@ -191,11 +233,12 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
       return {sessions: {...state.sessions, [sessionId]: {...entry, error: null, liveContext: null, liveTurn, status: "streaming"}}};
     });
 
-    void rpcClient
+    return rpcClient
       .run((rpc) => rpc.sendMessage({captureCheckpoints: useGeneralSettingsStore.getState().captureCheckpoints, contentParts, modelReference, sessionId}))
+      .then(() => true)
       .catch((cause: unknown) => {
         const entry = get().sessions[sessionId];
-        if (!entry || entry.revision !== previousRevision) return;
+        if (!entry || entry.revision !== previousRevision) return false;
 
         if (previousSession) queryClient.setQueryData(sessionQueryKey(sessionId), previousSession);
         set((state) => {
@@ -208,13 +251,32 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
             },
           };
         });
+        return false;
+      });
+  };
+
+  const steerSession = async (input: SteerSessionInput): Promise<boolean> => {
+    const {rpcClient, sessionId, text, fallback} = input;
+    const steeringText = text.trim();
+    const stream = get().sessions[sessionId];
+    if (steeringText.length === 0 || !stream) return false;
+    if (stream.status !== "streaming" && !(fallback && stream.status === "idle")) return false;
+
+    // Steering has no optimistic projection: the running turn reports the
+    // interruption through the normal live-turn events.
+    return rpcClient
+      .run((rpc) => rpc.steerSession({sessionId, text: steeringText, fallback}))
+      .then((receipt) => {
+        if (receipt.delivery === "queued") showToast("Correction queued", "Your correction is saved and will run at the next safe opportunity.", {timeout: 3000});
+        else showToast("Steering accepted", "Your correction is available at the next agent step. The current tool can finish first.", {timeout: 3000});
+        return true;
       });
   };
 
   const abortSession = (input: {rpcClient: RpcClient; sessionId: string}): void => {
     const {rpcClient, sessionId} = input;
     const stream = get().sessions[sessionId];
-    if (!stream || (stream.status !== "streaming" && stream.status !== "stopping")) return;
+    if (!stream || (stream.status !== "streaming" && stream.status !== "stopping" && stream.status !== "compacting")) return;
 
     const liveTurn = stream.liveTurn
       ? {...stream.liveTurn, completedAt: stream.liveTurn.completedAt ?? stream.liveTurn.events.at(-1)?.timestamp ?? new Date().toISOString(), status: "completed" as const}
@@ -228,7 +290,8 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
 
     void rpcClient
       .run((rpc) => rpc.abortSession({sessionId}))
-      .catch(() => {
+      .catch((cause: unknown) => {
+        showToast("Unable to stop this turn", errorMessage(cause, "The agent may still be working. Try stopping again."));
         set((state) => {
           const entry = state.sessions[sessionId];
           if (!entry || entry.status !== "stopping") return state;
@@ -260,7 +323,7 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
 
   const runCheckpointNavigation = (
     input: CheckpointNavigationInput & {
-      execute: (rpc: RpcProtocolClient, force: boolean | undefined) => ReturnType<RpcProtocolClient["undoCheckpoint"]>;
+      execute: (rpc: RpcProtocolClient, force: boolean | undefined, reviewFingerprint: string | undefined) => ReturnType<RpcProtocolClient["undoCheckpoint"]>;
       optimisticTurnId: (session: Session) => string | undefined;
       title: string;
     }
@@ -272,7 +335,6 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
     const previousSession = queryClient.getQueryData<Session>(sessionQueryKey(sessionId));
     const turnId = previousSession ? optimisticTurnId(previousSession) : undefined;
     const optimisticSession = previousSession && turnId ? optimisticRevertToMessage(previousSession, turnId) : previousSession;
-    if (optimisticSession) queryClient.setQueryData(sessionQueryKey(sessionId), optimisticSession);
 
     set((state) => {
       const entry = state.sessions[sessionId] ?? emptyEntry();
@@ -288,16 +350,27 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
       set((state) => ({sessions: {...state.sessions, [sessionId]: {...entry, status: "idle"}}}));
     };
 
-    const executeNavigation = (force: boolean | undefined): Promise<CheckpointNavigationOutcome> =>
+    const executeNavigation = (force: boolean | undefined, reviewFingerprint?: string): Promise<CheckpointNavigationOutcome> =>
       rpcClient
-        .run((rpc) => execute(rpc, force))
+        .run((rpc) => execute(rpc, force, reviewFingerprint))
         .then((): CheckpointNavigationOutcome => "applied")
         .catch((cause: unknown): CheckpointNavigationOutcome => {
-          const reason = cause instanceof CheckpointConflictError ? "conflict" : cause instanceof CheckpointUncapturedError ? "uncaptured" : undefined;
-          if (reason && !force) {
+          const reason =
+            cause instanceof CheckpointReviewRequired
+              ? "review"
+              : cause instanceof CheckpointConflictError
+                ? "conflict"
+                : cause instanceof CheckpointUncapturedError
+                  ? "uncaptured"
+                  : undefined;
+          if (reason && (!force || reason === "review")) {
             let pending = true;
             return {
               reason,
+              preview: cause instanceof CheckpointReviewRequired ? cause.preview : undefined,
+              message: cause instanceof CheckpointReviewRequired ? cause.message : undefined,
+              turnsBefore: previousSession?.turns.length,
+              turnsAfter: optimisticSession?.turns.length,
               cancel: () => {
                 if (!pending) return;
                 pending = false;
@@ -308,7 +381,7 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
                 pending = false;
                 const entry = get().sessions[sessionId];
                 if (!entry || entry.revision !== previousRevision || entry.status !== "checkpoint-navigating") return Promise.resolve("failed");
-                return executeNavigation(true);
+                return executeNavigation(true, cause instanceof CheckpointReviewRequired ? cause.preview.fingerprint : undefined);
               },
             };
           }
@@ -323,7 +396,7 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
   const undoCheckpoint = (input: CheckpointNavigationInput): Promise<CheckpointNavigationOutcome> =>
     runCheckpointNavigation({
       ...input,
-      execute: (rpc, force) => rpc.undoCheckpoint({force, sessionId: input.sessionId}),
+      execute: (rpc, force, reviewFingerprint) => rpc.undoCheckpoint({force, review: input.review ?? true, reviewFingerprint, sessionId: input.sessionId}),
       optimisticTurnId: (session) => session.turns.at(-1)?.id,
       title: "Unable to undo checkpoint",
     });
@@ -331,7 +404,7 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
   const redoCheckpoint = (input: CheckpointNavigationInput): Promise<CheckpointNavigationOutcome> =>
     runCheckpointNavigation({
       ...input,
-      execute: (rpc, force) => rpc.redoCheckpoint({force, sessionId: input.sessionId}),
+      execute: (rpc, force, reviewFingerprint) => rpc.redoCheckpoint({force, review: input.review ?? true, reviewFingerprint, sessionId: input.sessionId}),
       optimisticTurnId: (session) => session.undoneTurns[0]?.id,
       title: "Unable to redo checkpoint",
     });
@@ -339,22 +412,24 @@ export const useSessionLiveStore = create<SessionLiveStoreState>()((set, get) =>
   const revertToMessage = (input: RevertToMessageInput): Promise<CheckpointNavigationOutcome> =>
     runCheckpointNavigation({
       ...input,
-      execute: (rpc, force) => rpc.revertToMessage({force, sessionId: input.sessionId, turnId: input.turnId}),
+      execute: (rpc, force, reviewFingerprint) => rpc.revertToMessage({force, review: true, reviewFingerprint, sessionId: input.sessionId, turnId: input.turnId}),
       optimisticTurnId: () => input.turnId,
       title: "Unable to revert message",
     });
 
   return {
     abortSession,
-    activeSessionId: null,
     applyEvent,
+    closeSession,
     compactSession,
+    openSession,
+    openSessions: {},
     redoCheckpoint,
     resetRevisions,
     revertToMessage,
     sendMessage,
     sessions: {},
-    setActiveSession,
+    steerSession,
     undoCheckpoint,
   };
 });

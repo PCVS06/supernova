@@ -1,0 +1,30 @@
+# Radian: Korrekturen aus dem Product View
+
+Stand: 14. September 2026. Grundlage: die 15 Rückmeldungen in `radian-product-view.docx`.
+
+| Nr. | Rückmeldung                            | Umsetzung                                                                                                                                                                                                        |
+| --- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Symbole verschwinden abrupt            | Gemeinsamer, unterbrechbarer Ausblendevorgang der Sidebar-Zeilen; Namen lösen sich in ihre mathematischen Ziffern auf.                                                                                           |
+| 2   | Rechtecke nach Mausklick               | Keine zusätzlichen Maus-Fokusrahmen; sichtbarer, abgerundeter Tastaturfokus bleibt erhalten.                                                                                                                     |
+| 3   | Unterschiedliche Trennlinien           | Beide Workspace-Grenzen verwenden denselben Verlauf, Abstand und dieselbe Stärke.                                                                                                                                |
+| 4   | Effort ist kein Drehregler             | Kompakter Regler mit gültigen Modellstufen, Ziehen, Mausrad, Pfeiltasten, Home/End und lesbarem Wert. Der Entwurf behält den Fokus.                                                                              |
+| 5   | Zahlenringe im System stehen still     | Durchgehende Rotation der vorhandenen Zahlenkonturen; Planeten und Monde behalten ihre verschachtelten Bahnen. Inspektion und reduzierte Bewegung pausieren verlässlich.                                         |
+| 6   | Sidebar-Symbole stehen still           | Einheitliche dezente Rotation auch im subtilen Bewegungsmodus; globale Pause, Hintergrundfenster und reduzierte Bewegung werden berücksichtigt.                                                                  |
+| 7   | Chat erscheint abrupt                  | Kurzer Eintritt des Chat-Bereichs ohne Verzögerung der Bedienung.                                                                                                                                                |
+| 8   | Markierung und Text driften            | Einrückung und Symbolposition bleiben auch während des Schließens erhalten.                                                                                                                                      |
+| 9   | Goal und Orb ruckeln                   | Stabile Symbolgröße, dasselbe Symbol vor und nach der Antwort sowie unterbrechbare Höhenanimationen ohne wiederholtes Neuaufsetzen der Messung.                                                                  |
+| 10  | Seitenkörper kommen aus der Mitte      | Eintritt direkt an den zugeordneten Bahnpositionen; kein gemeinsames Herauszoomen aus der Sonne.                                                                                                                 |
+| 11  | Zu viele Details auf einmal            | Zusammenfassung und Status zuerst; Ergebnis, Auftrag, Unterhaltung, Historie und Kontext werden gezielt aufgeklappt. Die Rückkehr aus einer vollständigen Unterhaltung stellt den ausgewählten Orbit wieder her. |
+| 12  | Steering und Queue unklar              | Keine separate Queue-Hauptaktion. Kompakte wartende Nachrichten mit Steer und Löschen; bestätigte Annahme wird sichtbar. Das Fortsetzen einer angehaltenen Warteschlange bleibt möglich.                         |
+| 13  | Unterbrochene Systemübergänge springen | Gemeinsame Koordinaten, erhaltene Phasen und Übergabe der gerade sichtbaren Positionen. Ein-/Ausklappen lässt sich während der Bewegung umkehren.                                                                |
+| 14  | Schwebende Options-/Schließen-Buttons  | Entfernt. Navigation erfolgt über die Sonne, Escape und den vorhandenen Zurück-Pfad.                                                                                                                             |
+| 15  | Doppeltes Symbol in Unterhaltungen     | Ein kleiner Identitätshinweis im Kopf. Kein großer dekorativer Orb zwischen den Abschnitten; delegierte Arbeit bleibt gezielt erreichbar.                                                                        |
+
+## Prüfung
+
+- 36 Browserprüfungen auf einem gebauten UI-Stand bestanden. Enthalten sind normale und reduzierte Bewegung, schmale Ansichten, volle Umläufe ohne Überschneidungen, unterbrochenes Öffnen/Schließen, Tastaturbedienung, Fokus, Projektlöschung und die Rückkehr aus Detailansichten.
+- Fünf Abläufe mit echtem lokalem Server und kontrolliertem Testanbieter bestanden: dauerhafte Nachrichtenreihenfolge, direktes Steering, Steering einer bereits wartenden Nachricht, Steering eines Leads mit laufendem Unteragenten und Goal-Pause/-Fortsetzung. Dabei wurde die resultierende Agentenantwort geprüft, nicht nur ein Buttonzustand. Das ist kein Test aller externen Modellanbieter.
+- 960 automatisierte Prüfungen des Repositorys sowie Typ-, Lint- und Formatprüfungen bestanden. Unveränderte Pakete nutzten vorhandene erfolgreiche Prüfergebnisse.
+- Produktions-Build erfolgreich. Die aktualisierte App wurde um 13:59 Uhr unter `/Applications/Radian.app` mit verifizierten Ressourcen und geprüfter Signatur installiert und gestartet. Der neue Effort-Regler und das Sonnensystem wurden in der geladenen App bestätigt. Die vorherige App bleibt unter `~/Library/Application Support/Radian Backups/product-feedback-20260914-135951/Radian.app` erhalten.
+
+Bewegungsprüfungen belegen Kontinuität, Positionen und Pausen unter den geprüften Bedingungen. Sie sind keine pauschale Bildraten-Garantie für jede Hardware oder beliebig viele gleichzeitig sichtbare Agenten.

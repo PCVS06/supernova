@@ -64,6 +64,17 @@ export function useSaveHarnessProject() {
   );
 }
 
+/** Unlinks a project from its harness; the folder stays on disk and existing chats keep their snapshot. */
+export function useRemoveHarnessProject() {
+  const client = useQueryClient();
+  return useMutation(
+    eq.mutationOptions({
+      mutationFn: (input: {projectId: string; expectedRevision: number}) => Effect.flatMap(Effect.service(RpcProtocolClientService), (rpc) => rpc.removeHarnessProject(input)),
+      onSuccess: (library) => client.setQueryData(harnessLibraryKey, library),
+    })
+  );
+}
+
 /** Explicitly imports the local Science Pi package and its lab folders. */
 export function useImportScienceHarness() {
   const client = useQueryClient();

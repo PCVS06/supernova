@@ -1,0 +1,54 @@
+.chat-constellation {
+  --orb-glow: min(var(--white-glow-mark, 3px), 1px);
+  --white-glow-soft: none;
+  --white-glow-focused: 0 0 1px rgb(255 255 255 / 45%);
+  color: #fff;
+  background: #000;
+  isolation: isolate;
+  container-type: inline-size;
+}
+.chat-constellation button:focus-visible,
+.chat-constellation a:focus-visible {
+  outline: 1px dotted #fff;
+  outline-offset: 4px;
+}
+.chat-constellation-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+  font-size: 0.75rem;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+.chat-constellation-collapsed {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: fit-content;
+  padding-block: 0.5rem;
+  background: transparent;
+  border: 0;
+}
+.chat-constellation-hover-status {
+  position: absolute;
+  left: 100%;
+  margin-left: 1rem;
+  width: 16rem;
+  opacity: 0;
+  pointer-events: none;
+}
+.chat-constellation-collapsed:hover .chat-constellation-hover-status,
+.chat-constellation-collapsed:focus-visible .chat-constellation-hover-status {
+  opacity: 1;
+}
+.chat-constellation-expand-hint {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+:root[data-motion-paused="true"] .chat-constellation .constant-orb-digits,
+.chat-constellation[data-constellation-visible="false"] .constant-orb-digits {
+  animation-play-state: paused;
+}

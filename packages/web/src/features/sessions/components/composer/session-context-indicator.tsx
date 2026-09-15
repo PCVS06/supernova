@@ -99,14 +99,24 @@ export default function SessionContextIndicator(props: SessionContextIndicatorPr
         </div>
         <div className="space-y-1 text-xs leading-5">
           <div className="flex items-center justify-between gap-4 text-ink-muted">
-            <span>Used</span>
+            <span>Estimated used</span>
             <span className="max-w-32 truncate font-medium tabular-nums text-ink">{formatContextTokens(context.usedTokens)}</span>
           </div>
           <div className="flex items-center justify-between gap-4 text-ink-muted">
             <span>Window</span>
             <span className="max-w-32 truncate font-medium tabular-nums text-ink">{formatTokens(context.contextWindow)}</span>
           </div>
+          <div className="flex items-center justify-between gap-4 text-ink-muted">
+            <span>Estimated remaining</span>
+            <span className="font-medium tabular-nums text-ink">
+              {formatContextTokens(context.usedTokens === null ? null : Math.max(0, context.contextWindow - context.usedTokens))}
+            </span>
+          </div>
         </div>
+        <p className="text-xs leading-relaxed text-ink-faint">
+          Based on available provider usage plus estimates for later messages. After compaction, usage is unknown until the next response. Inspect instructions and sources in the
+          Context workspace.
+        </p>
       </div>
     </Menu>
   );

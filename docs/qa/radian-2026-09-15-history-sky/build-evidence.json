@@ -1,0 +1,55 @@
+{
+  "branch": "docs/graph-workflow-engineering",
+  "baseCommit": "6cdf7664d56228729f24365e9c2431916c2c1642",
+  "changedFiles": {
+    "CHANGELOG.md": "8a95c3641c957ccc8206368e613282169f7f66c3f27575ec5d0488553c8cb307",
+    "packages/web/src/components/brand/mathematical-sky.css": "cbebb98f8791b82de19a0bd029491854083e6db34c687110039147240db3241a",
+    "packages/web/src/components/brand/mathematical-sky.tsx": "404739cda116e1cac6fa1a4d962cff7b0ef70fc18c5b0f6f25fa3b1005db3260",
+    "packages/web/src/features/sessions/components/composer/chat-history-controls.tsx": "730c9429e706aaec6833d211e3b0988307e726bf02314b7500cf16206589f270",
+    "packages/web/src/features/sessions/components/composer/checkpoint-navigation-notice.tsx": "fa903eeb600d29e51c822580a3ef11d195da0d0505314a14d3581989d63be8b3",
+    "packages/web/src/features/sessions/components/orbits/chat-orbits.css": "818ee4a80a65757fec6f3da4921f54bee19ffce6959220990a85f1be3630cea0",
+    "packages/web/src/features/sessions/components/orbits/formula-starmap.tsx": "removed",
+    "packages/web/src/features/sessions/components/orbits/orbit-canvas.tsx": "44623d3c1c7a2f2df07091f4516a9ad392aa68278aa3f9b4df23c9c45536a089",
+    "packages/web/src/features/sessions/components/session-conversation.tsx": "bff70275849a4456ec06d828502538449ed43f82866398fd4449db346989aef3",
+    "packages/web/src/features/sessions/hooks/use-session-timeline.ts": "950e8011a8c5ac769ff1ea8011817a177272d8dad2e13cdfc6e2dfc569dfe7ae",
+    "packages/web/src/features/sessions/stores/session-live-store.ts": "a225863457bd832a84d6d5eb7f2569867aed9b3e426d4ca81222c79db6bd46e7",
+    "packages/web/src/features/sidebar/components/sidebar-layout.tsx": "462cc74662f779c89764bdd34e4e0b2e5c39635baa881713e474642e0cf4aff5",
+    "packages/web/tests/e2e/specs/runtime/session-workflow.spec.ts": "5421b2a14f57a55464e607caef1e6daf10a81d076b0320cf83177ae72d0fd024",
+    "packages/web/tests/e2e/specs/timeline/mathematical-sky.spec.ts": "adc312fa30fbf9136eb85199a594536f1b17988e23b0f33ecadff795a560fa55"
+  },
+  "installation": {
+    "path": "/Applications/Radian.app",
+    "backup": "/var/folders/fc/5twr3n1s2_q7qg6qllx4vqdh0000gn/T/radian-before-history-sky-99_137do/Radian.app",
+    "signature": "verified",
+    "webDigest": "c7ba1b100a27b4d0213c034696154c31d658f27e131bca5d38e2eb12795608c6",
+    "previousWebDigest": "d14f98c1921dbf380819392f21653682e27856f849ae84624f5bf5d6139a50bf",
+    "webFilesVerified": 418,
+    "hashes": {
+      "Contents/Resources/app.asar": "355454984d3eb6c6ad19bc56791db82c3c08ad48486a29e3e9c30dc717997910",
+      "Contents/Resources/server/cli.js": "41a04cd02f8a72659f9be956f5650187c709f273e41e9448764d8b2a63be3f41"
+    },
+    "installedAt": "2026-09-15T16:33:44.171157+00:00",
+    "liveVerification": {
+      "status": "passed",
+      "verifiedAt": "2026-09-15T16:35:33.469828+00:00",
+      "session": "01a0a485-8aba-7d82-aad8-af0429cb4a16",
+      "observed": [
+        "full-window mathematical sky",
+        "history arrows opened in composer",
+        "position 1/5 with both directions available",
+        "saved-message drawer stayed closed",
+        "no blocking dialog"
+      ],
+      "conversationChanged": false,
+      "draft": "empty, preserved"
+    }
+  },
+  "checks": {
+    "repositoryTests": 989,
+    "browserScenariosPassed": 6,
+    "typecheck": "passed",
+    "lint": "passed",
+    "formatting": "passed",
+    "package": "passed"
+  }
+}

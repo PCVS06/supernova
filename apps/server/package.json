@@ -1,14 +1,14 @@
 {
   "name": "@supernova/server",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "exports": {
     "./process": "./src/process.ts",
     "./build": "./scripts/build-server.ts"
   },
   "bin": {
-    "supernova-server": "./dist/cli.js"
+    "radian-server": "./dist/cli.js"
   },
   "scripts": {
     "dev": "SUPERNOVA_SERVER_DEV=1 bun --watch src/cli.ts",

@@ -1,4 +1,5 @@
 import type {Editor} from "@tiptap/react";
+import {Schema} from "@tiptap/pm/model";
 import {describe, expect, it} from "vitest";
 import {createReferenceNode, editorToContentParts, textFromComposerContentParts, trimComposerContentParts} from "@/features/sessions/lib/composer/composer-content-parts";
 
@@ -15,6 +16,20 @@ function mockEditor(nodes: readonly {readonly attrs?: Record<string, unknown>; r
 }
 
 describe("composer content parts", () => {
+  it("preserves pasted paragraphs and blank lines around formula blocks", () => {
+    const schema = new Schema({
+      nodes: {doc: {content: "paragraph+"}, paragraph: {content: "text*"}, text: {}},
+    });
+    const lines = ["Formula:", "", "$$", "x^2+y^2", "$$", "", "Next paragraph"];
+    const doc = schema.node(
+      "doc",
+      null,
+      lines.map((line) => schema.node("paragraph", null, line ? [schema.text(line)] : []))
+    );
+    const editor = {state: {doc}} as Editor;
+    expect(editorToContentParts(editor)).toEqual([{type: "text", text: lines.join("\n")}]);
+  });
+
   it("builds prompt text from structured content parts", () => {
     expect(
       textFromComposerContentParts([

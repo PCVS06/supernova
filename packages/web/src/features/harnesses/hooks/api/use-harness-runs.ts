@@ -4,11 +4,12 @@ import {eq} from "@/rpc/effect-query";
 import {RpcProtocolClientService} from "@/rpc/transport/client";
 
 /** Polls only open or actively streaming chats, never agent definitions. */
-export function useHarnessRuns(sessionId: string, live = false) {
+export function useHarnessRuns(sessionId: string, live = false, enabled = true) {
   return useQuery(
     eq.queryOptions({
+      enabled,
       queryKey: ["agent", "harness-runs", sessionId],
-      refetchInterval: live ? 1200 : false,
+      refetchInterval: (query) => (live || query.state.data?.some((run) => run.status === "starting" || run.status === "running") ? 1200 : 8000),
       queryFn: () => Effect.flatMap(Effect.service(RpcProtocolClientService), (rpc) => rpc.listHarnessRuns({sessionId})),
     })
   );

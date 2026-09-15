@@ -6,9 +6,15 @@ import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
 import SidebarLayout from "@/features/sidebar/components/sidebar-layout";
 import Sidebar from "@/features/sidebar/components/sidebar";
+import SessionPane from "@/features/sessions/components/session-pane";
+import SplitViewControl from "@/features/sessions/components/split-view-control";
+import {useSplitViewStore} from "@/features/sessions/stores/split-view-store";
 import UpdateButton from "@/features/updates/components/update-button";
+import WorkspacePanel from "@/features/workspace/components/workspace-panel";
+import WorkspacePanelToggle from "@/features/workspace/components/workspace-panel-toggle";
 import {useSidebarVisibility} from "@/features/sidebar/hooks/use-sidebar-visibility";
 import {useSidebarSectionsStore} from "@/features/sidebar/stores/sidebar-store";
+import {cn} from "@/lib/cn";
 
 interface HomePageProps {
   appEnvironment: AppEnvironment;
@@ -20,6 +26,7 @@ export default function HomePage(props: HomePageProps) {
   const {sidebarVisible, toggleSidebar} = useSidebarVisibility();
   const sidebarWidth = useSidebarSectionsStore((state) => state.sidebarWidth);
   const setSidebarWidth = useSidebarSectionsStore((state) => state.setSidebarWidth);
+  const panes = useSplitViewStore((state) => state.panes);
   const router = useRouter();
 
   useRouterState({
@@ -69,8 +76,22 @@ export default function HomePage(props: HomePageProps) {
       sidebarVisible={sidebarVisible}
       sidebarWidth={sidebarWidth}
       titlebarActions={titlebarActions}
+      trailingTitlebarActions={
+        <>
+          <SplitViewControl />
+          <WorkspacePanelToggle />
+        </>
+      }
     >
-      {children}
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto">
+          <div className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", panes.length > 0 && "min-w-80")}>{children}</div>
+          {panes.map((pane) => (
+            <SessionPane appEnvironment={appEnvironment} key={pane.sessionId} pane={pane} />
+          ))}
+        </div>
+        <WorkspacePanel appEnvironment={appEnvironment} />
+      </div>
     </SidebarLayout>
   );
 }

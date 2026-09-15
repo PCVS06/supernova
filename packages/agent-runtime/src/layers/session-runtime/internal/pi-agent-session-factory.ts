@@ -8,9 +8,14 @@ import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/h
 import {createHarnessResources, createHarnessTools} from "@supernova/agent-runtime/layers/harnesses/internal/harness-runtime";
 import {harnessRunStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-store";
 import {captureHarnessContext} from "@supernova/agent-runtime/layers/harnesses/internal/harness-run-context";
+import {createReportGoalResultTool} from "@supernova/agent-runtime/layers/session-runtime/internal/tools/report-goal-result-tool";
 
 export interface PiAgentSessionFactoryShape {
-  readonly createAgentSession: (input: {readonly cwd: string; readonly sessionManager: PiSessionManager}) => Promise<{readonly session: AgentSession}>;
+  readonly createAgentSession: (input: {
+    readonly cwd: string;
+    readonly sessionManager: PiSessionManager;
+    readonly reportGoalResult?: (goalId: string, status: "completed" | "blocked", summary: string) => Promise<void>;
+  }) => Promise<{readonly session: AgentSession}>;
 }
 
 /** Private capability for creating Pi agent sessions. */
@@ -22,7 +27,8 @@ export const PiAgentSessionFactoryLive = Layer.effect(
     const piSdk = yield* PiSdkService;
 
     return {
-      createAgentSession: async ({cwd, sessionManager}) => {
+      createAgentSession: async ({cwd, sessionManager, reportGoalResult}) => {
+        const goalTools = reportGoalResult ? [createReportGoalResultTool(reportGoalResult)] : [];
         const harness = await harnessStore.forSession(sessionManager.getSessionId(), cwd);
         if (harness) {
           const resources = await createHarnessResources(harness);
@@ -31,7 +37,7 @@ export const PiAgentSessionFactoryLive = Layer.effect(
             ...resources,
             modelRuntime: piSdk.modelRuntime,
             sessionManager,
-            customTools: [...createPiCustomTools(), ...createHarnessTools(harness, piSdk, {chatId: sessionManager.getSessionId(), store: harnessRunStore})],
+            customTools: [...createPiCustomTools(), ...goalTools, ...createHarnessTools(harness, piSdk, {chatId: sessionManager.getSessionId(), store: harnessRunStore})],
           });
           await created.session.bindExtensions({});
           let contextWrites = Promise.resolve();
@@ -41,7 +47,7 @@ export const PiAgentSessionFactoryLive = Layer.effect(
             contextWrites = contextWrites
               .then(() => harnessRunStore.saveContext(sessionManager.getSessionId(), context))
               .catch((error) => {
-                console.warn("pi+ could not save the chat's runtime receipt:", error instanceof Error ? error.message : String(error));
+                console.warn("Radian could not save the chat's runtime receipt:", error instanceof Error ? error.message : String(error));
               });
           });
           return created;
@@ -51,7 +57,7 @@ export const PiAgentSessionFactoryLive = Layer.effect(
 
         const created = await piSdk.createAgentSession({
           cwd,
-          customTools: createPiCustomTools(),
+          customTools: [...createPiCustomTools(), ...goalTools],
           modelRuntime: piSdk.modelRuntime,
           resourceLoader,
           sessionManager,

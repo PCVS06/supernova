@@ -8,28 +8,27 @@ export const WINDOWS_TITLE_BAR_OVERLAY = {color: "#00000000", height: 48, symbol
 
 interface CreateWindowOptions {
   readonly serverUrl: string;
+  readonly dataDirectory: string;
   readonly rendererUrl: string;
   readonly iconsDir: string;
 }
 
 /** Creates a hidden window with persisted bounds, native chrome, and restricted navigation. The caller owns loading and closing it. */
-export function createWindow({serverUrl, rendererUrl, iconsDir}: CreateWindowOptions): BrowserWindow {
+export function createWindow({serverUrl, dataDirectory, rendererUrl, iconsDir}: CreateWindowOptions): BrowserWindow {
   const saved = windowState({defaultWidth: 1280, defaultHeight: 800});
   let chrome: BrowserWindowConstructorOptions = {};
 
   if (process.platform === "win32") {
     chrome = {
-      backgroundMaterial: "acrylic",
+      backgroundColor: "#000000",
       titleBarOverlay: WINDOWS_TITLE_BAR_OVERLAY,
       titleBarStyle: "hidden",
     };
   } else if (process.platform === "darwin") {
     chrome = {
-      backgroundColor: "#00000000",
+      backgroundColor: "#000000",
       titleBarStyle: "hiddenInset",
       trafficLightPosition: {x: 20, y: 17},
-      vibrancy: "under-window",
-      visualEffectState: "followWindow",
     };
   }
 
@@ -49,6 +48,7 @@ export function createWindow({serverUrl, rendererUrl, iconsDir}: CreateWindowOpt
       preload: join(__dirname, "../preload/index.js"),
       additionalArguments: [
         `--supernova-server-url=${serverUrl}`,
+        `--supernova-data-directory=${dataDirectory}`,
         `--supernova-app-version=${app.getVersion()}`,
         ...(isNightlyVersion(app.getVersion()) ? ["--supernova-nightly"] : []),
       ],

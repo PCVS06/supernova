@@ -1,4 +1,3 @@
-import type {SidebarAction} from "@/features/sidebar/types/sidebar";
 import {create} from "zustand";
 import {createJSONStorage, persist} from "zustand/middleware";
 
@@ -20,11 +19,6 @@ interface SidebarSectionsState {
   readonly toggleProject: (projectId: string) => void;
   readonly toggleProjectsCollapsed: () => void;
 }
-
-export const sidebarActions: SidebarAction[] = [
-  {id: "new-project", icon: "folder", label: "New project"},
-  {id: "search", icon: "search", label: "Search"},
-];
 
 export const useSidebarSectionsStore = create<SidebarSectionsState>()(
   persist(

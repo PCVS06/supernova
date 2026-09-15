@@ -4,6 +4,7 @@ import * as Socket from "effect/unstable/socket/Socket";
 import {RpcProtocolClientService, makeRpcProtocolClient} from "@/rpc/transport/protocol";
 import type {RpcClient, RpcExecute, RpcRunOptions} from "@/rpc/transport/protocol";
 import {resolveSocketUrl} from "@/rpc/transport/endpoint";
+import {useConnectionStore} from "@/rpc/connection-store";
 
 export {RpcProtocolClientService} from "@/rpc/transport/protocol";
 export type {RpcClient, RpcClientFiber, RpcProtocolClient} from "@/rpc/transport/protocol";
@@ -14,7 +15,12 @@ function executeWithClient<A, E>(execute: RpcExecute<A, E>) {
 
 /** Owns one endpoint and its transport scope. Disposing it cancels all outstanding requests. */
 export function createRpcClient(endpoint: string): RpcClient {
-  const constructor = Layer.succeed(Socket.WebSocketConstructor, (url, protocols) => new globalThis.WebSocket(url, protocols));
+  const constructor = Layer.succeed(Socket.WebSocketConstructor, (url, protocols) => {
+    const connection = new globalThis.WebSocket(url, protocols);
+    connection.addEventListener("close", () => useConnectionStore.getState().setStatus("reconnecting"));
+    connection.addEventListener("error", () => useConnectionStore.getState().setStatus("reconnecting"));
+    return connection;
+  });
   const socket = Socket.layerWebSocket(resolveSocketUrl(endpoint)).pipe(Layer.provide(constructor));
 
   const protocol = EffectRpcClient.layerProtocolSocket({retryTransientErrors: true}).pipe(Layer.provide(Layer.merge(socket, RpcSerialization.layerJson)));

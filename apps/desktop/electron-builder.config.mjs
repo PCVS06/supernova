@@ -10,18 +10,20 @@ const azureSigningConfigured = Boolean(process.env.AZURE_TRUSTED_SIGNING_ENDPOIN
 /** @type {import("electron-builder").Configuration} */
 const config = {
   appId: "dev.supernova.app",
-  productName: nightly ? "Supernova (Nightly)" : "Supernova",
+  productName: nightly ? "Radian (Nightly)" : "Radian",
   directories: {
     buildResources: "resources",
   },
   files: ["out/**", "package.json"],
   extraResources: [
     {from: "resources/icons", to: "icons"},
-    {from: "../server/dist", to: "server", filter: ["cli.js", "tools/**", "node_modules/**"]},
+    {from: "../server/dist", to: "server", filter: ["cli.js", "tools/**"]},
+    // electron-builder never copies a source's top-level node_modules, so the externalised runtime ships from its own entry.
+    {from: "../server/dist/node_modules", to: "server/node_modules"},
     {from: "../../packages/web/dist", to: "web"},
   ],
   win: {
-    executableName: "supernova",
+    executableName: "radian",
     icon: "icons/icon.ico",
     ...(azureSigningConfigured && {
       azureSignOptions: {
@@ -33,14 +35,14 @@ const config = {
     }),
   },
   nsis: {
-    artifactName: "supernova-${version}-${arch}-setup.${ext}",
+    artifactName: "radian-${version}-${arch}-setup.${ext}",
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
     createDesktopShortcut: "always",
   },
   mac: {
     icon: "icons/icon.icns",
-    artifactName: "supernova-${version}-${arch}-mac.${ext}",
+    artifactName: "radian-${version}-${arch}-mac.${ext}",
     entitlements: "resources/entitlements.mac.plist",
     entitlementsInherit: "resources/entitlements.mac.plist",
     extendInfo: {
@@ -53,28 +55,28 @@ const config = {
   },
   dmg: {
     icon: "icons/icon.icns",
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   linux: {
-    executableName: "supernova",
+    executableName: "radian",
     icon: "icons",
     target: ["AppImage", "snap", "deb"],
     maintainer: "electronjs.org",
     category: "Utility",
   },
   appImage: {
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   snap: {
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   deb: {
-    artifactName: "supernova-${version}-${arch}.${ext}",
+    artifactName: "radian-${version}-${arch}.${ext}",
   },
   npmRebuild: false,
   publish: {
     provider: "github",
-    owner: "mattiacerutti",
+    owner: "PCVS06",
     repo: "supernova",
     releaseType: nightly ? "prerelease" : "release",
     ...(nightly && {channel: "nightly"}),

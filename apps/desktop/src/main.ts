@@ -1,7 +1,9 @@
+import {homedir} from "node:os";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import type {BrowserWindow} from "electron";
 import {app, shell, dialog, ipcMain, nativeImage, nativeTheme, net, protocol} from "electron";
+import type {DesktopBrowserShowRequest, DesktopServerState} from "@supernova/contracts/desktop/api";
 import {electronApp, optimizer} from "@electron-toolkit/utils";
 import installExtension, {REACT_DEVELOPER_TOOLS} from "electron-devtools-installer";
 import {startServerProcess} from "@supernova/server/process";
@@ -12,6 +14,8 @@ import {syncShellEnvironment} from "@/shell";
 import {isNightlyVersion} from "@/updates/state";
 import {createDesktopUpdater} from "@/updates/updater";
 import {createWindow, WINDOWS_TITLE_BAR_OVERLAY} from "@/window";
+import {createWorkspaceBrowser} from "@/workspace-browser";
+import type {WorkspaceBrowserController} from "@/workspace-browser";
 
 declare const SUPERNOVA_IS_DEV: boolean;
 declare const SUPERNOVA_SERVER_ENTRY: string;
@@ -20,11 +24,16 @@ declare const SUPERNOVA_WEB_DIR: string;
 const APP_URL = "supernova://app";
 const ICONS_DIR = app.isPackaged ? join(process.resourcesPath, "icons") : join(__dirname, "../../resources/icons");
 const NIGHTLY = isNightlyVersion(app.getVersion());
+// The bundled API resolves its own home the same way; the About page names this folder and opens it.
+const DATA_DIRECTORY = process.env.SUPERNOVA_HOME?.trim() || join(homedir(), ".supernova");
 
 let mainWindow: BrowserWindow | undefined;
+let workspaceBrowser: WorkspaceBrowserController | undefined;
 let server: ServerProcess | undefined;
 let serverUrl: string;
 let quitting = false;
+let serverState: DesktopServerState = {status: "running", revision: 0};
+let restarting: Promise<void> | undefined;
 
 const updater = createDesktopUpdater({
   nightly: NIGHTLY,
@@ -32,6 +41,14 @@ const updater = createDesktopUpdater({
 });
 
 function registerDesktopIpc(): void {
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.getServerState, () => serverState);
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.restartServer, () => {
+    if (quitting || SUPERNOVA_IS_DEV || serverState.status === "running") return;
+    restarting ??= startLocalServer().finally(() => {
+      restarting = undefined;
+    });
+    return restarting;
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.setNativeTheme, (_, theme: unknown) => {
     if (theme !== "dark" && theme !== "light" && theme !== "system") return;
 
@@ -46,7 +63,23 @@ function registerDesktopIpc(): void {
     if (error) throw new Error(error);
   });
 
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.showWorkspaceBrowser, async (_, request: DesktopBrowserShowRequest) => {
+    if (!request || typeof request.url !== "string" || !request.bounds || Object.values(request.bounds).some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+      throw new Error("Valid browser bounds and URL are required.");
+    }
+    await workspaceBrowser?.show(request);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.hideWorkspaceBrowser, () => workspaceBrowser?.hide());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.navigateWorkspaceBrowser, async (_, url: unknown) => {
+    if (typeof url !== "string") throw new Error("A browser URL is required.");
+    await workspaceBrowser?.navigate(url);
+  });
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.goBackWorkspaceBrowser, () => workspaceBrowser?.goBack());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.goForwardWorkspaceBrowser, () => workspaceBrowser?.goForward());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.reloadWorkspaceBrowser, () => workspaceBrowser?.reload());
+
   ipcMain.handle(DESKTOP_IPC_CHANNELS.getUpdateState, () => updater.getState());
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.checkForUpdates, () => updater.check());
   ipcMain.handle(DESKTOP_IPC_CHANNELS.downloadUpdate, () => updater.download());
 
   ipcMain.handle(DESKTOP_IPC_CHANNELS.installUpdate, async () => {
@@ -67,9 +100,12 @@ async function openWindow(): Promise<void> {
   const rendererUrl = SUPERNOVA_IS_DEV ? process.env.SUPERNOVA_WEB_URL : APP_URL;
   if (!rendererUrl) throw new Error("Start desktop development with bun run dev:desktop.");
 
-  const window = createWindow({serverUrl, rendererUrl, iconsDir: ICONS_DIR});
+  const window = createWindow({serverUrl, dataDirectory: DATA_DIRECTORY, rendererUrl, iconsDir: ICONS_DIR});
   mainWindow = window;
+  workspaceBrowser = createWorkspaceBrowser(window);
   window.once("closed", () => {
+    workspaceBrowser?.dispose();
+    workspaceBrowser = undefined;
     mainWindow = undefined;
   });
 
@@ -78,9 +114,39 @@ async function openWindow(): Promise<void> {
 }
 
 function failStartup(error: unknown): void {
-  console.error("Failed to start Supernova.", error);
-  dialog.showErrorBox("Supernova could not start", error instanceof Error ? error.message : String(error));
+  console.error("Failed to start Radian.", error);
+  dialog.showErrorBox("Radian could not start", error instanceof Error ? error.message : String(error));
   app.quit();
+}
+
+/** Reuses the owned endpoint so the existing renderer reconnects without losing its draft or navigation. */
+async function startLocalServer(): Promise<void> {
+  const publish = (status: DesktopServerState["status"]): void => {
+    serverState = {status, revision: serverState.revision + 1};
+    mainWindow?.webContents.send(DESKTOP_IPC_CHANNELS.serverState, serverState);
+  };
+  publish("restarting");
+  try {
+    const child = await startServerProcess({
+      entry: app.isPackaged ? join(process.resourcesPath, "server/cli.js") : SUPERNOVA_SERVER_ENTRY,
+      execPath: process.execPath,
+      env: {ELECTRON_RUN_AS_NODE: "1", SUPERNOVA_SERVER_DEV: "0"},
+      port: serverUrl ? Number(new URL(serverUrl).port) : 0,
+    });
+    server = child;
+    serverUrl = child.url;
+    if (quitting) {
+      await child.close();
+      return;
+    }
+    publish("running");
+    void child.exited.then(() => {
+      if (!quitting && server === child) publish("stopped");
+    });
+  } catch (error) {
+    publish("stopped");
+    throw error;
+  }
 }
 
 async function startDesktop(): Promise<void> {
@@ -96,16 +162,7 @@ async function startDesktop(): Promise<void> {
     serverUrl = endpoint;
     void installExtension(REACT_DEVELOPER_TOOLS).catch((error) => console.warn("Failed to install React DevTools.", error));
   } else {
-    server = await startServerProcess({
-      entry: app.isPackaged ? join(process.resourcesPath, "server/cli.js") : SUPERNOVA_SERVER_ENTRY,
-      execPath: process.execPath,
-      env: {ELECTRON_RUN_AS_NODE: "1", SUPERNOVA_SERVER_DEV: "0"},
-    });
-    serverUrl = server.url;
-
-    void server.exited.then(() => {
-      if (!quitting) failStartup(new Error("The local Supernova API stopped unexpectedly. Restart Supernova to reconnect."));
-    });
+    await startLocalServer();
   }
 
   if (quitting) {
@@ -132,7 +189,7 @@ async function startDesktop(): Promise<void> {
   app.on("activate", () => void openWindow().catch(failStartup));
 }
 
-app.setName(NIGHTLY ? "Supernova (Nightly)" : "Supernova");
+app.setName(NIGHTLY ? "Radian (Nightly)" : "Radian");
 app.setPath("userData", join(app.getPath("appData"), SUPERNOVA_IS_DEV ? "supernova-dev" : NIGHTLY ? "supernova-nightly" : "supernova"));
 protocol.registerSchemesAsPrivileged([{scheme: "supernova", privileges: {standard: true, secure: true, supportFetchAPI: true}}]);
 

@@ -17,7 +17,7 @@ const SessionTimelineRow = memo(function SessionTimelineRow(props: SessionTimeli
     case "user":
       return <UserMessage message={item.message} onRevertToMessage={onRevertToMessage} turnId={item.turnId} />;
     case "assistant":
-      return <AssistantMessage event={item.event} live={item.live} />;
+      return <AssistantMessage event={item.event} live={item.live} turnId={item.turnId} />;
     case "compaction":
       return <AssistantCompaction item={item} />;
     case "work":

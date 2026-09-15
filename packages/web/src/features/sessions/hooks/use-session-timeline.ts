@@ -7,21 +7,26 @@ import {useGeneralSettingsStore} from "@/features/settings/stores/general-settin
 import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store";
 import type {CheckpointNavigationConfirmation, CheckpointNavigationOutcome, SessionLiveStatus} from "@/features/sessions/stores/session-live-store";
 import type {SessionTimelineItem} from "@/features/sessions/types/session-timeline-item";
+import {useConnectionStore} from "@/rpc/connection-store";
 import {useRpcClient} from "@/rpc/use-rpc-client";
 import {useMountEffect} from "@/lib/use-mount-effect";
 
 interface UseSessionTimelineResult {
   /** Pending confirmation for a restore that would discard manual workspace changes. */
-  readonly checkpointConflict: {readonly cancel: () => void; readonly confirm: () => void; readonly open: boolean; readonly reason: "conflict" | "uncaptured"};
+  readonly checkpointConflict: Omit<CheckpointNavigationConfirmation, "confirm"> & {readonly confirm: () => void; readonly open: boolean; readonly inline: boolean};
+  /** Steps through saved turns directly, with any workspace conflict shown inside the composer. */
+  readonly stepCheckpoint: (direction: "back" | "forward") => void;
   committedTimelineItems: readonly SessionTimelineItem[];
   liveContext: SessionContextUsage | null;
   liveTimelineItems: readonly SessionTimelineItem[];
   slashCommandActions: ClientSlashCommandActions;
+  /** Delivers text to the turn that is already running. */
+  readonly steerTurn: (text: string) => Promise<boolean>;
   stopStreaming: () => void;
   streamError: string | null;
   readonly streamStatus: SessionLiveStatus;
   readonly revertToMessage: (turnId: string) => void;
-  submitMessage: (contentParts: readonly UserMessageContentPart[]) => void;
+  submitMessage: (contentParts: readonly UserMessageContentPart[]) => Promise<boolean>;
 }
 
 interface UseSessionTimelineInput {
@@ -32,9 +37,14 @@ interface UseSessionTimelineInput {
 
 export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTimelineResult {
   const {modelReference, sessionId, sessionTurns} = input;
+  const offline = useConnectionStore((state) => state.status !== "connected" || state.server?.status === "stopped" || state.server?.status === "restarting");
   const queryClient = useQueryClient();
   const rpcClient = useRpcClient();
-  const [confirmation, setConfirmation] = useState<{readonly open: boolean; readonly reason: "conflict" | "uncaptured"}>({open: false, reason: "conflict"});
+  const [confirmation, setConfirmation] = useState<Omit<CheckpointNavigationConfirmation, "cancel" | "confirm"> & {readonly open: boolean; readonly inline: boolean}>({
+    open: false,
+    inline: false,
+    reason: "conflict",
+  });
   const pendingConfirmation = useRef<CheckpointNavigationConfirmation | null>(null);
   const mounted = useRef(true);
 
@@ -48,17 +58,17 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
   });
 
   /** Keeps the optimistic timeline until the user decides, or retries immediately when confirmation is off. */
-  const navigate = async (run: () => Promise<CheckpointNavigationOutcome>): Promise<void> => {
+  const navigate = async (run: () => Promise<CheckpointNavigationOutcome>, inline = false): Promise<void> => {
     const outcome = await run();
     if (typeof outcome === "string") return;
     if (!mounted.current) {
       outcome.cancel();
       return;
     }
-    if (useGeneralSettingsStore.getState().confirmCheckpointConflicts) {
+    if (inline || outcome.reason === "review" || useGeneralSettingsStore.getState().confirmCheckpointConflicts) {
       pendingConfirmation.current = outcome;
-      setConfirmation({open: true, reason: outcome.reason});
-    } else await outcome.confirm();
+      setConfirmation({...outcome, open: true, inline});
+    } else await navigate(() => outcome.confirm());
   };
 
   const sessionState = useSessionLiveStore((state) => state.sessions[sessionId]);
@@ -67,6 +77,7 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
   const redoCheckpoint = useSessionLiveStore((state) => state.redoCheckpoint);
   const revertSessionToMessage = useSessionLiveStore((state) => state.revertToMessage);
   const sendMessage = useSessionLiveStore((state) => state.sendMessage);
+  const steerSession = useSessionLiveStore((state) => state.steerSession);
   const undoCheckpoint = useSessionLiveStore((state) => state.undoCheckpoint);
 
   const streamStatus = sessionState?.status ?? "idle";
@@ -78,16 +89,27 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
     [streamStatus, streamTurn]
   );
 
-  const submitMessage = (contentParts: readonly UserMessageContentPart[]): void => {
-    if (streamStatus !== "idle") return;
+  const submitMessage = async (contentParts: readonly UserMessageContentPart[]): Promise<boolean> => {
+    if (streamStatus !== "idle") return false;
 
     if (!modelReference) {
       // The composer should already be disabled, but keeping this guard prevents
       // callers from starting an invalid stream from routes that load models later.
-      return;
+      return false;
     }
 
-    sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId});
+    return sendMessage({contentParts, modelReference, queryClient, rpcClient, sessionId});
+  };
+
+  const steerTurn = async (text: string): Promise<boolean> => {
+    if (streamStatus !== "streaming") return false;
+
+    return steerSession({
+      rpcClient,
+      sessionId,
+      text,
+      fallback: modelReference ? {modelReference, captureCheckpoints: useGeneralSettingsStore.getState().captureCheckpoints} : undefined,
+    });
   };
 
   const stopStreaming = (): void => {
@@ -95,25 +117,31 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
   };
 
   const triggerCompaction = (): void => {
-    if (streamStatus !== "idle" || !modelReference) return;
+    if (streamStatus !== "idle" || !modelReference || offline) return;
 
     compactSession({modelReference, rpcClient, sessionId});
   };
 
   const undo = (): void => {
-    if (streamStatus !== "idle") return;
+    if (streamStatus !== "idle" || offline) return;
 
     void navigate(() => undoCheckpoint({queryClient, rpcClient, sessionId}));
   };
 
   const redo = (): void => {
-    if (streamStatus !== "idle") return;
+    if (streamStatus !== "idle" || offline) return;
 
     void navigate(() => redoCheckpoint({queryClient, rpcClient, sessionId}));
   };
 
+  const stepCheckpoint = (direction: "back" | "forward"): void => {
+    if (streamStatus !== "idle" || offline) return;
+    const step = direction === "back" ? undoCheckpoint : redoCheckpoint;
+    void navigate(() => step({queryClient, rpcClient, sessionId, review: false}), true);
+  };
+
   const revertToMessage = (turnId: string): void => {
-    if (streamStatus !== "idle") return;
+    if (streamStatus !== "idle" || offline) return;
 
     void navigate(() => revertSessionToMessage({queryClient, rpcClient, sessionId, turnId}));
   };
@@ -126,12 +154,18 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
         setConfirmation((current) => ({...current, open: false}));
       },
       confirm: () => {
-        void pendingConfirmation.current?.confirm();
+        const pending = pendingConfirmation.current;
         pendingConfirmation.current = null;
         setConfirmation((current) => ({...current, open: false}));
+        if (pending) void navigate(() => pending.confirm(), confirmation.inline);
       },
       open: confirmation.open,
+      inline: confirmation.inline,
       reason: confirmation.reason,
+      preview: confirmation.preview,
+      message: confirmation.message,
+      turnsBefore: confirmation.turnsBefore,
+      turnsAfter: confirmation.turnsAfter,
     },
     streamStatus,
     streamError: sessionState?.error ?? null,
@@ -139,7 +173,9 @@ export function useSessionTimeline(input: UseSessionTimelineInput): UseSessionTi
     committedTimelineItems,
     liveTimelineItems,
     slashCommandActions: {compact: triggerCompaction, redo, undo},
+    stepCheckpoint,
     revertToMessage,
+    steerTurn,
     submitMessage,
     stopStreaming,
   };

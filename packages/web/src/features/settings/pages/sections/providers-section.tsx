@@ -6,6 +6,8 @@ import ProviderConnectMethodContent from "@/features/settings/components/provide
 import ProviderGroup from "@/features/settings/components/providers/provider-group";
 import ProviderLoginContent from "@/features/settings/components/providers/provider-login-content";
 import ProvidersSkeleton from "@/features/settings/components/providers/providers-skeleton";
+import ToolCredentialsEditor from "@/features/settings/components/providers/tool-credentials-editor";
+import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
 import {useListProviders} from "@/features/settings/hooks/api/providers/use-list-providers";
 import {useLogoutProvider} from "@/features/settings/hooks/api/providers/use-logout-provider";
 import {useProviderConnectFlow} from "@/features/settings/hooks/providers/use-provider-connect-flow";
@@ -63,6 +65,12 @@ export default function ProvidersSection() {
           </Dialog>
         </>
       )}
+
+      <SettingsGroup title="Tool credentials">
+        <SettingsRow description="Every key is saved as soon as you enter it and is used by every harness of this app." title="Connector keys">
+          <ToolCredentialsEditor />
+        </SettingsRow>
+      </SettingsGroup>
     </>
   );
 }

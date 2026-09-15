@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="packages/web/assets/icon.png" alt="Supernova logo" width="80" />
+  <img src="packages/web/assets/icon-white.png" alt="Radian logo" width="80" />
 </p>
 
-<h1 align="center">Supernova</h1>
+<h1 align="center">Radian</h1>
 
 <p align="center">
-  <a href="https://github.com/mattiacerutti/supernova/actions/workflows/ci.yml"><img src="https://github.com/mattiacerutti/supernova/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/mattiacerutti/supernova/stargazers"><img src="https://img.shields.io/github/stars/mattiacerutti/supernova?style=flat&logo=github" alt="GitHub stars" /></a>
+  <a href="https://github.com/PCVS06/supernova/actions/workflows/ci.yml"><img src="https://github.com/PCVS06/supernova/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/PCVS06/supernova/stargazers"><img src="https://img.shields.io/github/stars/PCVS06/supernova?style=flat&logo=github" alt="GitHub stars" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
 </p>
 
@@ -15,27 +15,27 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/supernova-desktop.png" alt="Supernova desktop workspace" width="100%" />
+  <img src="docs/assets/supernova-desktop.png" alt="Radian desktop workspace" width="100%" />
 </p>
 
-Supernova is built for developers who want to move quickly without giving up control.
+Radian is built for developers who want to move quickly without giving up control.
 
 - **Performance first** — A virtualized timeline and streaming UI stay responsive, even in long sessions.
 - **Sleek by design** — A calm, focused interface without the feature sprawl of a general-purpose agent environment.
 - **Pi, not a replacement** — Pi remains the execution engine for models, providers, credentials, sessions, and tools.
 - **Git-backed navigation** — Move across conversation checkpoints and restore turn-level workspace changes without moving `HEAD` or resetting staged work.
-- **Remote-first** — Supernova is designed to run agents where the code lives and control them from anywhere. Remote access is coming soon.
+- **Remote-first** — Radian is designed to run agents where the code lives and control them from anywhere. Remote access is coming soon.
 
 ## Install
 
-Download the latest desktop app for macOS, Linux, or Windows from [GitHub Releases](https://github.com/mattiacerutti/supernova/releases/latest).
+Download the latest desktop app for macOS, Linux, or Windows from [GitHub Releases](https://github.com/PCVS06/supernova/releases/latest).
 
 ### From source
 
 Requires [Bun](https://bun.sh) 1.3.13 and Git.
 
 ```bash
-git clone https://github.com/mattiacerutti/supernova.git
+git clone https://github.com/PCVS06/supernova.git
 cd supernova
 bun install
 bun run dev:desktop
@@ -51,7 +51,7 @@ bun run test
 bun run test:e2e
 ```
 
-Supernova is a Bun/Turborepo workspace:
+Radian is a Bun/Turborepo workspace:
 
 - `apps/server` — CLI, server, Pi runtime composition, and host capabilities
 - `apps/desktop` — Electron shell

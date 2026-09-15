@@ -1,11 +1,18 @@
+import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {defineConfig} from "vite";
 import react, {reactCompilerPreset} from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 
+// The About page names the running version, which the browser build cannot read from the desktop app.
+const {version} = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as {version: string};
+
 // https://vite.dev/config/
 export default defineConfig(({mode}) => ({
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   plugins: [
     react(),
     babel({

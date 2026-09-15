@@ -2,11 +2,17 @@ import type {UserMessage as UserMessageModel} from "@supernova/contracts/session
 import Icon from "@/components/ui/icon";
 import MessageAttachmentPreview from "@/features/sessions/components/attachments/message-attachment-preview";
 import MessageActions from "@/features/sessions/components/timeline/items/actions/message-actions";
+import AssistantMessageContent from "@/features/sessions/components/timeline/items/assistant/assistant-message-content";
+import {normalizeMathMarkdown} from "@/features/sessions/lib/streaming/math-markdown";
 import {textFromComposerContentParts} from "@/features/sessions/lib/composer/composer-content-parts";
 import {cn} from "@/lib/cn";
 
 function UserMessageContent(props: {children: string}) {
   const {children} = props;
+  const markdown = normalizeMathMarkdown(children);
+  if (/(?<!\\)\$|```math\b/.test(markdown)) {
+    return <AssistantMessageContent className="inline [&>p]:inline [&>p]:m-0">{children}</AssistantMessageContent>;
+  }
   const parts = children.split(/(`[^`]+`)/g);
   const partOccurrences = new Map<string, number>();
 
@@ -48,7 +54,7 @@ function UserMessageStructuredContent(props: {message: UserMessageModel}) {
   const textPartOccurrences = new Map<string, number>();
 
   return (
-    <span className="whitespace-pre-wrap">
+    <div className="whitespace-pre-wrap">
       {message.contentParts.map((part) => {
         if (part.type === "text") {
           const occurrence = textPartOccurrences.get(part.text) ?? 0;
@@ -59,7 +65,7 @@ function UserMessageStructuredContent(props: {message: UserMessageModel}) {
         if (part.type === "attachment") return null;
         return <ReferenceContentPart key={part.id} part={part} />;
       })}
-    </span>
+    </div>
   );
 }
 

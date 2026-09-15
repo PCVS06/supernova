@@ -1,5 +1,6 @@
 import {Schema} from "effect";
 import {ModelReference} from "@supernova/contracts/sessions/schemas";
+import {HarnessWorkflow} from "@supernova/contracts/harnesses/schemas/workflow";
 
 export const HarnessExecution = Schema.Struct({model: Schema.optional(ModelReference), effort: Schema.optional(Schema.String)});
 
@@ -13,6 +14,25 @@ export const HarnessAgent = Schema.Struct({
   color: Schema.optional(Schema.String),
 });
 
+export const CuratorAutoApply = Schema.Struct({memory: Schema.Boolean, planningLog: Schema.Boolean});
+
+/** The background curator of a harness: what it may apply by itself and how much it may spend. */
+/** Local wall-clock window, "HH:MM" to "HH:MM", in which no review starts; may cross midnight. */
+export const CuratorQuietHours = Schema.Struct({from: Schema.String, to: Schema.String});
+
+export const CuratorConfig = Schema.Struct({
+  enabled: Schema.Boolean,
+  execution: Schema.optional(HarnessExecution),
+  maxCostUsdPerRun: Schema.Number,
+  maxCostUsdPerDay: Schema.Number,
+  autoApply: CuratorAutoApply,
+  /** Local time "HH:MM" of the daily full review; unset means no daily sweep. */
+  dailyAt: Schema.optional(Schema.String),
+  quietHours: Schema.optional(CuratorQuietHours),
+  /** Days after a decision on an artefact before it may be proposed against again without newer evidence; default 7. */
+  cooldownDays: Schema.optional(Schema.Number),
+});
+
 export const HarnessConfig = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -21,6 +41,7 @@ export const HarnessConfig = Schema.Struct({
   orchestratorPrompt: Schema.optional(Schema.String),
   execution: Schema.optional(HarnessExecution),
   coordinatorProjectId: Schema.optional(Schema.String),
+  curator: Schema.optional(CuratorConfig),
   enabledSkills: Schema.optional(Schema.Array(Schema.String)),
   agents: Schema.Array(HarnessAgent),
   extensions: Schema.Array(Schema.String),
@@ -33,7 +54,10 @@ export const HarnessConfig = Schema.Struct({
     reserveTokens: Schema.Number,
     keepRecentTokens: Schema.Number,
   }),
+  /** Legacy handoff list. Mirrors the first workflow's agent order; the runtime executes `workflows`. */
   graph: Schema.Struct({steps: Schema.Array(Schema.String)}),
+  /** Named sequential workflows with typed handoffs. Absent in libraries saved before workflows existed. */
+  workflows: Schema.optional(Schema.Array(HarnessWorkflow)),
   loop: Schema.Struct({maxTurns: Schema.Number, timeoutSeconds: Schema.Number}),
   source: Schema.optional(Schema.Struct({packagePath: Schema.String, rootPath: Schema.String})),
 });
@@ -52,6 +76,10 @@ export const HarnessProject = Schema.Struct({
   enabledSkills: Schema.optional(Schema.Array(Schema.String)),
   color: Schema.optional(Schema.String),
   order: Schema.optional(Schema.Number),
+  /** Project-relative Markdown files that extend the project instructions: plans, goals, roadmaps agents must see. */
+  planningDocuments: Schema.optional(Schema.Array(Schema.String)),
+  /** Computed when the library is read: the project folder no longer exists on disk, so chats cannot start. Never persisted. */
+  folderMissing: Schema.optional(Schema.Boolean),
 });
 
 export const HarnessLibrary = Schema.Struct({
@@ -102,6 +130,34 @@ export const HarnessRuntimeContext = Schema.Struct({
   contextFiles: Schema.Array(Schema.String),
   model: Schema.optional(ModelReference),
 });
+/** Public worker output only. Provider thinking, signatures and raw result metadata are never recorded. */
+export const HarnessTranscriptEntry = Schema.Union([
+  Schema.Struct({
+    id: Schema.String,
+    at: Schema.String,
+    kind: Schema.Literal("assistant"),
+    text: Schema.String,
+    streaming: Schema.Boolean,
+    incomplete: Schema.optional(Schema.Boolean),
+    truncated: Schema.Boolean,
+  }),
+  Schema.Struct({
+    id: Schema.String,
+    at: Schema.String,
+    kind: Schema.Literal("tool"),
+    toolName: Schema.String,
+    status: Schema.Literals(["running", "completed", "failed"]),
+    input: Schema.String,
+    output: Schema.optional(Schema.String),
+    inputTruncated: Schema.Boolean,
+    outputTruncated: Schema.Boolean,
+    mediaOmitted: Schema.Boolean,
+  }),
+]);
+export const HarnessTranscript = Schema.Struct({
+  entries: Schema.Array(HarnessTranscriptEntry),
+  omittedEntries: Schema.Number,
+});
 export const HarnessRun = Schema.Struct({
   ...HarnessRunSummary.fields,
   projectPath: Schema.String,
@@ -111,6 +167,8 @@ export const HarnessRun = Schema.Struct({
   output: Schema.String,
   error: Schema.optional(Schema.String),
   events: Schema.Array(Schema.Struct({at: Schema.String, message: Schema.String})),
+  /** Absent on older receipts: their final result is not a reconstructed conversation. */
+  transcript: Schema.optional(HarnessTranscript),
 });
 export const ChatHarnessContext = Schema.Struct({
   captured: Schema.Boolean,
@@ -125,8 +183,13 @@ export type HarnessConfig = typeof HarnessConfig.Type;
 export type HarnessProject = typeof HarnessProject.Type;
 export type HarnessLibrary = typeof HarnessLibrary.Type;
 export type HarnessSnapshot = typeof HarnessSnapshot.Type;
+export type CuratorConfig = typeof CuratorConfig.Type;
+export type CuratorAutoApply = typeof CuratorAutoApply.Type;
+export type CuratorQuietHours = typeof CuratorQuietHours.Type;
 export type HarnessPromptLayer = typeof HarnessPromptLayer.Type;
 export type HarnessRunSummary = typeof HarnessRunSummary.Type;
 export type HarnessRun = typeof HarnessRun.Type;
+export type HarnessTranscriptEntry = typeof HarnessTranscriptEntry.Type;
+export type HarnessTranscript = typeof HarnessTranscript.Type;
 export type HarnessRuntimeContext = typeof HarnessRuntimeContext.Type;
 export type ChatHarnessContext = typeof ChatHarnessContext.Type;

@@ -8,7 +8,7 @@ export default function SessionComposerSkeleton() {
         <textarea
           className="scroll-fade-y max-h-48 min-h-10 w-full resize-none overflow-y-auto bg-transparent p-1 text-sm text-ink outline-none field-sizing-content placeholder:text-ink-faint disabled:cursor-default"
           disabled
-          placeholder="Ask anything, @ to add files, or / for commands"
+          aria-label="Message"
           rows={1}
           value=""
           readOnly

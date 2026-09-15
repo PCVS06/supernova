@@ -1,4 +1,4 @@
-import type {ButtonHTMLAttributes, KeyboardEvent, MouseEventHandler, ReactNode} from "react";
+import type {ButtonHTMLAttributes, KeyboardEvent, MouseEventHandler, ReactNode, Ref} from "react";
 import {cn} from "@/lib/cn";
 
 export type ButtonVariant = "bare" | "filled" | "ghost" | "primary";
@@ -29,6 +29,7 @@ const iconSizeClasses: Record<ButtonSize, string> = {
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>;
   as?: "button" | "div";
   children: ReactNode;
   shape?: ButtonShape;
@@ -38,7 +39,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export default function Button(props: ButtonProps) {
   const {as = "button", children, className, onClick, onKeyDown, shape = "default", size = "none", type = "button", variant = "bare", ...buttonProps} = props;
-  const resolvedClassName = cn(variantClasses[variant], shape === "icon" ? iconSizeClasses[size] : defaultSizeClasses[size], className);
+  const resolvedClassName = cn("rounded-lg", variantClasses[variant], shape === "icon" ? iconSizeClasses[size] : defaultSizeClasses[size], className);
 
   if (as === "div") {
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {

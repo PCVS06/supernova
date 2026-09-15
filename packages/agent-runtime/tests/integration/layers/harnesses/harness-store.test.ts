@@ -1,4 +1,4 @@
-import {mkdtemp, mkdir, readFile, rm} from "node:fs/promises";
+import {mkdtemp, mkdir, readFile, realpath, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, beforeEach, describe, expect, it} from "vitest";
@@ -15,6 +15,40 @@ describe("harness persistence and isolation", () => {
   });
   afterEach(async () => {
     await rm(root, {recursive: true, force: true});
+  });
+
+  it("reports a missing project folder without persisting the flag or failing the reader", async () => {
+    await store.save(createDefaultHarness(), 0);
+    const project = {id: "project-a", harnessId: "coding", name: "Project A", path: join(root, "project"), systemPrompt: "", contextInstructions: "", agents: []};
+    await store.saveProject({...project, folderMissing: true}, 1);
+    expect(await readFile(join(root, "config", "harnesses.json"), "utf8")).not.toContain("folderMissing");
+    expect((await store.describe()).projects[0]?.folderMissing).toBeUndefined();
+
+    await rm(join(root, "project"), {recursive: true});
+    expect((await store.describe()).projects[0]?.folderMissing).toBe(true);
+    expect((await store.list()).projects[0]?.folderMissing).toBeUndefined();
+    await expect(store.resolveProject("project-a")).rejects.toThrow("The project folder is missing");
+    // The project stays editable so its plan and instructions survive until the folder returns.
+    await store.saveProject({...project, name: "Renamed"}, 2);
+    expect((await store.list()).projects[0]?.name).toBe("Renamed");
+    await expect(store.saveProject({...project, id: "project-b", path: join(root, "elsewhere")}, 3)).rejects.toThrow();
+  });
+
+  it("unlinks a project but keeps a coordinator until its labs are gone", async () => {
+    await store.save(createDefaultHarness(), 0);
+    await mkdir(join(root, "lab"));
+    const base = {harnessId: "coding", systemPrompt: "", contextInstructions: "", agents: []};
+    await store.saveProject({...base, id: "head", name: "Head", path: join(root, "project")}, 1);
+    await store.saveProject({...base, id: "lab", name: "Lab", path: join(root, "lab")}, 2);
+    await store.save({...createDefaultHarness(), coordinatorProjectId: "head"}, 3);
+    await expect(store.removeProject("head", 4)).rejects.toThrow("Remove the labs first");
+    await expect(store.removeProject("missing", 4)).rejects.toThrow("not found");
+    expect((await store.removeProject("lab", 4)).projects.map((project) => project.id)).toEqual(["head"]);
+    const library = await store.removeProject("head", 5);
+    expect(library.projects).toEqual([]);
+    expect(library.harnesses[0]?.coordinatorProjectId).toBeUndefined();
+    // The folder is never touched by unlinking.
+    expect((await readFile(join(root, "config", "harnesses.json"), "utf8")).includes('"lab"')).toBe(false);
   });
 
   it("rejects lost updates and retains a valid atomic configuration", async () => {
@@ -104,5 +138,24 @@ describe("harness persistence and isolation", () => {
     expect((await store.forSession("head-chat", join(root, "project")))?.delegation?.projects[0]?.systemPrompt).toBe("LAB");
     expect((await store.resolveProject("head")).delegation?.projects[0]?.systemPrompt).toBe("UPDATED LAB");
     expect((await store.resolveProject("lab")).delegation).toBeUndefined();
+  });
+
+  it("does not import the Science Pi Idea Graph extension into a harness", async () => {
+    const packagePath = join(root, "science-package");
+    const scienceRoot = join(root, "science-space");
+    await mkdir(join(packagePath, "agents"), {recursive: true});
+    await mkdir(join(scienceRoot, "labs", "lab"), {recursive: true});
+    await writeFile(
+      join(packagePath, "package.json"),
+      JSON.stringify({name: "pi-scientific-tools", pi: {extensions: ["./extensions/research/index.ts", "./extensions/subagent/index.ts", "./extensions/idea-graph/index.ts"]}})
+    );
+    await writeFile(join(packagePath, "APPEND_SYSTEM.md"), "Science rules");
+    const canonicalPackagePath = await realpath(packagePath);
+
+    const library = await store.importScience(packagePath, scienceRoot, 0);
+    const harness = library.harnesses.find((item) => item.id === "science");
+
+    expect(harness?.description).not.toContain("Idea Graph");
+    expect(harness?.extensions).toEqual([join(canonicalPackagePath, "extensions", "research", "index.ts")]);
   });
 });
