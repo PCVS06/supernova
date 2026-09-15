@@ -4,6 +4,7 @@ import Icon from "@/components/ui/icon";
 import type {IconName} from "@/components/ui/icon";
 import ConstantOrb from "@/components/brand/constant-orb";
 import type {MathematicalConstant} from "@/components/brand/constant-identity";
+import ContextProvenance from "@/features/harnesses/components/context-provenance";
 
 /** Names an instruction layer by the scope a user needs to reason about. */
 function instructionScope(kind: HarnessPromptLayer["kind"]): string {
@@ -79,16 +80,19 @@ interface InstructionReceiptProps {
   readonly layers: readonly HarnessPromptLayer[];
   readonly runtime?: HarnessRuntimeContext;
   readonly captured?: boolean;
+  readonly revision?: number;
+  readonly scope?: "chat" | "run";
   readonly unframed?: boolean;
   readonly roleConstant?: MathematicalConstant;
 }
 
-/** Presents every captured context layer as a closed, independently scrollable disclosure. */
+/** Shows context provenance above independently expandable instructions and recorded runtime details. */
 export default function InstructionReceipt(props: InstructionReceiptProps) {
-  const {layers, runtime, unframed = false, roleConstant = "e"} = props;
+  const {layers, runtime, captured, revision, scope = "chat", unframed = false, roleConstant = "e"} = props;
   const resourceCount = runtime ? runtime.skills.length + runtime.contextFiles.length + runtime.tools.length : 0;
   const rows = (
     <div aria-label="Context details">
+      <ContextProvenance captured={captured} revision={revision} runtime={runtime} scope={scope} />
       {layers.map((layer, index) => (
         <ContextDisclosure
           constant={layer.kind === "shared" ? "pi" : layer.kind === "project" ? "phi" : layer.kind === "role" ? roleConstant : undefined}
@@ -105,9 +109,10 @@ export default function InstructionReceipt(props: InstructionReceiptProps) {
       <ContextDisclosure icon="skill" label="Resources" count={resourceCount}>
         {runtime && resourceCount > 0 ? (
           <div className="divide-y divide-border-muted">
-            <ResourceList title="Skills" values={runtime.skills} />
-            <ResourceList title="Context files" values={runtime.contextFiles} />
-            <ResourceList title="Tools" values={runtime.tools} />
+            <p className="pb-3 text-xs text-ink-muted">Resources available at capture. Available skills may not have been invoked.</p>
+            <ResourceList title="Available skills" values={runtime.skills} />
+            <ResourceList title="Loaded instruction files" values={runtime.contextFiles} />
+            <ResourceList title="Active tools" values={runtime.tools} />
           </div>
         ) : (
           <p className="text-xs text-ink-faint">Not recorded.</p>
@@ -117,7 +122,7 @@ export default function InstructionReceipt(props: InstructionReceiptProps) {
       <ContextDisclosure icon="terminal" label="Runtime">
         {runtime ? (
           <section className="space-y-2">
-            <h3 className="text-xs font-medium text-ink">Exact runtime system prompt</h3>
+            <h3 className="text-xs font-medium text-ink">System prompt at capture</h3>
             <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-ink-muted">{runtime.systemPrompt}</pre>
           </section>
         ) : (

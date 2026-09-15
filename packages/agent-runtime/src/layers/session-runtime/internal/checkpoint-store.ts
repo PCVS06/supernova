@@ -6,6 +6,7 @@ import {Context, Layer} from "effect";
 import {KeyedMutex} from "@supernova/agent-runtime/layers/shared/lib/keyed-mutex";
 import {
   applyRestorePlan,
+  verifyRestorePlan,
   buildRestorePlan,
   captureRepository,
   collectShadowGarbage,
@@ -19,6 +20,8 @@ import {
 import type {RepositoryCheckpointState, RepositoryRestorePlan} from "@supernova/agent-runtime/layers/session-runtime/internal/shadow-repository";
 import {checkpointRefName, digest} from "@supernova/agent-runtime/layers/session-runtime/lib/checkpoints/checkpoint-keys";
 import {isWithin} from "@supernova/agent-runtime/layers/session-runtime/lib/checkpoints/git-paths";
+import {CheckpointReviewRequired} from "@supernova/contracts/session-runtime/procedures";
+import {previewRestorePlans} from "@supernova/agent-runtime/layers/session-runtime/internal/checkpoint-preview";
 
 const HASH_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const REPOSITORY_ID_PATTERN = /^[0-9a-f]{64}$/;
@@ -38,6 +41,9 @@ export interface CheckpointStoreShape {
   readonly restore: (input: {
     readonly checkpointId: string;
     readonly force: boolean;
+    readonly review?: boolean;
+    readonly reviewFingerprint?: string;
+    readonly reviewContext?: string;
     /** When absent, force is required and the live workspace is captured as the restore baseline. */
     readonly fromCheckpointId: string | undefined;
     readonly projectRoot: string;
@@ -156,6 +162,9 @@ class CheckpointStoreImpl implements CheckpointStoreShape {
   public async restore(input: {
     readonly checkpointId: string;
     readonly force: boolean;
+    readonly review?: boolean;
+    readonly reviewFingerprint?: string;
+    readonly reviewContext?: string;
     readonly fromCheckpointId: string | undefined;
     readonly projectRoot: string;
     readonly sessionId: string;
@@ -210,11 +219,19 @@ class CheckpointStoreImpl implements CheckpointStoreShape {
   /** Reconciles manifests and applies the workspace restore. Requires the project lock. */
   private async restoreProject(
     projectRoot: string,
-    input: {readonly checkpointId: string; readonly force: boolean; readonly fromCheckpointId: string | undefined; readonly sessionId: string}
+    input: {
+      readonly checkpointId: string;
+      readonly force: boolean;
+      readonly review?: boolean;
+      readonly reviewFingerprint?: string;
+      readonly reviewContext?: string;
+      readonly fromCheckpointId: string | undefined;
+      readonly sessionId: string;
+    }
   ): Promise<void> {
     const fromCheckpointId = input.fromCheckpointId ?? randomUUID();
     if (input.fromCheckpointId === undefined) {
-      if (!input.force) throw new Error("Restoring without a current checkpoint requires force.");
+      if (!input.force && !input.review) throw new Error("Restoring without a current checkpoint requires force.");
       // Keep a durable safety snapshot and reuse the normal diff, preflight and rollback pipeline.
       // Capture and restore share the project lock so other checkpoint operations cannot interleave.
       await this.captureProject(projectRoot, {checkpointId: fromCheckpointId, sessionId: input.sessionId});
@@ -245,8 +262,24 @@ class CheckpointStoreImpl implements CheckpointStoreShape {
         if (!(await repositoryMatchesTree(repository, target.treeId))) throw new Error("A target-only repository does not match its checkpoint.");
         continue;
       }
-      plans.push(await buildRestorePlan(repository, current, target, input.force));
+      plans.push(await buildRestorePlan(repository, current, target, input.force || !!input.review));
     }
+
+    if (input.review) {
+      const manualChanges = input.fromCheckpointId === undefined || plans.some((plan) => currentByKey.get(repositoryKey(plan.repository))?.treeId !== plan.safetyTreeId);
+      const preview = {
+        ...(await previewRestorePlans(plans, manualChanges, input.reviewContext ?? `${input.fromCheckpointId}:${input.checkpointId}`)),
+        filesCaptured: targetManifest.repositories.length > 0,
+      };
+      if (preview.fingerprint !== input.reviewFingerprint || (manualChanges && !input.force)) {
+        throw new CheckpointReviewRequired({
+          message: input.reviewFingerprint ? "Files changed since the preview. Review the updated restore." : "Review the files and conversation before restoring.",
+          preview,
+        });
+      }
+    }
+
+    for (const plan of plans) await verifyRestorePlan(plan);
 
     const touched: RepositoryRestorePlan[] = [];
     try {

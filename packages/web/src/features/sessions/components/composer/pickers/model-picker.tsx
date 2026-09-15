@@ -1,6 +1,7 @@
 import type {ModelDetails} from "@supernova/contracts/sessions/schemas";
 import type {MouseEvent} from "react";
-import {useRef, useState} from "react";
+import {use, useRef, useState} from "react";
+import {ComposerFocusContext} from "@/features/sessions/contexts/composer-focus-context";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
@@ -20,6 +21,8 @@ interface ModelPickerProps {
 
 export default function ModelPicker(props: ModelPickerProps) {
   const {disabled, models, onModelChange, selectedModel} = props;
+  const focusEditor = use(ComposerFocusContext);
+  const selectedOption = useRef(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -35,11 +38,15 @@ export default function ModelPicker(props: ModelPickerProps) {
   const selectedModelKey = selectedModel ? modelKey(selectedModel.providerId, selectedModel.id) : undefined;
 
   const handleOpenChange = (nextOpen: boolean): void => {
-    if (nextOpen) setSearch("");
+    if (nextOpen) {
+      setSearch("");
+      selectedOption.current = false;
+    }
     setOpen(nextOpen);
   };
 
   const handleModelSelect = (value: string): void => {
+    selectedOption.current = true;
     onModelChange(value);
     setOpen(false);
   };
@@ -52,6 +59,7 @@ export default function ModelPicker(props: ModelPickerProps) {
 
   return (
     <Menu
+      finalFocus={() => (selectedOption.current ? (focusEditor?.() ?? true) : true)}
       align="end"
       className="w-[min(20rem,calc(100vw-2rem))] p-0"
       onOpenChange={handleOpenChange}

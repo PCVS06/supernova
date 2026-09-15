@@ -2,6 +2,11 @@ export type DesktopEnvironment = "mac" | "windows" | "linux";
 
 export type DesktopTheme = "dark" | "light" | "system";
 
+export interface DesktopServerState {
+  readonly status: "running" | "stopped" | "restarting";
+  readonly revision: number;
+}
+
 export type DesktopUpdateStatus = "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
 
 export interface DesktopBrowserBounds {
@@ -39,6 +44,9 @@ export interface DesktopApi {
   readonly dataDirectory: string;
   readonly appVersion: string;
   readonly nightly: boolean;
+  readonly getServerState: () => Promise<DesktopServerState>;
+  readonly restartServer: () => Promise<void>;
+  readonly onServerState: (listener: (state: DesktopServerState) => void) => () => void;
   readonly openDirectory: (path: string) => Promise<void>;
   readonly setNativeTheme: (theme: DesktopTheme) => Promise<void>;
   readonly showWorkspaceBrowser: (request: DesktopBrowserShowRequest) => Promise<void>;

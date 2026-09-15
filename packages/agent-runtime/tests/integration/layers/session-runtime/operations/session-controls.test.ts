@@ -105,6 +105,59 @@ describe("server-owned session goals and queues", () => {
     expect(lastTexts[1]).toContain("Last");
   });
 
+  it("pauses only queued work while the current turn finishes, retaining edits until explicit resume", async () => {
+    const f = await fixture();
+    const held = f.gate();
+    f.pi.faux.setResponses([
+      async () => {
+        await held.promise;
+        return fauxAssistantMessage("Current finished");
+      },
+      fauxAssistantMessage("Queued finished"),
+    ]);
+    await f.send("Current");
+    const queued = await f.enqueue("Next");
+    await expect(f.update({type: "edit_queued", id: queued.queue[0]!.id, text: "Revised", expectedRevision: queued.revision})).rejects.toThrow("Pause the queue");
+    const paused = await f.update({type: "pause_queue"});
+    await f.update({type: "edit_queued", id: queued.queue[0]!.id, text: "Revised", expectedRevision: paused.revision});
+    held.resolve();
+    await waitUntil(() => expect(f.manager.getBranch().filter((entry) => entry.type === "custom" && entry.customType === "supernova.checkpoint")).toHaveLength(2));
+    expect((await f.controls()).queue).toHaveLength(1);
+    expect(f.pi.faux.state.callCount).toBe(1);
+    await f.update({type: "resume_queue"});
+    await waitUntil(() => expect(f.pi.faux.state.callCount).toBe(2));
+  });
+
+  it("edits and reorders saved queue entries without dropping attachments, then delivers the new order once", async () => {
+    const f = await fixture();
+    await f.stop();
+    await f.update({type: "enqueue", contentParts: [{type: "text", text: "Original"}, imageAttachment], modelReference: selectedModelReference, captureCheckpoints: false});
+    const initial = await f.enqueue("Second");
+    const firstId = initial.queue[0]!.id;
+    const secondId = initial.queue[1]!.id;
+    const edited = await f.update({type: "edit_queued", id: firstId, text: "Revised", expectedRevision: initial.revision});
+    expect(edited.queue[0]!.contentParts).toEqual([{type: "text", text: "Revised"}, imageAttachment]);
+    await expect(f.update({type: "edit_queued", id: firstId, text: "Stale", expectedRevision: initial.revision})).rejects.toThrow("changed");
+    const reordered = await f.update({type: "move_queued", id: secondId, direction: "up", expectedRevision: edited.revision});
+    expect(reordered.queue.map((message) => message.id)).toEqual([secondId, firstId]);
+    expect((await new SessionControlsStore().load(f.info.id, f.manager)).state.queue).toEqual(reordered.queue);
+    await expect(f.update({type: "move_queued", id: secondId, direction: "up", expectedRevision: reordered.revision})).rejects.toThrow();
+    const delivered: string[] = [];
+    f.pi.faux.setResponses(
+      [0, 1].map(() => (context) => {
+        delivered.push(JSON.stringify(context.messages.at(-1)));
+        return fauxAssistantMessage("Delivered");
+      })
+    );
+    await f.update({type: "resume_queue"});
+    await waitUntil(async () => expect((await f.controls()).queue).toEqual([]));
+    await waitUntil(() => expect(delivered).toHaveLength(2));
+    expect(delivered[0]).toContain("Second");
+    expect(delivered[1]).toContain("Revised");
+    expect(delivered[1]).toContain(imageAttachment.contentBase64);
+    await expect(f.update({type: "edit_queued", id: firstId, text: "Too late", expectedRevision: (await f.controls()).revision})).rejects.toThrow();
+  });
+
   it("never dispatches queued work between prompt completion and after-turn checkpoint commitment", async () => {
     const checkpoint = deferred();
     const reached = deferred();
@@ -221,6 +274,112 @@ describe("server-owned session goals and queues", () => {
     await waitUntil(async () => expect((await f.controls()).goal).toMatchObject({status: "paused", turnsUsed: 2, maxTurns: 2}));
     expect(f.pi.faux.state.callCount).toBe(2);
     await expect(f.update({type: "resume_goal"})).rejects.toThrow("turn limit");
+  });
+
+  it("edits a running goal at the next boundary and rejects the superseded result", async () => {
+    const f = await fixture();
+    const first = f.gate();
+    let oldId = "";
+    let revisedPrompt = "";
+    f.pi.faux.setResponses([
+      async () => {
+        await first.promise;
+        return fauxAssistantMessage([{type: "toolCall", id: "old-result", name: "report_goal_result", arguments: {goalId: oldId, status: "completed", summary: "Old work done"}}], {
+          stopReason: "toolUse",
+        });
+      },
+      fauxAssistantMessage("Old response finished"),
+      (context) => {
+        revisedPrompt = JSON.stringify(context.messages.at(-1));
+        return fauxAssistantMessage("Revised work done");
+      },
+    ]);
+    oldId = (await f.goal(1)).goal!.id;
+    await waitUntil(() => expect(f.pi.faux.state.callCount).toBe(1));
+    const revised = await f.update({
+      type: "update_goal",
+      id: oldId,
+      objective: "Verify the corrected objective",
+      modelReference: selectedModelReference,
+      captureCheckpoints: false,
+    });
+    expect(revised.goal).toMatchObject({objective: "Verify the corrected objective", status: "active", turnsUsed: 0, maxTurns: 1});
+    expect(revised.goal!.id).not.toBe(oldId);
+    expect(f.pi.faux.state.callCount).toBe(1);
+    await expect(f.update({type: "update_goal", id: oldId, objective: "Stale browser edit", modelReference: selectedModelReference})).rejects.toThrow("goal changed");
+    first.resolve();
+    await waitUntil(async () => expect((await f.controls()).goal).toMatchObject({id: revised.goal!.id, status: "paused", turnsUsed: 1}));
+    expect(revisedPrompt).toContain("Verify the corrected objective");
+    expect(f.pi.faux.state.callCount).toBe(3);
+  });
+
+  it.each(["pause_goal", "complete_goal"] as const)("edits and resubmits a goal after %s without clearing it", async (type) => {
+    const f = await fixture();
+    const first = f.gate();
+    f.pi.faux.setResponses([
+      async () => {
+        await first.promise;
+        return fauxAssistantMessage("First");
+      },
+      fauxAssistantMessage("Updated"),
+    ]);
+    const initial = await f.goal(1);
+    await waitUntil(() => expect(f.pi.faux.state.callCount).toBe(1));
+    await f.update({type});
+    const result = await f.update({type: "update_goal", id: initial.goal!.id, objective: "Updated objective", modelReference: selectedModelReference, captureCheckpoints: false});
+    expect(result.goal).toMatchObject({objective: "Updated objective", status: "active", createdAt: initial.goal!.createdAt});
+    first.resolve();
+    await waitUntil(async () => expect((await f.controls()).goal).toMatchObject({status: "paused", turnsUsed: 1}));
+    expect(f.pi.faux.state.callCount).toBe(2);
+  });
+
+  it("promotes a queued correction after Pi finishes and delivers it first exactly once", async () => {
+    const checkpoint = deferred();
+    const reached = deferred();
+    gates.push(checkpoint);
+    let captures = 0;
+    const f = await fixture({
+      checkpointStore: {
+        capture: async () => {
+          if (++captures === 2) {
+            reached.resolve();
+            await checkpoint.promise;
+          }
+        },
+        restore: async () => {},
+        deleteSession: async () => {},
+      },
+    });
+    const delivered: string[] = [];
+    f.pi.faux.setResponses([
+      fauxAssistantMessage("First"),
+      (context) => {
+        delivered.push(JSON.stringify(context.messages.at(-1)));
+        return fauxAssistantMessage("Correction");
+      },
+      (context) => {
+        delivered.push(JSON.stringify(context.messages.at(-1)));
+        return fauxAssistantMessage("Ordinary");
+      },
+    ]);
+    await f.pi.runWithSessionRuntime(
+      Effect.flatMap(Effect.service(SessionRuntimeService), (service) =>
+        service.sendMessage({sessionId: f.info.id, modelReference: selectedModelReference, contentParts: [{type: "text", text: "First"}]})
+      )
+    );
+    await reached.promise;
+    await f.enqueue("Ordinary queued work");
+    const queued = await f.enqueue("Correction at next opportunity");
+    const id = queued.queue[1]!.id;
+    const promoted = await f.update({type: "steer_queued", id});
+    expect(promoted.queue.map((message) => message.id)).toEqual([id, queued.queue[0]!.id]);
+    checkpoint.resolve();
+    await waitUntil(async () => {
+      expect((await f.controls()).queue).toEqual([]);
+      expect(f.pi.faux.state.callCount).toBe(3);
+    });
+    expect(delivered[0]).toContain("Correction at next opportunity");
+    expect(delivered[1]).toContain("Ordinary queued work");
   });
 
   it("pauses the queue and blocks the goal on a settled provider error", async () => {
@@ -440,6 +599,9 @@ describe("server-owned session goals and queues", () => {
     });
     expect(await f.controls()).toMatchObject({queuePaused: true, goal: {status: "paused"}, queue: [{deliveryStatus: "uncertain"}]});
     await expect(f.update({type: "resume_queue"})).rejects.toThrow("uncertain");
+    const recoveredRevision = (await f.controls()).revision;
+    await expect(f.update({type: "edit_queued", id: queued.queue[0]!.id, text: "Unsafe retry", expectedRevision: recoveredRevision})).rejects.toThrow("uncertain");
+    await expect(f.update({type: "move_queued", id: queued.queue[0]!.id, direction: "down", expectedRevision: recoveredRevision})).rejects.toThrow("uncertain");
     await expect(f.update({type: "steer_queued", id: queued.queue[0]!.id})).rejects.toThrow("uncertain");
     expect(f.pi.faux.state.callCount).toBe(0);
     await f.update({type: "remove_queued", id: queued.queue[0]!.id});

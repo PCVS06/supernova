@@ -68,10 +68,16 @@ export function projectOrbits(model: OrbitModel, focusId: string, limit: number,
         });
   }
   const satellites = new Map<string, readonly OrbitBody[]>();
+  // Keep ordinary teams visible alongside their projects, without mounting an
+  // unbounded history of numeric artwork in a single animated scene.
+  const satelliteLimit = Math.min(6, Math.floor(24 / Math.max(1, primary.length)));
   for (const body of primary)
     if (!("members" in body)) {
       const nested = (model.children.get(body.id) ?? []).map((id) => model.bodies.get(id)!).filter(Boolean);
-      satellites.set(body.id, nested.toSorted((a, b) => priority(a) - priority(b) || a.id.localeCompare(b.id)).slice(0, 3));
+      satellites.set(
+        body.id,
+        nested.toSorted((a, b) => Number(b.id === selectedId) - Number(a.id === selectedId) || priority(a) - priority(b) || a.id.localeCompare(b.id)).slice(0, satelliteLimit)
+      );
     }
   return {root, primary, satellites, hidden: primary.reduce((sum, body) => sum + ("members" in body ? body.members.length : 0), 0)};
 }

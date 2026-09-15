@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["VITE_SUPERNOVA_SERVER_URL=http://127.0.0.1:48373", "bun", "run", "--filter", "@supernova/web", "dev"],
+      "port": 48371
+    }
+  ]
+}

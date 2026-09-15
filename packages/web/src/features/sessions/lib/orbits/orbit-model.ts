@@ -1,4 +1,4 @@
-import type {HarnessRunSummary, WorkflowRunSummary} from "@supernova/contracts/harnesses/schemas";
+import type {HarnessProject, HarnessRunSummary, WorkflowRunSummary} from "@supernova/contracts/harnesses/schemas";
 import type {MathematicalConstant} from "@/components/brand/constant-identity";
 
 export interface OrbitBody {
@@ -21,6 +21,7 @@ export interface OrbitBody {
   readonly startedAt?: string;
   readonly finishedAt?: string;
   readonly updatedAt?: string;
+  readonly assignments?: readonly HarnessRunSummary[];
 }
 
 export interface OrbitTransfer {
@@ -36,6 +37,7 @@ export interface OrbitModel {
   readonly transfers: readonly OrbitTransfer[];
   readonly workflows: readonly WorkflowRunSummary[];
   readonly unresolved: number;
+  readonly aliases: ReadonlyMap<string, string>;
 }
 
 /** Only explicit invocation ownership attaches a nested workflow to an orchestrator. */
@@ -58,14 +60,23 @@ interface BuildOrbitModelOptions {
   readonly rootRun?: HarnessRunSummary;
   readonly otherRuns?: readonly HarnessRunSummary[];
   readonly otherWorkflows?: readonly WorkflowRunSummary[];
+  readonly projects?: readonly Pick<HarnessProject, "id" | "harnessId">[];
 }
 
 /** Builds one chat-owned system. Project membership alone never imports another chat's workers. */
 export function buildOrbitModel(options: BuildOrbitModelOptions): OrbitModel {
   const {chatId, title, constant, busy, rootRun} = options;
-  const runs = options.runs.filter((run) => run.chatId === chatId);
+  const projectKeys = options.projects && new Set(options.projects.map((project) => `${project.harnessId}:${project.id}`));
+  const delegatedProjects = new Set(options.runs.filter((run) => run.chatId === chatId && run.role === "lab-orchestrator").map((run) => `${run.harnessId}:${run.projectId}`));
+  // Direct workers still belong to their chat, including chats in folders outside the harness directory.
+  const includedProject = (run: HarnessRunSummary | WorkflowRunSummary): boolean =>
+    !projectKeys ||
+    !delegatedProjects.has(`${run.harnessId}:${run.projectId}`) ||
+    projectKeys.has(`${run.harnessId}:${run.projectId}`) ||
+    (rootRun !== undefined && run.projectId === rootRun.projectId && run.harnessId === rootRun.harnessId);
+  const runs = options.runs.filter((run) => run.chatId === chatId && includedProject(run));
   if (rootRun && rootRun.chatId === chatId && !runs.some((run) => run.id === rootRun.id)) runs.push(rootRun);
-  const workflows = options.workflows.filter((run) => run.chatId === chatId);
+  const workflows = options.workflows.filter((run) => run.chatId === chatId && includedProject(run));
   const chatRoot = `session:${chatId}`;
   const bodies = new Map<string, OrbitBody>();
   const aliases = new Map<string, string>();
@@ -165,6 +176,29 @@ export function buildOrbitModel(options: BuildOrbitModelOptions): OrbitModel {
         transfers.push({from: `step:${workflow.id}:${source}`, to: id, kind: step.reads.includes(source) ? "result" : "dependency"});
     }
   }
+  // A project is one planet. Its assignments remain inspectable history, not duplicate planets.
+  if (!rootRun) {
+    const projects = new Map<string, HarnessRunSummary[]>();
+    for (const run of runs) {
+      if (run.role !== "lab-orchestrator") continue;
+      const id = `project:${run.harnessId}:${run.projectId}`;
+      const assignments = projects.get(id) ?? [];
+      assignments.push(run);
+      projects.set(id, assignments);
+    }
+    for (const [id, assignments] of projects) {
+      assignments.sort((a, b) => Number(isActive(b.status)) - Number(isActive(a.status)) || b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id));
+      const current = assignments[0]!;
+      const representative = bodies.get(aliases.get(`run:${current.id}`) ?? `run:${current.id}`)!;
+      bodies.set(id, {...representative, id, assignments});
+      for (const run of assignments) {
+        const previousId = aliases.get(`run:${run.id}`) ?? `run:${run.id}`;
+        aliases.set(previousId, id);
+        aliases.set(`run:${run.id}`, id);
+        bodies.delete(previousId);
+      }
+    }
+  }
   let unresolved = 0;
   for (const [id, body] of bodies)
     if (body.parentId) {
@@ -229,5 +263,15 @@ export function buildOrbitModel(options: BuildOrbitModelOptions): OrbitModel {
         id,
         descendants.filter((child) => included.has(child))
       );
-  return {rootId, bodies, children, transfers: transfers.filter((edge) => included.has(edge.from) && included.has(edge.to)), workflows, unresolved};
+  return {
+    rootId,
+    bodies,
+    children,
+    aliases,
+    transfers: transfers
+      .map((edge) => ({...edge, from: aliases.get(edge.from) ?? edge.from, to: aliases.get(edge.to) ?? edge.to}))
+      .filter((edge) => included.has(edge.from) && included.has(edge.to)),
+    workflows,
+    unresolved,
+  };
 }

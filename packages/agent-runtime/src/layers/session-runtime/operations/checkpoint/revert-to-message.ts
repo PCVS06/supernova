@@ -39,7 +39,14 @@ export async function revertToMessage(runtime: PiSessionRuntime, input: RevertTo
 
     if (nodeIndex === -1 || targetIndex === -1 || !target || !current || !isCheckpointEntry(current)) throw new Error("Checkpoint target was not found.");
 
-    await runtime.navigateToCheckpoint({current, cursorLeafEntryId: cursor.leafEntryId, force: input.force ?? false, target});
+    await runtime.navigateToCheckpoint({
+      current,
+      cursorLeafEntryId: cursor.leafEntryId,
+      force: input.force ?? false,
+      review: input.review,
+      reviewFingerprint: input.reviewFingerprint,
+      target,
+    });
   } finally {
     runtime.endWork();
   }

@@ -1,4 +1,4 @@
-import {CheckpointConflictError, CheckpointGenericError, CheckpointUncapturedError} from "@supernova/contracts/session-runtime/procedures";
+import {CheckpointConflictError, CheckpointGenericError, CheckpointUncapturedError, CheckpointReviewRequired} from "@supernova/contracts/session-runtime/procedures";
 import type {CheckpointNavigationError} from "@supernova/contracts/session-runtime/procedures";
 import {CheckpointConflictError as WorkspaceConflict} from "@supernova/agent-runtime/layers/session-runtime/internal/shadow-repository";
 
@@ -16,7 +16,7 @@ const FALLBACK_MESSAGE = "Failed to change the session checkpoint.";
 // service/RPC edge, so rejections arrive untyped. Consider adopting Effect below that edge, which would carry
 // typed errors end to end and remove the need to reclassify causes here.
 export function asCheckpointNavigationError(cause: unknown): CheckpointNavigationError {
-  if (cause instanceof CheckpointUncapturedError) return cause;
+  if (cause instanceof CheckpointUncapturedError || cause instanceof CheckpointReviewRequired) return cause;
   if (cause instanceof WorkspaceConflict) return new CheckpointConflictError({cause, message: CONFLICT_MESSAGE});
   return new CheckpointGenericError({cause, message: cause instanceof Error && cause.message.length > 0 ? cause.message : FALLBACK_MESSAGE});
 }

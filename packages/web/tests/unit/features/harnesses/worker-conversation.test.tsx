@@ -73,6 +73,8 @@ describe("worker conversation inspection", () => {
     expect(html).toContain("Back to chat");
     expect(html).not.toContain("ROLE INSTRUCTIONS ARE NOT CHAT");
     expect(html).not.toContain("No transcript recorded");
+    expect(html.indexOf('aria-expanded="true"')).toBeLessThan(html.indexOf("Latest response"));
+    expect(html).toContain('aria-expanded="true"');
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain("evidence.md");
   });

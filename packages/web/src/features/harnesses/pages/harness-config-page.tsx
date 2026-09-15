@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react";
+import {useState} from "react";
 import {useBlocker, useNavigate} from "@tanstack/react-router";
 import type {HarnessAgent, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
@@ -19,8 +19,22 @@ import type {HarnessPageId, HarnessPageSearch} from "@/features/harnesses/lib/ha
 import {resolveHarnessPage} from "@/features/harnesses/lib/harness-sections";
 import {saveWorkspaceDraft} from "@/features/harnesses/lib/save-workspace-draft";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
+import {useMountEffect} from "@/lib/use-mount-effect";
 import type {AppEnvironment} from "@/lib/app-environment";
 import "@/features/harnesses/components/harness-layout.css";
+
+interface SelectSettingsProjectProps {
+  readonly harnessId: string;
+  readonly projectId?: string;
+}
+
+/** Keeps persisted navigation aligned with the selected route, once per scope. */
+function SelectSettingsProject({harnessId, projectId}: SelectSettingsProjectProps) {
+  useMountEffect(() => {
+    useHarnessNavigationStore.getState().selectProject(harnessId, projectId);
+  });
+  return null;
+}
 
 interface WorkspaceEditorProps {
   harness: HarnessConfig;
@@ -43,7 +57,6 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
   const saveProject = useSaveHarnessProject();
   const removeProject = useRemoveHarnessProject();
   const navigate = useNavigate();
-  const selectProject = useHarnessNavigationStore((state) => state.selectProject);
   const head = draft.projects.find((item) => item.id === draft.harness.coordinatorProjectId);
   const selectedProject = projectId ? draft.projects.find((item) => item.id === projectId) : (head ?? draft.projects[0]);
   const savePending = saveProject.isPending || saveHarness.isPending;
@@ -60,11 +73,6 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
     enableBeforeUnload: dirty,
     withResolver: true,
   });
-
-  // The harness navigation store follows the scope in the URL.
-  useEffect(() => {
-    selectProject(harness.id, selectedProject?.id);
-  }, [harness.id, selectedProject?.id, selectProject]);
 
   const goTo = (nextPage: HarnessPageId, search: HarnessPageSearch = {}): void => {
     void navigate({to: "/settings/harness/$harnessId/$page", params: {harnessId: harness.id, page: nextPage}, search});
@@ -133,6 +141,12 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
 
   return (
     <>
+      <SelectSettingsProject key={`${harness.id}:${selectedProject?.id}`} harnessId={harness.id} projectId={selectedProject?.id} />
+      <p className="shrink-0 border-b border-border-muted px-5 py-2 text-xs leading-relaxed text-ink-muted sm:px-6">
+        {immediate
+          ? "Plan-file selections save immediately. Saving a document updates the shared project file."
+          : "These are defaults for new chats. Chats with a saved configuration keep it; open Context in a chat to inspect its source. Save applies pending edits across this harness and its projects."}
+      </p>
       {base.revision !== revision && !savePending && (
         <div role="status" className="shrink-0 border-b border-border bg-surface-sidebar px-5 py-2 text-xs text-ink-muted sm:px-6">
           Settings changed elsewhere. Your draft has been kept.{" "}

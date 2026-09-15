@@ -2,7 +2,6 @@ import {useState} from "react";
 import type {ReactNode} from "react";
 import {useReducedMotion} from "framer-motion";
 import ConstantOrb from "@/components/brand/constant-orb";
-import ConstantCompletion from "@/components/brand/constant-completion";
 import {constantIdentity} from "@/components/brand/constant-identity";
 import type {MathematicalConstant} from "@/components/brand/constant-identity";
 import {advanceTurnMotion} from "@/features/sessions/lib/timeline/turn-motion";
@@ -33,12 +32,14 @@ export default function MathActivityStatus(props: MathActivityStatusProps) {
   if (next !== observed) setObserved(next);
   const completing = !!observed.completionId && mode !== "off" && !reduceMotion;
   const label = stopping ? "Stopping" : compacting ? "Compacting context" : busy ? "Thinking" : completing ? "Reply complete" : "Ready";
-  const indicator =
-    completing && !busy && !stopping ? (
-      <ConstantCompletion constant={constant} key={observed.completionId} onComplete={() => setObserved((current) => ({...current, completionId: undefined}))} />
-    ) : (
-      <ConstantOrb constant={constant} className={compacting ? "size-12" : "size-20"} state={stopping ? "still" : busy ? "working" : "idle"} />
-    );
+  const indicator = (
+    <ConstantOrb
+      constant={constant}
+      className="size-20"
+      state={stopping ? "still" : busy ? "working" : completing ? "complete" : "idle"}
+      onComplete={() => setObserved((current) => ({...current, completionId: undefined}))}
+    />
+  );
   const status = (
     <span className="flex flex-col gap-1">
       <span>{label}</span>

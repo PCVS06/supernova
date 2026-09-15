@@ -3,7 +3,7 @@ import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import type {BrowserWindow} from "electron";
 import {app, shell, dialog, ipcMain, nativeImage, nativeTheme, net, protocol} from "electron";
-import type {DesktopBrowserShowRequest} from "@supernova/contracts/desktop/api";
+import type {DesktopBrowserShowRequest, DesktopServerState} from "@supernova/contracts/desktop/api";
 import {electronApp, optimizer} from "@electron-toolkit/utils";
 import installExtension, {REACT_DEVELOPER_TOOLS} from "electron-devtools-installer";
 import {startServerProcess} from "@supernova/server/process";
@@ -32,6 +32,8 @@ let workspaceBrowser: WorkspaceBrowserController | undefined;
 let server: ServerProcess | undefined;
 let serverUrl: string;
 let quitting = false;
+let serverState: DesktopServerState = {status: "running", revision: 0};
+let restarting: Promise<void> | undefined;
 
 const updater = createDesktopUpdater({
   nightly: NIGHTLY,
@@ -39,6 +41,14 @@ const updater = createDesktopUpdater({
 });
 
 function registerDesktopIpc(): void {
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.getServerState, () => serverState);
+  ipcMain.handle(DESKTOP_IPC_CHANNELS.restartServer, () => {
+    if (quitting || SUPERNOVA_IS_DEV || serverState.status === "running") return;
+    restarting ??= startLocalServer().finally(() => {
+      restarting = undefined;
+    });
+    return restarting;
+  });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.setNativeTheme, (_, theme: unknown) => {
     if (theme !== "dark" && theme !== "light" && theme !== "system") return;
 
@@ -109,6 +119,36 @@ function failStartup(error: unknown): void {
   app.quit();
 }
 
+/** Reuses the owned endpoint so the existing renderer reconnects without losing its draft or navigation. */
+async function startLocalServer(): Promise<void> {
+  const publish = (status: DesktopServerState["status"]): void => {
+    serverState = {status, revision: serverState.revision + 1};
+    mainWindow?.webContents.send(DESKTOP_IPC_CHANNELS.serverState, serverState);
+  };
+  publish("restarting");
+  try {
+    const child = await startServerProcess({
+      entry: app.isPackaged ? join(process.resourcesPath, "server/cli.js") : SUPERNOVA_SERVER_ENTRY,
+      execPath: process.execPath,
+      env: {ELECTRON_RUN_AS_NODE: "1", SUPERNOVA_SERVER_DEV: "0"},
+      port: serverUrl ? Number(new URL(serverUrl).port) : 0,
+    });
+    server = child;
+    serverUrl = child.url;
+    if (quitting) {
+      await child.close();
+      return;
+    }
+    publish("running");
+    void child.exited.then(() => {
+      if (!quitting && server === child) publish("stopped");
+    });
+  } catch (error) {
+    publish("stopped");
+    throw error;
+  }
+}
+
 async function startDesktop(): Promise<void> {
   await app.whenReady();
 
@@ -122,16 +162,7 @@ async function startDesktop(): Promise<void> {
     serverUrl = endpoint;
     void installExtension(REACT_DEVELOPER_TOOLS).catch((error) => console.warn("Failed to install React DevTools.", error));
   } else {
-    server = await startServerProcess({
-      entry: app.isPackaged ? join(process.resourcesPath, "server/cli.js") : SUPERNOVA_SERVER_ENTRY,
-      execPath: process.execPath,
-      env: {ELECTRON_RUN_AS_NODE: "1", SUPERNOVA_SERVER_DEV: "0"},
-    });
-    serverUrl = server.url;
-
-    void server.exited.then(() => {
-      if (!quitting) failStartup(new Error("The local Radian API stopped unexpectedly. Restart Radian to reconnect."));
-    });
+    await startLocalServer();
   }
 
   if (quitting) {

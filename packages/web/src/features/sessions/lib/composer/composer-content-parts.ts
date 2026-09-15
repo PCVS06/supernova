@@ -91,8 +91,14 @@ export function createReferenceNode(part: UserMessageReferencePart): JSONContent
  */
 export function editorToContentParts(editor: Editor): readonly UserMessageContentPart[] {
   const parts: UserMessageContentPart[] = [];
+  let firstParagraph = true;
 
   editor.state.doc.descendants((node) => {
+    if (node.type.name === "paragraph") {
+      if (!firstParagraph) pushTextContentPart(parts, "\n");
+      firstParagraph = false;
+      return;
+    }
     if (node.type.name === "text") {
       pushTextContentPart(parts, node.text ?? "");
       return;

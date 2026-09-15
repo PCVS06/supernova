@@ -1,8 +1,23 @@
+import {useMountEffect} from "@/lib/use-mount-effect";
+import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
 import {Link} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import WorkerRunDetail from "@/features/harnesses/components/worker-run/worker-run-detail";
 import {useHarnessRun} from "@/features/harnesses/hooks/api/use-harness-runs";
+
+interface WorkerWorkspaceTargetProps {
+  readonly sessionId: string;
+  readonly projectPath: string;
+}
+
+/** A worker's shared workspace belongs to the chat that delegated it. */
+function WorkerWorkspaceTarget({sessionId, projectPath}: WorkerWorkspaceTargetProps) {
+  useMountEffect(() => {
+    useWorkspacePanelStore.getState().setTarget({sessionId, projectPath});
+  });
+  return null;
+}
 
 interface HarnessRunPageProps {
   sessionId: string;
@@ -34,6 +49,7 @@ export default function HarnessRunPage(props: HarnessRunPageProps) {
           Loading worker conversation…
         </p>
       )}
+      {run && <WorkerWorkspaceTarget key={`${sessionId}:${run.projectPath}`} sessionId={sessionId} projectPath={run.projectPath} />}
       {run && <WorkerRunDetail key={run.id} run={run} stale={Boolean(query.error)} />}
     </div>
   );

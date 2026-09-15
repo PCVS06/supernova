@@ -1,4 +1,4 @@
-import type {DesktopApi, DesktopUpdateState} from "@supernova/contracts/desktop/api";
+import type {DesktopApi, DesktopUpdateState, DesktopServerState} from "@supernova/contracts/desktop/api";
 import type {IpcRendererEvent} from "electron";
 import {contextBridge, ipcRenderer} from "electron";
 import {DESKTOP_IPC_CHANNELS} from "@/ipc";
@@ -13,6 +13,13 @@ const desktopApi = {
   dataDirectory: readArgument("--supernova-data-directory=") ?? "",
   appVersion: readArgument("--supernova-app-version=") ?? "",
   nightly: process.argv.includes("--supernova-nightly"),
+  getServerState: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.getServerState),
+  restartServer: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.restartServer),
+  onServerState: (listener) => {
+    const handler = (_: IpcRendererEvent, state: DesktopServerState): void => listener(state);
+    ipcRenderer.on(DESKTOP_IPC_CHANNELS.serverState, handler);
+    return () => ipcRenderer.removeListener(DESKTOP_IPC_CHANNELS.serverState, handler);
+  },
 
   openDirectory: (path) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.openDirectory, path),
   setNativeTheme: (theme) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setNativeTheme, theme),

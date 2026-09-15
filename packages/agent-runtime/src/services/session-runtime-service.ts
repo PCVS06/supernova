@@ -8,6 +8,7 @@ import type {
   SendMessagePayload,
   SessionStreamEvent,
   SteerSessionPayload,
+  SteerSessionResult,
   UndoCheckpointPayload,
   GetSessionControlsError,
   UpdateSessionControlsError,
@@ -28,7 +29,7 @@ export interface SessionRuntimeServiceShape {
   readonly releaseSession: (sessionId: string) => Effect.Effect<void>;
   readonly revertToMessage: (input: RevertToMessagePayload) => Effect.Effect<void, CheckpointNavigationError>;
   readonly sendMessage: (input: SendMessagePayload) => Effect.Effect<void>;
-  readonly steerSession: (input: SteerSessionPayload) => Effect.Effect<void, SteerSessionError>;
+  readonly steerSession: (input: SteerSessionPayload) => Effect.Effect<SteerSessionResult, SteerSessionError>;
   readonly undoCheckpoint: (input: UndoCheckpointPayload) => Effect.Effect<void, CheckpointNavigationError>;
   readonly watchEvents: () => Stream.Stream<SessionStreamEvent>;
 }

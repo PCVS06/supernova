@@ -29,7 +29,14 @@ export async function redoCheckpoint(runtime: PiSessionRuntime, input: RedoCheck
     const target = findRedoTarget(branch, nodeIndex);
     if (!target) throw new Error("No checkpoint is available to redo.");
 
-    await runtime.navigateToCheckpoint({current, cursorLeafEntryId: cursor.leafEntryId, force: input.force ?? false, target});
+    await runtime.navigateToCheckpoint({
+      current,
+      cursorLeafEntryId: cursor.leafEntryId,
+      force: input.force ?? false,
+      review: input.review,
+      reviewFingerprint: input.reviewFingerprint,
+      target,
+    });
   } finally {
     runtime.endWork();
   }

@@ -17,6 +17,7 @@ const heldPrompts = new Map([
   ["Concurrent session A message", "concurrent-session-a"],
   ["Queue acceptance message", "queue-acceptance"],
   ["Steering acceptance message", "steering-acceptance"],
+  ["Hold delegated steering worker", "delegated-steering-worker"],
   ["Continue the active goal: Validate the workspace controls", "goal-acceptance"],
 ]);
 
@@ -58,6 +59,23 @@ const response: FauxResponseFactory = async (context, options) => {
 
   if (prompt === "Provider failure message") {
     return fauxAssistantMessage("", {errorMessage: "Synthetic provider failure.", stopReason: "error"});
+  }
+
+  if (prompt === "Orchestrate steering acceptance") {
+    const delegated = context.messages.find((message) => message.role === "toolResult" && message.toolName === "subagent");
+    const receipt = delegated?.role === "toolResult" ? delegated.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("") : "";
+    const runId = receipt.match(/Run IDs: ([a-f0-9]{32})/)?.[1];
+    if (delegated && !runId) throw new Error(`Delegation did not return a run ID: ${receipt}`);
+    if (runId) writeFileSync(`${controlDir}/waiting-delegation-steering`, "");
+    return fauxAssistantMessage(
+      {
+        type: "toolCall",
+        id: runId ? "join-steering-worker" : "start-steering-worker",
+        name: "subagent",
+        arguments: runId ? {action: "wait", runIds: [runId]} : {agent: "workflow-reviewer", task: "Hold delegated steering worker", background: true},
+      },
+      {stopReason: "toolUse"}
+    );
   }
 
   if (prompt === "Run parallel acceptance workflow") {

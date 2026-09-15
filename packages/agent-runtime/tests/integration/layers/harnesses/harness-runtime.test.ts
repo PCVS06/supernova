@@ -1,4 +1,5 @@
-import {mkdtemp, mkdir, rm, symlink, writeFile} from "node:fs/promises";
+import {HarnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
+import {mkdtemp, mkdir, realpath, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
@@ -74,7 +75,7 @@ describe("harness runtime resources", () => {
     const tool = createHarnessTools(snapshot, sdk)[0]!;
     const result = await tool.execute("call", {agent: "reviewer", task: "Review the evidence"}, undefined, undefined, {} as ExtensionContext);
     expect(createAgentSession).toHaveBeenCalledWith(
-      expect.objectContaining({tools: ["read", "grep"], excludeTools: ["subagent", "harness_workflow", "lab_agent", "manage_lab_view"]})
+      expect.objectContaining({tools: ["read", "grep"], excludeTools: ["subagent", "harness_workflow", "lab_agent", "manage_lab_view", "manage_projects"]})
     );
     const options = createAgentSession.mock.calls[0]![0]!;
     expect(options.resourceLoader?.getSystemPrompt()).toBeUndefined();
@@ -146,13 +147,17 @@ describe("harness runtime resources", () => {
     const harness = {...snapshot.harness, coordinatorProjectId: "head", systemPrompt: "GLOBAL", orchestratorPrompt: "HEAD ROLE"};
     const lab = {...snapshot.project, id: "lab", parentProjectId: "head", path: labPath, systemPrompt: "LAB RULES", orchestratorPrompt: "LAB ROLE"};
     const head = {...snapshot.project, id: "head", systemPrompt: "HEAD PROJECT"};
-    const resolved = {...resolveHarnessProject(harness, head, 1), delegation: {harness, projects: [lab]}};
-    const tool = createHarnessTools(resolved, sdk).find((item) => item.name === "lab_agent")!;
+    const configuration = new HarnessStore(join(root, "config"));
+    await configuration.save({...harness, coordinatorProjectId: undefined}, 0);
+    await configuration.saveProject(head, 1);
+    await configuration.saveProject(lab, 2);
+    await configuration.save(harness, 3);
+    const tool = createHarnessTools(await configuration.resolveProject("head"), sdk, undefined, configuration).find((item) => item.name === "lab_agent")!;
     await expect(tool.execute("bad", {projectId: "unrelated", task: "Check"}, undefined, undefined, {} as ExtensionContext)).rejects.toThrow("does not report");
     expect(createAgentSession).not.toHaveBeenCalled();
     await tool.execute("good", {projectId: "lab", task: "Check"}, undefined, undefined, {} as ExtensionContext);
     const options = createAgentSession.mock.calls[0]![0]!;
-    expect(options.cwd).toBe(labPath);
+    expect(options.cwd).toBe(await realpath(labPath));
     const prompt = options.resourceLoader!.getAppendSystemPrompt().join("\n");
     expect(prompt).toContain("GLOBAL\n\nLAB RULES");
     expect(prompt).toContain("LAB ROLE");

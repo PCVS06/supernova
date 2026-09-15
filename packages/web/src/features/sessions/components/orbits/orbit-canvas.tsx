@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useCallback} from "react";
 import type {ReactNode} from "react";
 import Button from "@/components/ui/button";
 import ConstantOrb from "@/components/brand/constant-orb";
@@ -8,6 +8,7 @@ import {animateOrbitScene} from "@/features/sessions/lib/orbits/orbit-animation"
 import type {OrbitAnimationState} from "@/features/sessions/lib/orbits/orbit-animation";
 
 interface OrbitCanvasProps {
+  readonly animation: OrbitAnimationState;
   readonly expanded: boolean;
   readonly onToggle: () => void;
   readonly model: OrbitModel;
@@ -25,9 +26,13 @@ interface OrbitCanvasProps {
 
 /** A single live chat symbol with bounded orbital bodies; surrounding records never render as stacked cards. */
 export default function OrbitCanvas(props: OrbitCanvasProps) {
-  const {model, projection, anchor, status, selectedId, ready, stale, moving, expanded, onToggle, onResize, onSelect, onEvent} = props;
-  const [animation] = useState<OrbitAnimationState>(() => ({lastObserved: 0, pulses: [], radii: new Map(), phases: new Map(), order: new Map()}));
+  const {animation, model, projection, anchor, status, selectedId, ready, stale, moving, expanded, onToggle, onResize, onSelect, onEvent} = props;
   const empty = projection.primary.length === 0;
+  const bindScene = useCallback(
+    (element: HTMLDivElement | null) =>
+      element ? animateOrbitScene(element, {model, projection, state: animation, ready, moving, expanded, stale, onResize, onEvent}) : undefined,
+    [model, projection, animation, ready, moving, expanded, stale, onResize, onEvent]
+  );
   return (
     <div
       className="chat-orbit-canvas"
@@ -37,16 +42,22 @@ export default function OrbitCanvas(props: OrbitCanvasProps) {
       data-orbit-stale={stale}
       role="group"
       aria-label="Orbital delegation"
-      ref={(element) => (element ? animateOrbitScene(element, {model, projection, state: animation, ready, moving, expanded, stale, onResize, onEvent}) : undefined)}
+      ref={bindScene}
     >
       <svg className="chat-orbit-paths" aria-hidden="true">
-        {projection.primary.map((body) => (
-          <ellipse key={body.id} className="chat-orbit-track" data-orbit-track={body.id} data-active={body.active && !stale} data-selected={selectedId === body.id} />
+        {projection.primary.map((body, index) => (
+          <ellipse
+            key={body.id}
+            className={index === 0 ? "chat-orbit-track" : "chat-orbit-track hidden"}
+            data-orbit-track={body.id}
+            data-active={body.active && !stale}
+            data-selected={selectedId === body.id}
+          />
         ))}
         {[...projection.satellites].flatMap(([parent, children]) =>
           children.map((child, index) => (
             <g key={child.id} data-orbit-satellite={child.id} data-parent={parent} data-slot={index}>
-              <ellipse className="chat-orbit-track chat-orbit-moon-track" />
+              <ellipse className={index === 0 ? "chat-orbit-track chat-orbit-moon-track" : "chat-orbit-track chat-orbit-moon-track hidden"} />
             </g>
           ))
         )}
@@ -81,9 +92,17 @@ export default function OrbitCanvas(props: OrbitCanvasProps) {
             data-attention={body.attention}
             aria-label={`${body.label} · ${stale ? "last saved · " : ""}${body.status}`}
             aria-pressed={selectedId === body.id}
+            onPointerDown={(event) => {
+              if (event.pointerType === "mouse") event.preventDefault();
+            }}
             onClick={() => onSelect(body)}
           >
-            <ConstantOrb constant={body.constant} detail="compact" state="still" className="chat-orbit-moon-mark" />
+            <ConstantOrb
+              constant={body.constant}
+              detail="compact"
+              state={expanded && ready && moving && !stale ? (body.active ? "working" : "idle") : "still"}
+              className="chat-orbit-moon-mark"
+            />
             <span className="chat-orbit-caption">
               {body.label} · {body.status}
             </span>
@@ -107,6 +126,9 @@ export default function OrbitCanvas(props: OrbitCanvasProps) {
               data-status={group ? "group" : body.status}
               aria-label={label}
               aria-pressed={selectedId === body.id}
+              onPointerDown={(event) => {
+                if (event.pointerType === "mouse") event.preventDefault();
+              }}
               onClick={() => onSelect(body)}
             >
               {group ? (
@@ -129,7 +151,12 @@ export default function OrbitCanvas(props: OrbitCanvasProps) {
                   <span className="chat-orbit-count">{body.members.length}</span>
                 </span>
               ) : (
-                <ConstantOrb constant={body.constant} detail="orbital" state="still" className="chat-orbit-mark" />
+                <ConstantOrb
+                  constant={body.constant}
+                  detail="orbital"
+                  state={expanded && ready && moving && !stale ? (body.active ? "working" : "idle") : "still"}
+                  className="chat-orbit-mark"
+                />
               )}
               <span className="chat-orbit-caption">{label}</span>
               {body.attention && (

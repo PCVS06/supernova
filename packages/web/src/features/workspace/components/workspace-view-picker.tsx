@@ -26,6 +26,7 @@ export default function WorkspaceViewPicker() {
           >
             <Icon name={item.icon} size="sm" />
             <span>{item.label}</span>
+            {item.value === "terminal" && <span className="ml-auto text-xs text-ink-faint">Unavailable</span>}
           </Button>
         ))}
       </div>

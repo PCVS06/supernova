@@ -2,7 +2,7 @@ import {backgroundDelegations} from "@supernova/agent-runtime/layers/harnesses/i
 import type {AgentSession} from "@earendil-works/pi-coding-agent";
 import type {ImageContent} from "@earendil-works/pi-ai";
 import {randomUUID} from "node:crypto";
-import {CheckpointUncapturedError} from "@supernova/contracts/session-runtime/procedures";
+import {CheckpointUncapturedError, CheckpointReviewRequired} from "@supernova/contracts/session-runtime/procedures";
 import type {SessionStreamEvent} from "@supernova/contracts/session-runtime/procedures";
 import type {ModelReference, Session} from "@supernova/contracts/sessions/schemas";
 import {Effect} from "effect";
@@ -334,22 +334,31 @@ export class PiSessionRuntime {
     readonly current: CheckpointEntry;
     readonly cursorLeafEntryId: string;
     readonly force: boolean;
+    readonly review?: boolean;
+    readonly reviewFingerprint?: string;
+    readonly reviewContext?: string;
     readonly target: CheckpointEntry;
   }): Promise<void> {
-    const agentSession = this.agentSession;
-    if (!agentSession) throw new Error("Agent session is not initialized.");
-
-    const {current, cursorLeafEntryId, force, target} = input;
+    const agentSession = await this.getAgentSession();
+    const {current, cursorLeafEntryId, force, target, review, reviewFingerprint} = input;
     const sessionManager = agentSession.sessionManager;
     if (isCapturedCheckpoint(target)) {
-      if (!isCapturedCheckpoint(current) && !force) {
+      if (!isCapturedCheckpoint(current) && !force && !review) {
         throw new CheckpointUncapturedError({message: "The current checkpoint has no workspace snapshot. Restoring may discard uncaptured changes."});
       }
       await this.restoreCheckpoint({
         checkpointId: target.data.checkpointId,
         force,
+        review,
+        reviewFingerprint,
+        reviewContext: `${current.id}:${target.id}`,
         fromCheckpointId: isCapturedCheckpoint(current) ? current.data.checkpointId : undefined,
         projectRoot: sessionManager.getCwd(),
+      });
+    } else if (review && reviewFingerprint !== `${current.id}:${target.id}`) {
+      throw new CheckpointReviewRequired({
+        message: "No files were captured for this checkpoint. Only the conversation will change.",
+        preview: {fingerprint: `${current.id}:${target.id}`, filesCaptured: false, manualChanges: false, files: [], patches: []},
       });
     }
 
@@ -423,13 +432,16 @@ export class PiSessionRuntime {
   private async restoreCheckpoint(input: {
     readonly checkpointId: string;
     readonly force: boolean;
+    readonly review?: boolean;
+    readonly reviewFingerprint?: string;
+    readonly reviewContext?: string;
     readonly fromCheckpointId: string | undefined;
     readonly projectRoot: string;
   }): Promise<void> {
     try {
       await this.checkpointStore.restore({...input, sessionId: this.sessionId});
     } catch (cause) {
-      if (cause instanceof CheckpointConflictError) throw cause;
+      if (cause instanceof CheckpointConflictError || cause instanceof CheckpointReviewRequired) throw cause;
       throw new Error("Failed to restore workspace checkpoint.");
     }
   }

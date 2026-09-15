@@ -55,14 +55,14 @@ describe("session composer primary action", () => {
     expect(html).not.toContain('aria-label="Send message"');
   });
 
-  it("steers by default while a turn is streaming and keeps queue and stop explicit", () => {
+  it("offers explicit steering and queueing while streaming", () => {
     const html = composerMarkup({contentParts: [{text: "Use the other file", type: "text"}], streamStatus: "streaming"});
 
     expect(html).toContain('aria-label="Steer now"');
-    expect(html).toContain('aria-label="Queue message"');
+    expect(html).toContain('aria-label="Queue next"');
     expect(html).toContain('aria-label="Stop streaming"');
-    expect(html).toContain(">Queue<");
-    expect(html).not.toContain(">Steer now<");
+    expect(html).toContain(">Queue next<");
+    expect(html).toContain(">Steer now<");
     expect(html).not.toContain('aria-label="Send message"');
   });
 
@@ -111,8 +111,8 @@ describe("session composer primary action", () => {
 
   it("allows queueing during compaction while steering is unavailable", () => {
     const html = composerMarkup({contentParts: [{text: "Check the logs next", type: "text"}], streamStatus: "compacting"});
-    expect(html).toContain('aria-label="Queue message"');
-    expect(html).not.toMatch(/aria-label="Queue message"[^>]*disabled/);
+    expect(html).toContain('aria-label="Queue next"');
+    expect(html).not.toMatch(/aria-label="Queue next"[^>]*disabled/);
     expect(html).not.toContain('aria-label="Steer now"');
   });
 });

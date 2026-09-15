@@ -95,6 +95,8 @@ interface SessionTimelineProps {
 
 interface SessionTimelineViewportProps extends SessionTimelineProps {
   readonly onAnchorScrollingChange: (anchorScrolling: boolean) => void;
+  readonly readingDetails: boolean;
+  readonly onReadingDetailsChange: (reading: boolean) => void;
 }
 
 function SessionTimelineViewport(props: SessionTimelineViewportProps) {
@@ -112,6 +114,8 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
     identityConstant = "phi",
     completedTurnId,
     stopping = false,
+    readingDetails,
+    onReadingDetailsChange,
   } = props;
   const {scrollToEnd} = useMessageScroller();
   const {end: canScrollToEnd} = useMessageScrollerScrollable();
@@ -193,13 +197,13 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual owns mutable scroll state by design.
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
-    anchorTo: "end",
+    anchorTo: readingDetails ? "start" : "end",
     useAnimationFrameWithResizeObserver: true,
     count: timelineRows.length,
     directDomUpdates: true,
     directDomUpdatesMode: "position",
     estimateSize: () => 86,
-    followOnAppend: true,
+    followOnAppend: !readingDetails,
     getItemKey: (index) => virtualRowKeys[index] ?? index,
     getScrollElement: () => viewportRef.current,
     initialMeasurementsCache: cachedMeasurementsRef.current,
@@ -256,7 +260,7 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
   useLayoutEffect(() => {
     const hadLiveUserRow = previousHasLiveUserRowRef.current;
     previousHasLiveUserRowRef.current = hasLiveUserRow;
-    if (!hasLiveUserRow || hadLiveUserRow) return;
+    if (!hasLiveUserRow || hadLiveUserRow || readingDetails) return;
 
     const viewport = viewportRef.current;
     const rowElement = viewport?.querySelector<HTMLElement>(`[data-index="${liveUserRowIndex}"]`);
@@ -302,7 +306,7 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
         },
       });
     });
-  }, [canScrollToEnd, hasLiveUserRow, liveUserRowIndex, onAnchorScrollingChange, releaseAnchorScroll, scrollToEnd, shouldReduceMotion]);
+  }, [canScrollToEnd, hasLiveUserRow, liveUserRowIndex, onAnchorScrollingChange, releaseAnchorScroll, scrollToEnd, shouldReduceMotion, readingDetails]);
 
   // Anchor space only exists so a sent message can hold the viewport top while
   // its response grows below. When a revert removes turns that purpose is gone,
@@ -327,9 +331,9 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
   useLayoutEffect(() => {
     // A competing automatic follow scroll must not cut a protected smooth
     // transition short; each transition already ends at the scroll end.
-    if (anchorScrollTargetRef.current !== null) return;
+    if (anchorScrollTargetRef.current !== null || readingDetails) return;
     if (!canScrollToEnd) scrollToEnd({behavior: "auto"});
-  }, [canScrollToEnd, compacting, isStreaming, items, liveItems, scrollToEnd, streamError]);
+  }, [canScrollToEnd, compacting, isStreaming, items, liveItems, scrollToEnd, streamError, readingDetails]);
 
   const handleViewportScroll = (event: UIEvent<HTMLDivElement>): void => {
     const viewport = event.currentTarget;
@@ -409,6 +413,12 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
             aria-label="Session timeline"
             className={shouldSetInitialPositionRef.current ? "invisible" : undefined}
             onScroll={handleViewportScroll}
+            onClickCapture={(event) => {
+              if (event.target instanceof Element && event.target.closest("[data-preserve-scroll]")) {
+                releaseAnchorScroll();
+                onReadingDetailsChange(true);
+              }
+            }}
             onTouchMove={releaseAnchorScroll}
             onWheel={releaseAnchorScroll}
             preserveScrollOnPrepend={false}
@@ -462,7 +472,11 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
                 initial={{opacity: 0, scale: 0.95, x: "-50%", y: shouldReduceMotion ? 0 : "100%"}}
                 style={{bottom: `calc(1rem + ${bottomOverlayHeight}px)`}}
               >
-                <MessageScrollerButton behavior="auto" className="static translate-x-0 bg-surface transition-colors hover:bg-surface-popover rtl:translate-x-0" />
+                <MessageScrollerButton
+                  behavior="auto"
+                  onClick={() => onReadingDetailsChange(false)}
+                  className="static translate-x-0 bg-surface transition-colors hover:bg-surface-popover rtl:translate-x-0"
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -493,6 +507,7 @@ export default function SessionTimeline(props: SessionTimelineProps) {
   const workflows = useWorkflowRuns(props.sessionId, props.isStreaming);
   const [workflowViews, setWorkflowViews] = useState<Record<string, WorkflowViewState>>({});
   const [anchorScrolling, setAnchorScrolling] = useState(false);
+  const [readingDetails, setReadingDetails] = useState(false);
   const [revealedTurns] = useState(() => new Set<string>());
 
   return (
@@ -507,8 +522,8 @@ export default function SessionTimeline(props: SessionTimelineProps) {
       }}
     >
       <MathResponseContext value={{constant: props.identityConstant ?? "phi", revealedTurns}}>
-        <MessageScrollerProvider autoScroll={!anchorScrolling} defaultScrollPosition="end" scrollEdgeThreshold={0}>
-          <SessionTimelineViewport {...props} onAnchorScrollingChange={setAnchorScrolling} />
+        <MessageScrollerProvider autoScroll={!anchorScrolling && !readingDetails} defaultScrollPosition="end" scrollEdgeThreshold={0}>
+          <SessionTimelineViewport {...props} onAnchorScrollingChange={setAnchorScrolling} readingDetails={readingDetails} onReadingDetailsChange={setReadingDetails} />
         </MessageScrollerProvider>
       </MathResponseContext>
     </WorkflowRunContext>

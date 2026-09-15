@@ -1,8 +1,8 @@
-import {use, useMemo, useState} from "react";
+import {use, useCallback, useMemo, useState} from "react";
 import type {ReactNode} from "react";
-import {Popover} from "@base-ui/react/popover";
 import type {HarnessRunSummary} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
+import AnimatedHeight from "@/components/ui/animated-height";
 import Icon from "@/components/ui/icon";
 import ConstantOrb from "@/components/brand/constant-orb";
 import type {MathematicalConstant} from "@/components/brand/constant-identity";
@@ -16,6 +16,7 @@ import {buildOrbitModel} from "@/features/sessions/lib/orbits/orbit-model";
 import type {OrbitBody} from "@/features/sessions/lib/orbits/orbit-model";
 import {projectOrbits} from "@/features/sessions/lib/orbits/orbit-projection";
 import type {OrbitGroup} from "@/features/sessions/lib/orbits/orbit-projection";
+import {readOrbitVisit, saveOrbitVisit} from "@/features/sessions/lib/orbits/orbit-view-cache";
 import OrbitCanvas from "@/features/sessions/components/orbits/orbit-canvas";
 import OrbitInspector from "@/features/sessions/components/orbits/orbit-inspector";
 import OrbitMembers from "@/features/sessions/components/orbits/orbit-members";
@@ -39,11 +40,20 @@ export default function ChatConstellation(props: ChatConstellationProps) {
   const workflows = useWorkflowRuns(context.sessionId, busy);
   const motion = useAppearanceStore((state) => state.mathematicalMotion);
   const preferences = useWorkspaceMapStore();
+  const visitKey = rootRun ? `${context.sessionId}:run:${rootRun.id}` : context.sessionId;
+  const [visit] = useState(() => readOrbitVisit(visitKey));
   const [width, setWidth] = useState(640);
-  const [expanded, setExpanded] = useState(false);
-  const [focusedId, setFocusedId] = useState<string>();
-  const [selectedId, setSelectedId] = useState<string>();
-  const [members, setMembers] = useState<readonly string[]>();
+  const [expanded, setExpanded] = useState(visit.expanded);
+  const [focusedId, setFocusedId] = useState(visit.focusedId);
+  const [selectedId, setSelectedId] = useState(visit.selectedId);
+  const [members, setMembers] = useState(visit.members);
+  const remember = useCallback(
+    (element: HTMLElement | null) => {
+      if (!element) return;
+      return () => saveOrbitVisit(visitKey, {expanded, focusedId, selectedId, members, animation: visit.animation});
+    },
+    [visitKey, expanded, focusedId, selectedId, members, visit.animation]
+  );
   const [event, setEvent] = useState("");
   const [lastRequest, setLastRequest] = useState<number>();
   const requested = preferences.requested?.sessionId === context.sessionId ? preferences.requested : undefined;
@@ -66,13 +76,15 @@ export default function ChatConstellation(props: ChatConstellationProps) {
         workflows: workflows.data ?? overview?.data?.workflows ?? [],
         otherRuns: overview?.data?.runs,
         otherWorkflows: overview?.data?.workflows,
+        projects: overview?.library?.projects,
       }),
-    [context.sessionId, context.title, constant, busy, rootRun, workers.data, workflows.data, overview?.data?.runs, overview?.data?.workflows]
+    [context.sessionId, context.title, constant, busy, rootRun, workers.data, workflows.data, overview?.data?.runs, overview?.data?.workflows, overview?.library?.projects]
   );
-  const chosen = selectedId ? (model.bodies.get(selectedId) ?? [...model.bodies.values()].find((body) => `run:${body.runId}` === selectedId)) : undefined;
+  const chosen = selectedId ? model.bodies.get(model.aliases.get(selectedId) ?? selectedId) : undefined;
   const chosenWorkflow = selectedId?.startsWith("workflow:") ? model.workflows.find((run) => `workflow:${run.id}` === selectedId) : undefined;
   const focusId = focusedId ?? (chosen?.parentId && requested && requested.nonce === lastRequest ? chosen.parentId : model.rootId);
-  const projection = projectOrbits(model, focusId, preferences.orbitDensity === "compact" || width < 540 ? 3 : 6, chosen?.id);
+  const slots = preferences.orbitDensity === "compact" || width < 540 ? 6 : 8;
+  const projection = useMemo(() => projectOrbits(model, focusId, slots, chosen?.id), [model, focusId, slots, chosen?.id]);
   const stale = Boolean(rootStale || workers.error || workflows.error);
   const select = (body: OrbitBody | OrbitGroup): void => {
     preferences.consumeFocus();
@@ -106,8 +118,10 @@ export default function ChatConstellation(props: ChatConstellationProps) {
   return (
     <section
       className="chat-orbits"
+      ref={remember}
       aria-label="Chat solar system"
       data-chat-orbits={context.sessionId}
+      data-preserve-scroll=""
       data-expanded={expanded}
       onKeyDown={(event) => {
         if (event.key === "Escape" && expanded && !event.defaultPrevented) {
@@ -117,7 +131,7 @@ export default function ChatConstellation(props: ChatConstellationProps) {
         }
       }}
     >
-      {expanded && (
+      {expanded && !rootView && (
         <div className="chat-orbit-toolbar">
           {!rootView && (
             <Button
@@ -132,61 +146,10 @@ export default function ChatConstellation(props: ChatConstellationProps) {
               <span>Viewing {projection.root.label}</span>
             </Button>
           )}
-          <Popover.Root>
-            <Popover.Trigger aria-label="Orbit options" className="chat-orbit-options">
-              <Icon name="more-horizontal" size="sm" />
-            </Popover.Trigger>
-            <Popover.Portal>
-              <Popover.Positioner side="top" align="end" sideOffset={8} collisionPadding={12} className="z-50">
-                <Popover.Popup aria-label="Orbit options" className="grid w-64 gap-3 rounded-xl border border-border bg-surface p-4 text-xs text-ink">
-                  <Button onClick={() => preferences.setOrbitMotion(!preferences.orbitMotion)}>{preferences.orbitMotion ? "Pause orbital motion" : "Resume orbital motion"}</Button>
-                  <label className="flex items-center justify-between gap-3">
-                    Detail
-                    <select
-                      aria-label="Orbit detail"
-                      className="bg-surface"
-                      value={preferences.orbitDensity}
-                      onChange={(e) => preferences.setOrbitDensity(e.target.value as "compact" | "balanced")}
-                    >
-                      <option value="balanced">Balanced</option>
-                      <option value="compact">Compact</option>
-                    </select>
-                  </label>
-                  <Button
-                    onClick={() => {
-                      setMembers(model.children.get(projection.root.id) ?? []);
-                      setSelectedId(undefined);
-                    }}
-                  >
-                    Find a participant
-                  </Button>
-                  {!rootView && (
-                    <Button
-                      onClick={() => {
-                        setFocusedId(model.rootId);
-                        close();
-                      }}
-                    >
-                      Return to this chat
-                    </Button>
-                  )}
-                </Popover.Popup>
-              </Popover.Positioner>
-            </Popover.Portal>
-          </Popover.Root>
-          <Button
-            className="chat-orbit-options chat-orbit-close"
-            aria-label="Close solar system"
-            onClick={(event) => {
-              event.currentTarget.closest("section")?.querySelector<HTMLButtonElement>(".chat-orbit-sun")?.focus();
-              collapse();
-            }}
-          >
-            <Icon name="x" size="sm" />
-          </Button>
         </div>
       )}
       <OrbitCanvas
+        animation={visit.animation}
         expanded={expanded}
         onToggle={() => (expanded ? collapse() : setExpanded(true))}
         model={model}
@@ -198,7 +161,17 @@ export default function ChatConstellation(props: ChatConstellationProps) {
         onResize={setWidth}
         onSelect={select}
         onEvent={setEvent}
-        anchor={rootView ? anchor : <ConstantOrb constant={projection.root.constant} className="size-16" state={projection.root.active && !stale ? "working" : "still"} />}
+        anchor={
+          rootView && !rootRun ? (
+            anchor
+          ) : (
+            <ConstantOrb
+              constant={projection.root.constant}
+              className="size-16"
+              state={preferences.orbitMotion && motion !== "off" && !stale ? (projection.root.active ? "working" : "idle") : "still"}
+            />
+          )
+        }
         status={rootView ? status : projection.root.status}
       />
       <span className="sr-only" role="status">
@@ -223,10 +196,18 @@ export default function ChatConstellation(props: ChatConstellationProps) {
           </Button>
         </p>
       )}
-      {expanded && (members || workflowMembers) && (
-        <OrbitMembers key={`${projection.root.id}:${members?.join(",") ?? chosenWorkflow?.id}`} model={model} ids={members ?? workflowMembers!} onSelect={select} onClose={close} />
-      )}
-      {expanded && chosen && chosen.id !== model.rootId && <OrbitInspector key={chosen.id} body={chosen} onClose={close} />}
+      <AnimatedHeight>
+        {expanded && (members || workflowMembers) && (
+          <OrbitMembers
+            key={`${projection.root.id}:${members?.join(",") ?? chosenWorkflow?.id}`}
+            model={model}
+            ids={members ?? workflowMembers!}
+            onSelect={select}
+            onClose={close}
+          />
+        )}
+        {expanded && chosen && chosen.id !== model.rootId && <OrbitInspector key={chosen.id} body={chosen} onClose={close} />}
+      </AnimatedHeight>
     </section>
   );
 }

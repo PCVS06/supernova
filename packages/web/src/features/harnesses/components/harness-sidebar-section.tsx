@@ -1,3 +1,5 @@
+import {SidebarBranch} from "@/features/sidebar/components/sidebar-presence";
+import SidebarLabel from "@/features/sidebar/components/sidebar-label";
 import {useState} from "react";
 import ConstantOrb from "@/components/brand/constant-orb";
 import {Link} from "@tanstack/react-router";
@@ -55,14 +57,14 @@ export default function HarnessSidebarSection(props: {
           <span className={ledgerMarkClassName}>
             <ConstantOrb constant="pi" className="size-10" state={working ? "working" : "idle"} />
           </span>
-          <span className="min-w-0 truncate">{harness.name}</span>
+          <SidebarLabel constant="pi" text={harness.name} className="min-w-0 truncate" />
           <span className="sr-only">
             {projects.length} {projects.length === 1 ? "project" : "projects"}
           </span>
         </Button>
         <div className="sidebar-row-actions flex w-14 shrink-0 items-center justify-end gap-0.5 pr-1 group-hover/harness:opacity-100 group-focus-within/harness:opacity-100">
           <IconButton
-            className="size-6 rounded-md text-ink-faint hover:bg-overlay-hover hover:text-ink"
+            className="size-6 rounded-md text-ink-muted hover:bg-overlay-hover hover:text-ink"
             label={`New project in ${harness.name}`}
             onClick={() => onAddProject(harness.id)}
           >
@@ -70,7 +72,7 @@ export default function HarnessSidebarSection(props: {
           </IconButton>
           <Link
             aria-label={`Harness settings for ${harness.name}`}
-            className="grid size-6 place-items-center rounded-md text-ink-faint hover:bg-overlay-hover hover:text-ink"
+            className="grid size-6 place-items-center rounded-md text-ink-muted hover:bg-overlay-hover hover:text-ink"
             onClick={() => selectHarness(harness.id)}
             params={{harnessId: harness.id, page: "overview"}}
             title={`Harness settings for ${harness.name}`}
@@ -80,27 +82,25 @@ export default function HarnessSidebarSection(props: {
           </Link>
         </div>
       </div>
-      {open && (
-        <div className="space-y-0.5 pl-3">
-          {head && list([head])}
-          {labs.length > 0 && (
-            // Projects share one visual level; their lead relationship is identified in the row.
-            <div className="space-y-1">
-              {pinnedLabs.length > 0 && list(pinnedLabs)}
-              {restLabs.length > 0 && list(restLabs)}
-            </div>
-          )}
-          {projects.length === 0 && (
-            <Button
-              className="ml-2 flex h-9 items-center gap-2 rounded-lg px-2 text-xs text-ink-faint transition-colors hover:bg-overlay-hover hover:text-ink"
-              onClick={() => onAddProject(harness.id)}
-            >
-              <Icon name="plus" size="xs" />
-              Add a project
-            </Button>
-          )}
-        </div>
-      )}
+      <SidebarBranch open={open} className="space-y-0.5 pl-3">
+        {head && list([head])}
+        {labs.length > 0 && (
+          // Projects share one visual level; their lead relationship is identified in the row.
+          <div className="space-y-1">
+            {pinnedLabs.length > 0 && list(pinnedLabs)}
+            {restLabs.length > 0 && list(restLabs)}
+          </div>
+        )}
+        {projects.length === 0 && (
+          <Button
+            className="ml-2 flex h-9 items-center gap-2 rounded-lg px-2 text-xs text-ink-faint transition-colors hover:bg-overlay-hover hover:text-ink"
+            onClick={() => onAddProject(harness.id)}
+          >
+            <Icon name="plus" size="xs" />
+            Add a project
+          </Button>
+        )}
+      </SidebarBranch>
     </section>
   );
 }

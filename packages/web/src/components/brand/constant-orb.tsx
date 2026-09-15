@@ -1,4 +1,5 @@
 import type {CSSProperties} from "react";
+import {useCallback} from "react";
 import artwork from "@assets/constant-orbs.json";
 import {cn} from "@/lib/cn";
 import type {MathematicalConstant} from "@/components/brand/constant-identity";
@@ -23,12 +24,25 @@ interface ConstantOrbProps {
   readonly detail?: "auto" | "compact" | "orbital";
   /** Explicit color previews only; normal identity marks are monochrome. */
   readonly color?: string;
+  readonly onComplete?: () => void;
 }
 
 /** Pixel symbols with accurate numeric contours; CSS animates precomputed paths. */
 export default function ConstantOrb(props: ConstantOrbProps) {
-  const {className, label, state = "idle", constant = "pi", color, detail = "auto"} = props;
+  const {className, label, state = "idle", constant = "pi", color, detail = "auto", onComplete} = props;
   const drawing = artwork[constant];
+  const pace = useCallback(
+    (element: HTMLSpanElement | null) => {
+      if (!element) return;
+      const frame = requestAnimationFrame(() => {
+        for (const animation of element.getAnimations({subtree: true})) {
+          if (animation.effect?.getTiming().iterations === Infinity) animation.updatePlaybackRate(state === "working" ? 24 / 7 : 1);
+        }
+      });
+      return () => cancelAnimationFrame(frame);
+    },
+    [state]
+  );
 
   return (
     <span
@@ -40,6 +54,8 @@ export default function ConstantOrb(props: ConstantOrbProps) {
       data-detail={detail}
       style={color ? {color} : undefined}
       role={label ? "img" : undefined}
+      ref={pace}
+      onAnimationEnd={state === "complete" ? onComplete : undefined}
     >
       <svg aria-hidden="true" fill="currentColor" focusable="false" viewBox={`0 0 ${drawing.size} ${drawing.size}`}>
         {(detail === "auto" ? ["detail", "compact"] : [detail]).map((variant) => (

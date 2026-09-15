@@ -4,7 +4,7 @@ import {randomUUID} from "node:crypto";
 import {expect, test} from "@playwright/test";
 import type {HarnessRun} from "@supernova/contracts/harnesses/schemas";
 
-test("inspects a saved worker conversation, polls public updates, and returns to its owning chat", async ({page}) => {
+test("inspects a saved worker conversation, polls public updates, and returns to its owning chat", async ({page}, testInfo) => {
   const root = process.env.SUPERNOVA_E2E_ROOT;
   if (!root) throw new Error("An isolated SUPERNOVA_E2E_ROOT is required.");
   const path = join(root, "projects", randomUUID());
@@ -66,17 +66,13 @@ test("inspects a saved worker conversation, polls public updates, and returns to
   await page.goto(`/session/${sessionId}/run/${runId}`);
   await expect(page.getByRole("heading", {name: "Source verifier", exact: true})).toBeVisible();
   const conversation = page.getByRole("region", {name: "Worker conversation"});
-  await expect(conversation.getByText("Verify the cited claim.", {exact: true})).not.toBeVisible();
-  await conversation
-    .locator("summary")
-    .filter({hasText: /^Assignment$/})
-    .click();
-  await expect(conversation.getByText("Verify the cited claim.", {exact: true})).toBeVisible();
-  await conversation
-    .locator("summary")
-    .filter({hasText: /^Conversation$/})
-    .click();
+  await expect(conversation.getByRole("button", {name: "Latest response", exact: true})).toHaveAttribute("aria-expanded", "true");
   await expect(conversation.getByText("Checking the primary source.", {exact: true})).toBeVisible();
+  await expect(conversation.getByText("Verify the cited claim.", {exact: true})).not.toBeVisible();
+  await conversation.getByRole("button", {name: "Assignment", exact: true}).click();
+  await expect(conversation.getByText("Verify the cited claim.", {exact: true})).toBeVisible();
+  await conversation.getByRole("button", {name: "Conversation", exact: true}).click();
+  await expect(conversation.getByText("Checking the primary source.", {exact: true}).last()).toBeVisible();
   await conversation.getByRole("button", {name: "read Running", exact: true}).click();
   await expect(conversation.getByRole("region", {name: "Tool input"})).toContainText("evidence.md");
   const tool = run.transcript!.entries[1]!;
@@ -89,16 +85,16 @@ test("inspects a saved worker conversation, polls public updates, and returns to
   await expect(conversation.getByRole("region", {name: "Tool output"})).toContainText("Source verified");
   await expect(conversation.getByText("Output shortened in this recording.", {exact: true})).toBeVisible();
 
-  await page
-    .locator("summary")
-    .filter({hasText: /^Activity$/})
-    .click();
+  await page.getByRole("button", {name: "Activity", exact: true}).click();
   await expect(page.getByRole("region", {name: "Worker activity"})).toContainText("Using read");
-  await page
-    .locator("summary")
-    .filter({hasText: /^Context$/})
-    .click();
-  await expect(page.getByRole("region", {name: "Worker context"})).toContainText("Prefer primary sources.");
+  await page.getByRole("button", {name: "Context", exact: true}).click();
+  const context = page.getByRole("region", {name: "Worker context"});
+  await expect(context.getByRole("region", {name: "Context provenance"})).toContainText("Captured for this run");
+  await expect(context.getByText("Configuration revision 4", {exact: true})).toBeVisible();
+  await expect(context.locator("time")).toHaveAttribute("datetime", at);
+  await context.locator("summary").filter({hasText: /^Role/}).click();
+  await expect(context.getByText("Prefer primary sources.", {exact: true})).toBeVisible();
+  await page.screenshot({path: testInfo.outputPath("worker-context.png"), animations: "disabled"});
   await page
     .locator("summary")
     .filter({hasText: /^Resources/})
@@ -117,6 +113,7 @@ test("inspects a saved worker conversation, polls public updates, and returns to
   await page.reload();
   await expect(page.getByText("No transcript recorded for this run.", {exact: false})).not.toBeVisible();
   await expect(page.getByText("Verify the cited claim.", {exact: true})).not.toBeVisible();
-  await page.screenshot({path: "/tmp/radian-context-20260913/agent-result.png"});
   await expect(page.getByText("Historical final result", {exact: true})).toBeVisible();
+  await expect(page.locator(".worker-run-surface")).toHaveCSS("opacity", "1");
+  await page.screenshot({path: testInfo.outputPath("agent-result.png")});
 });

@@ -171,7 +171,7 @@ export function validateHarness(harness: HarnessConfig): void {
       throw new Error("Agent names must be unique and contain only letters, numbers, hyphens, or underscores.");
     names.add(agent.name);
     if (!agent.systemPrompt.trim() || agent.systemPrompt.length > 200000) throw new Error(`Agent ${agent.name} needs a system prompt (up to 200,000 characters).`);
-    if (agent.tools.some((tool) => ["subagent", "harness_workflow", "lab_agent", "manage_lab_view"].includes(tool)))
+    if (agent.tools.some((tool) => ["subagent", "harness_workflow", "lab_agent", "manage_lab_view", "manage_projects"].includes(tool)))
       throw new Error("Specialists cannot recursively delegate or manage lab views.");
     if (agent.color && !/^#[0-9a-fA-F]{6}$/.test(agent.color)) throw new Error("Choose a valid agent color.");
   }

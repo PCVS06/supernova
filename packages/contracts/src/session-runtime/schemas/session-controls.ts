@@ -28,6 +28,8 @@ export const SessionControls = Schema.Struct({
   revision: Schema.Number,
   goal: Schema.NullOr(SessionGoal),
   queue: Schema.Array(QueuedSessionMessage),
+  /** Accepted corrections owned by the current turn; not available for replay. */
+  steering: Schema.optional(Schema.Array(QueuedSessionMessage)),
   queuePaused: Schema.Boolean,
   error: Schema.optional(Schema.String),
 });

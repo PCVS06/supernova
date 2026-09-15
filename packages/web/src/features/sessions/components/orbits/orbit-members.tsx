@@ -1,5 +1,7 @@
 import {useState} from "react";
 import Button from "@/components/ui/button";
+import ConstantOrb from "@/components/brand/constant-orb";
+import Icon from "@/components/ui/icon";
 import type {OrbitBody, OrbitModel} from "@/features/sessions/lib/orbits/orbit-model";
 
 const PAGE_SIZE = 12;
@@ -25,7 +27,8 @@ export default function OrbitMembers(props: {model: OrbitModel; ids: readonly st
   const current = Math.min(page, Math.max(0, Math.ceil(members.length / PAGE_SIZE) - 1));
   return (
     <section className="chat-orbit-members" aria-label="Orbit participants">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 rounded-lg bg-overlay-hover px-3">
+        <Icon name="search" size="sm" />
         <input
           aria-label="Find a participant"
           className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
@@ -40,11 +43,12 @@ export default function OrbitMembers(props: {model: OrbitModel; ids: readonly st
           ×
         </Button>
       </div>
-      <ul className="my-2" aria-label="Matching participants">
+      <ul className="my-2 max-h-72 overflow-y-auto overscroll-contain space-y-1" aria-label="Matching participants">
         {members.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE).map((body) => (
           <li key={body.id}>
-            <Button className="flex w-full items-start justify-between gap-4 py-2 text-left text-xs" onClick={() => onSelect(body)}>
-              <span className="min-w-0">
+            <Button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs hover:bg-overlay-hover" onClick={() => onSelect(body)}>
+              <ConstantOrb constant={body.constant} detail="compact" className="size-8" state="still" />
+              <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{body.label}</span>
                 <span className="block truncate text-ink-faint">{model.bodies.get(body.parentId ?? "")?.label}</span>
               </span>

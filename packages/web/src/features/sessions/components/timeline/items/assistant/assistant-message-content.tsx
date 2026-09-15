@@ -1,11 +1,16 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
+import "@/features/sessions/components/timeline/items/assistant/message-math.css";
 import {Suspense, isValidElement, use, useState} from "react";
 import type {ComponentProps, ReactNode} from "react";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import ContentPanel from "@/features/sessions/components/timeline/items/assistant/content-panel";
 import {segmentStreamingMessage} from "@/features/sessions/lib/streaming/message-segments";
+import {normalizeMathMarkdown} from "@/features/sessions/lib/streaming/math-markdown";
 import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
 import {CODE_HIGHLIGHT_THEMES, getCachedHighlightedCode, highlightCode} from "@/lib/code-highlighting";
 import {cn} from "@/lib/cn";
@@ -136,7 +141,8 @@ export default function AssistantMessageContent(props: AssistantMessageContentPr
       {mode === "text" && <div className="whitespace-pre-wrap">{fadeNewText ? <StreamingFadeText>{children}</StreamingFadeText> : children}</div>}
       {mode === "markdown" && (
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[[rehypeKatex, {trust: false, strict: "ignore", maxExpand: 1000}]]}
           components={{
             a: ({children: linkChildren, href, ...linkProps}) => (
               <a
@@ -187,7 +193,7 @@ export default function AssistantMessageContent(props: AssistantMessageContentPr
             ul: ({children: listChildren}) => <ul className="my-3 list-disc space-y-1 pl-6">{listChildren}</ul>,
           }}
         >
-          {children}
+          {normalizeMathMarkdown(children)}
         </ReactMarkdown>
       )}
     </div>

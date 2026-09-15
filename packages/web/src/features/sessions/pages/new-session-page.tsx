@@ -1,4 +1,5 @@
 import type {Session, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
+import {useConnectionStore} from "@/rpc/connection-store";
 import {useRef} from "react";
 import {useQueryClient} from "@tanstack/react-query";
 import {useNavigate, useRouter} from "@tanstack/react-router";
@@ -35,6 +36,7 @@ interface NewSessionPageProps {
 function NewProjectSession(props: NewSessionPageProps) {
   const {harnessProjectId, projectName, projectPath} = props;
 
+  const offline = useConnectionStore((state) => state.status !== "connected" || state.server?.status === "stopped" || state.server?.status === "restarting");
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -78,7 +80,7 @@ function NewProjectSession(props: NewSessionPageProps) {
 
   const handleSubmit = async (contentParts: readonly UserMessageContentPart[], objective?: string): Promise<boolean> => {
     const modelReference = modelSelection.modelReference;
-    if (!modelReference) return false;
+    if (!modelReference || offline) return false;
     const submittedFrom = router.state.location.href;
     // A failed send can retry in the chat already created; never create another empty chat.
     if (acceptedSession.current) throw new Error("This chat has already started. Open it from the sidebar; your new draft has been kept.");
@@ -139,6 +141,7 @@ function NewProjectSession(props: NewSessionPageProps) {
               key={`${composerDraftKey}:${composerDraft.revision}`}
               attachments={composerAttachments}
               disabled={composerDisabled}
+              controlsPending={offline}
               draft={composerDraft}
               onSubmit={handleSubmit}
               onStartGoal={(objective) => handleSubmit([], objective)}

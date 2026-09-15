@@ -9,6 +9,8 @@ import {ReactNodeViewRenderer, useEditor} from "@tiptap/react";
 import type {ChangeEvent, ClipboardEvent, ReactNode} from "react";
 import {useRef, useState} from "react";
 import Icon from "@/components/ui/icon";
+import AnimatedHeight from "@/components/ui/animated-height";
+import {ComposerFocusContext} from "@/features/sessions/contexts/composer-focus-context";
 import IconButton from "@/components/ui/icon-button";
 import ComposerAttachmentPreview from "@/features/sessions/components/attachments/composer-attachment-preview";
 import ComposerSendAction from "@/features/sessions/components/composer/composer-send-action";
@@ -213,6 +215,8 @@ interface SessionComposerProps {
   readonly onSteer?: (text: string) => ComposerAcknowledgement;
   readonly onQueue?: (contentParts: readonly UserMessageContentPart[]) => ComposerAcknowledgement;
   readonly onStartGoal?: (objective: string) => ComposerAcknowledgement;
+  readonly hasGoal?: boolean;
+  readonly goalEditor?: {readonly objective: string; readonly onSubmit: () => ComposerAcknowledgement};
   readonly onSubmit: (contentParts: readonly UserMessageContentPart[]) => ComposerAcknowledgement;
   /** Runs after accepted content is cleared; new chats navigate at this boundary. */
   readonly onAccepted?: () => void;
@@ -239,6 +243,8 @@ export default function SessionComposer(props: SessionComposerProps) {
     onSteer,
     onQueue,
     onStartGoal,
+    hasGoal = false,
+    goalEditor,
     onSubmit,
     onAccepted,
     controlTray,
@@ -264,11 +270,11 @@ export default function SessionComposer(props: SessionComposerProps) {
   const isStreaming = streamStatus === "streaming" || streamStatus === "stopping" || streamStatus === "compacting";
   const queueMode = (isStreaming || queuePending) && onQueue !== undefined;
   const goalObjective = goalCommandObjective(draftText);
-  const goalMode = goalInput || goalObjective !== null;
+  const goalMode = !!goalEditor || goalInput || goalObjective !== null;
   const pending = submitting || controlsPending;
   const attachmentDisabled = inputDisabled || attachments.isProcessing || pending;
   const canSubmit =
-    (draftText.trim().length > 0 || (!goalMode && attachments.attachments.length > 0)) &&
+    ((goalEditor?.objective ?? draftText).trim().length > 0 || (!goalMode && attachments.attachments.length > 0)) &&
     !inputDisabled &&
     !attachments.isProcessing &&
     !pending &&
@@ -328,7 +334,10 @@ export default function SessionComposer(props: SessionComposerProps) {
     const objective = goalCommandObjective(text);
     setGoalInput(false);
     setSubmissionError(null);
-    if (objective === null) return;
+    if (objective === null) {
+      editor?.commands.focus();
+      return;
+    }
 
     editor?.commands.setContent(objective);
     setDraftText(objective);
@@ -338,6 +347,21 @@ export default function SessionComposer(props: SessionComposerProps) {
 
   const deliver = async (steering = false): Promise<void> => {
     if (submittingRef.current || (steering ? !canSteer : !canSubmit)) return;
+    if (goalEditor && !steering) {
+      submittingRef.current = true;
+      setSubmitting(true);
+      setSubmissionError(null);
+      try {
+        const accepted = await goalEditor.onSubmit();
+        if (accepted === false) setSubmissionError("The goal update was not accepted. Your edits have been kept.");
+      } catch {
+        setSubmissionError("Unable to update the goal. Your edits have been kept.");
+      } finally {
+        submittingRef.current = false;
+        setSubmitting(false);
+      }
+      return;
+    }
     const text = editor?.getText() ?? draftText;
     const objective = goalCommandObjective(text);
     if (!steering && (goalInput || objective !== null) && !(objective ?? text).trim()) {
@@ -354,7 +378,6 @@ export default function SessionComposer(props: SessionComposerProps) {
     submittingRef.current = true;
     setSubmitting(true);
     setSubmissionError(null);
-    editor?.setEditable(false);
     try {
       const accepted = await submitComposerDraft({
         contentParts,
@@ -384,7 +407,10 @@ export default function SessionComposer(props: SessionComposerProps) {
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
-      if (editor && !editor.isDestroyed) editor.setEditable(!inputDisabled);
+      if (editor && !editor.isDestroyed && !inputDisabled) {
+        const active = document.activeElement;
+        if (active === document.body || editor.view.dom.closest('[aria-label="Message composer"]')?.contains(active)) editor.commands.focus(undefined, {scrollIntoView: false});
+      }
     }
   };
 
@@ -393,82 +419,94 @@ export default function SessionComposer(props: SessionComposerProps) {
   };
 
   return (
-    <div className="relative z-20 px-4 pb-7 md:px-6">
-      <div className="relative mx-auto max-w-3xl">
-        {topExtension && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-full z-0">
-            <div className="pointer-events-auto">{topExtension}</div>
-          </div>
-        )}
-        <div
-          aria-label="Message composer"
-          className={cn(
-            "relative z-10 overflow-hidden rounded-2xl border border-border bg-surface-control transition-colors focus-within:border-ink-faint",
-            isStreaming && "border-ink-faint"
-          )}
-          data-controls-attached={controlTray != null}
-          data-stream-status={streamStatus}
-          role="group"
-        >
-          {controlTray}
-          <div className="@container relative px-3 py-2.5">
-            {goalMode && (
-              <div aria-label="Goal draft" className="mb-1 flex items-center gap-1.5 px-1 text-xs text-ink-muted">
-                <Icon name="gauge" size="xs" />
-                <span className="min-w-0 flex-1 font-medium text-ink">Goal</span>
-                <IconButton className="size-6" disabled={pending} label="Cancel goal mode" onClick={cancelGoalInput} title="Send this as a normal message instead">
-                  <Icon name="x" size="xs" />
-                </IconButton>
-              </div>
-            )}
-            <SessionComposerAttachments
-              attachments={{
-                ...attachments,
-                remove: (id) => {
-                  if (!pending) attachments.remove(id);
-                },
-              }}
-            />
-            <SessionComposerInput
-              attachmentDisabled={attachmentDisabled}
-              attachments={attachments}
-              input={{draftText, editable: !inputDisabled && !pending, editor, onSuggestionMatchChange: setSuggestionMatch, suggestionMatch}}
-              onSubmit={() => void deliver(canSteer)}
-              onGoal={openGoalInput}
-              placeholder={goalInput ? "What should this chat accomplish?" : placeholder}
-              projectPath={projectPath}
-              slashCommandActions={slashCommandActions}
-            />
-            {submissionError && (
-              <p role="alert" className="px-1 pt-2 text-xs text-danger-ink">
-                {submissionError}
-              </p>
-            )}
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-1">
-                <SessionComposerAttachButton attachments={attachments} disabled={attachmentDisabled} />
-                {toolbarControls}
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                {toolbarActions}
-                <ComposerSendAction
-                  canInterrupt={canInterrupt}
-                  canSend={canSubmit}
-                  canSteer={canSteer}
-                  dictating={dictation.listening}
-                  dictationSupported={dictation.supported}
-                  onInterrupt={handleInterrupt}
-                  onSend={() => void deliver()}
-                  onSteer={() => void deliver(true)}
-                  onToggleDictation={dictation.toggle}
-                  sendLabel={goalMode ? "Start goal" : queueMode ? "Queue message" : "Send message"}
-                  streamStatus={streamStatus}
-                />
-              </div>
+    <ComposerFocusContext value={() => (editor && !editor.isDestroyed ? editor.view.dom : null)}>
+      <div className="relative z-20 px-4 pb-7 md:px-6">
+        <div className="relative mx-auto max-w-3xl">
+          {topExtension && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-full z-0">
+              <div className="pointer-events-auto">{topExtension}</div>
             </div>
+          )}
+          <div
+            aria-label="Message composer"
+            className={cn(
+              "relative z-10 overflow-hidden rounded-2xl border border-border bg-surface-control transition-colors focus-within:border-ink-faint",
+              isStreaming && "border-ink-faint"
+            )}
+            data-controls-attached={controlTray != null}
+            data-stream-status={streamStatus}
+            role="group"
+          >
+            <AnimatedHeight>
+              {controlTray}
+              <div className="@container relative px-3 py-2.5">
+                {!goalEditor && goalMode && (
+                  <div aria-label="Goal draft" className="mb-1 flex items-center gap-1.5 px-1 text-xs text-ink-muted">
+                    <Icon name="gauge" size="xs" />
+                    <span className="min-w-0 flex-1 font-medium text-ink">Goal</span>
+                    <IconButton className="size-6" disabled={pending} label="Cancel goal mode" onClick={cancelGoalInput} title="Send this as a normal message instead">
+                      <Icon name="x" size="xs" />
+                    </IconButton>
+                  </div>
+                )}
+                <div hidden={!!goalEditor}>
+                  <SessionComposerAttachments
+                    attachments={{
+                      ...attachments,
+                      remove: (id) => {
+                        if (!pending) attachments.remove(id);
+                      },
+                    }}
+                  />
+                  <SessionComposerInput
+                    attachmentDisabled={attachmentDisabled}
+                    attachments={attachments}
+                    input={{draftText, editable: !inputDisabled, editor, onSuggestionMatchChange: setSuggestionMatch, suggestionMatch}}
+                    onSubmit={() => void deliver()}
+                    onGoal={openGoalInput}
+                    placeholder={goalInput ? "What should this chat accomplish?" : placeholder}
+                    projectPath={projectPath}
+                    slashCommandActions={slashCommandActions}
+                  />
+                </div>
+                {submissionError && (
+                  <p role="alert" className="px-1 pt-2 text-xs text-danger-ink">
+                    {submissionError}
+                  </p>
+                )}
+                {canSteer && attachments.attachments.length > 0 && (
+                  <p className="px-1 pt-2 text-xs text-ink-muted" role="status">
+                    Steer now sends only text and keeps your attachments here. Queue next sends the complete message.
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-1">
+                    <SessionComposerAttachButton attachments={attachments} disabled={attachmentDisabled} />
+                    {toolbarControls}
+                  </div>
+                  <div className="ml-auto flex shrink-0 items-center gap-3">
+                    {toolbarActions}
+                    <ComposerSendAction
+                      canInterrupt={canInterrupt}
+                      canSend={canSubmit}
+                      hasDraft={(goalEditor?.objective ?? draftText).trim().length > 0 || attachments.attachments.length > 0}
+                      canSteer={canSteer}
+                      dictating={dictation.listening}
+                      dictationSupported={dictation.supported}
+                      onInterrupt={handleInterrupt}
+                      onSend={() => void deliver()}
+                      onSteer={() => void deliver(true)}
+                      onToggleDictation={dictation.toggle}
+                      sendLabel={goalMode ? (hasGoal ? "Update goal" : "Start goal") : queueMode ? "Queue message" : "Send message"}
+                      streamStatus={streamStatus}
+                    />
+                  </div>
+                </div>
+              </div>
+            </AnimatedHeight>
           </div>
         </div>
       </div>
-    </div>
+    </ComposerFocusContext>
   );
 }

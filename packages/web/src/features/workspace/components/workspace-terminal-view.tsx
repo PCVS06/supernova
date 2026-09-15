@@ -1,15 +1,15 @@
 import Icon from "@/components/ui/icon";
 
-/** Reserves the terminal workspace without pretending that an unimplemented shell transport is active. */
+/** Explains terminal availability before the user tries to start a shell. */
 export default function WorkspaceTerminalView() {
   return (
     <div className="grid min-h-0 flex-1 place-items-center px-6 text-center">
       <div className="max-w-72 space-y-3">
         <Icon className="mx-auto text-ink-faint" name="terminal" size="lg" />
         <div className="space-y-1">
-          <p className="text-sm font-medium text-ink">Terminal transport required</p>
+          <p className="text-sm font-medium text-ink">Terminal unavailable in this version</p>
           <p className="text-xs leading-relaxed text-ink-muted">
-            This workspace is ready for a project terminal, but this build does not yet expose a safe server-side terminal session.
+            Use your external terminal in the project folder shown above. You can find and copy file paths from the Files workspace.
           </p>
         </div>
       </div>

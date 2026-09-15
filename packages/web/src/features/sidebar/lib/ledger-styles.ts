@@ -9,7 +9,7 @@ export const ledgerPrimaryClassName = "flex min-w-0 flex-1 items-center gap-2 ro
 export const ledgerActionsClassName = "sidebar-row-actions flex items-center justify-end gap-0.5 text-ink-faint";
 
 /** A fixed symbol column keeps names aligned even when the marks change size. */
-export const ledgerMarkClassName = "flex h-10 w-8 shrink-0 items-center justify-center";
+export const ledgerMarkClassName = "sidebar-identity flex h-10 w-8 shrink-0 items-center justify-center";
 
 /** Every tree level reserves the same small disclosure slot. */
 export const ledgerDisclosureClassName = "sidebar-row-disclosure size-3 shrink-0 text-ink-faint transition-transform motion-reduce:transition-none";

@@ -1,3 +1,5 @@
+import {useState} from "react";
+import SidebarLabel from "@/features/sidebar/components/sidebar-label";
 import {Link, useLocation} from "@tanstack/react-router";
 import AgentMark from "@/features/harnesses/components/agent-mark";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
@@ -14,8 +16,13 @@ export default function ChatAgentList(props: {sessionId: string; live: boolean})
   const {pathname} = useLocation();
   const runs = query.data ?? overview.data?.runs.filter((run) => run.chatId === sessionId) ?? [];
   const stale = Boolean(query.error);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const completed = runs.filter((run) => run.status === "completed").sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+  const recentIds = new Set(completed.slice(0, 3).map((run) => run.id));
+  const hiddenCount = completed.filter((run) => !recentIds.has(run.id) && pathname !== `/session/${sessionId}/run/${run.id}`).length;
+  const visibleRuns = runs.filter((run) => historyOpen || run.status !== "completed" || recentIds.has(run.id) || pathname === `/session/${sessionId}/run/${run.id}`);
   return (
-    <ul aria-label="Agents in this chat" className="ml-3 space-y-0.5 border-l border-border-muted">
+    <ul aria-label="Agents in this chat" className="ml-3 space-y-0.5">
       {query.error && (
         <li role="status" className="px-2 py-1 text-xs">
           Agent history unavailable · last saved
@@ -26,7 +33,7 @@ export default function ChatAgentList(props: {sessionId: string; live: boolean})
           Loading agents…
         </li>
       )}
-      {runs.map((run) => {
+      {visibleRuns.map((run) => {
         const selected = pathname === `/session/${sessionId}/run/${run.id}`;
         const active = !stale && (run.status === "starting" || run.status === "running");
         return (
@@ -46,14 +53,25 @@ export default function ChatAgentList(props: {sessionId: string; live: boolean})
               <span className={ledgerMarkClassName}>
                 <AgentMark name={run.agentName} kind={run.role === "specialist" ? "specialist" : "lead"} working={active} className="size-4 shrink-0" />
               </span>
-              <span className="min-w-0 flex-1 truncate">{agentLabel(run.agentName)}</span>
-              <span className="sr-only">{run.status}</span>
+              <span className="min-w-0 flex-1 py-1">
+                <SidebarLabel constant={run.role === "specialist" ? "e" : "phi"} text={agentLabel(run.agentName)} className="block truncate" />
+                <span className="block truncate text-[10px] text-ink-faint">
+                  {run.status} · {run.task}
+                </span>
+              </span>
               {(run.status === "failed" || run.status === "interrupted") && <span aria-hidden="true">!</span>}
               {active && <span className="size-1 rounded-full bg-white" aria-hidden="true" />}
             </Link>
           </li>
         );
       })}
+      {hiddenCount > 0 && (
+        <li>
+          <button className="px-3 py-1 text-xs text-ink-muted hover:text-ink" onClick={() => setHistoryOpen(!historyOpen)} type="button">
+            {historyOpen ? "Hide earlier completed runs" : `Show ${hiddenCount} earlier completed ${hiddenCount === 1 ? "run" : "runs"}`}
+          </button>
+        </li>
+      )}
     </ul>
   );
 }

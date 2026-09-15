@@ -1,4 +1,7 @@
 export const DESKTOP_IPC_CHANNELS = {
+  getServerState: "desktop:get-server-state",
+  restartServer: "desktop:restart-server",
+  serverState: "desktop:server-state",
   openDirectory: "desktop:open-directory",
   setNativeTheme: "desktop:set-native-theme",
   showWorkspaceBrowser: "desktop:workspace-browser-show",

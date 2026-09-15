@@ -9,12 +9,16 @@ import type SessionComposer from "@/features/sessions/components/composer/sessio
 import {newSessionComposerDraftKey, sessionComposerDraftKey, useComposerDraftsStore} from "@/features/sessions/stores/composer-drafts-store";
 
 const calls = vi.hoisted(() => ({
+  connectionStatus: "connected" as "connected" | "reconnecting",
   create: vi.fn(),
   rename: vi.fn(),
   controls: vi.fn(),
   send: vi.fn(),
   assign: vi.fn(),
   composer: undefined as ComponentProps<typeof SessionComposer> | undefined,
+}));
+vi.mock("@/rpc/connection-store", () => ({
+  useConnectionStore: (select: (state: {status: string; server: null}) => unknown) => select({status: calls.connectionStatus, server: null}),
 }));
 vi.mock("@/features/sessions/hooks/api/use-create-session", () => ({useCreateSession: () => ({mutateAsync: calls.create, isPending: false})}));
 vi.mock("@/features/sessions/hooks/api/use-rename-session", () => ({useRenameSession: () => ({mutateAsync: calls.rename})}));
@@ -69,6 +73,7 @@ function renderNewChat() {
 describe("new-chat goal delivery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    calls.connectionStatus = "connected";
     calls.create.mockReset().mockResolvedValue(session);
     calls.controls.mockReset().mockResolvedValue({});
     calls.rename.mockReset().mockResolvedValue(session);
@@ -107,6 +112,17 @@ describe("new-chat goal delivery", () => {
     expect(await composer.onStartGoal!("Finish docs")).toBe(true);
     expect(calls.create).toHaveBeenCalledTimes(failure === "creation" ? 2 : 1);
     expect(calls.controls).toHaveBeenLastCalledWith(expect.objectContaining({sessionId: "new-chat"}));
+  });
+
+  it("keeps a new-chat draft editable while disconnected and does not submit it", async () => {
+    calls.connectionStatus = "reconnecting";
+    const {composer} = renderNewChat();
+    const before = useComposerDraftsStore.getState().drafts[draftKey];
+    expect(composer.disabled).toBe(false);
+    expect(composer.controlsPending).toBe(true);
+    expect(await composer.onStartGoal!("Finish docs")).toBe(false);
+    expect(calls.create).not.toHaveBeenCalled();
+    expect(useComposerDraftsStore.getState().drafts[draftKey]).toEqual(before);
   });
 
   it("does not reopen an accepted chat after the user navigates elsewhere", async () => {

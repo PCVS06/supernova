@@ -1,4 +1,4 @@
-import {mkdtemp, mkdir, readFile, rm} from "node:fs/promises";
+import {mkdtemp, mkdir, readFile, realpath, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, beforeEach, describe, expect, it} from "vitest";
@@ -138,5 +138,24 @@ describe("harness persistence and isolation", () => {
     expect((await store.forSession("head-chat", join(root, "project")))?.delegation?.projects[0]?.systemPrompt).toBe("LAB");
     expect((await store.resolveProject("head")).delegation?.projects[0]?.systemPrompt).toBe("UPDATED LAB");
     expect((await store.resolveProject("lab")).delegation).toBeUndefined();
+  });
+
+  it("does not import the Science Pi Idea Graph extension into a harness", async () => {
+    const packagePath = join(root, "science-package");
+    const scienceRoot = join(root, "science-space");
+    await mkdir(join(packagePath, "agents"), {recursive: true});
+    await mkdir(join(scienceRoot, "labs", "lab"), {recursive: true});
+    await writeFile(
+      join(packagePath, "package.json"),
+      JSON.stringify({name: "pi-scientific-tools", pi: {extensions: ["./extensions/research/index.ts", "./extensions/subagent/index.ts", "./extensions/idea-graph/index.ts"]}})
+    );
+    await writeFile(join(packagePath, "APPEND_SYSTEM.md"), "Science rules");
+    const canonicalPackagePath = await realpath(packagePath);
+
+    const library = await store.importScience(packagePath, scienceRoot, 0);
+    const harness = library.harnesses.find((item) => item.id === "science");
+
+    expect(harness?.description).not.toContain("Idea Graph");
+    expect(harness?.extensions).toEqual([join(canonicalPackagePath, "extensions", "research", "index.ts")]);
   });
 });

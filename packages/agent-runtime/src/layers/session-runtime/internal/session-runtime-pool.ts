@@ -5,6 +5,7 @@ import type {
   RevertToMessagePayload,
   SendMessagePayload,
   SteerSessionPayload,
+  SteerSessionResult,
   UndoCheckpointPayload,
   UpdateSessionControlsPayload,
 } from "@supernova/contracts/session-runtime/procedures";
@@ -36,8 +37,8 @@ export class SessionRuntimePool {
   }
 
   /** Steers the turn a retained runtime is streaming, without starting one of its own. */
-  public async steerSession(input: SteerSessionPayload): Promise<void> {
-    await this.getControls(input.sessionId).steer(input.text);
+  public steerSession(input: SteerSessionPayload): Promise<SteerSessionResult> {
+    return this.getControls(input.sessionId).steer(input.text, input.fallback);
   }
 
   /** Reads server-owned controls after resolving the target session. */

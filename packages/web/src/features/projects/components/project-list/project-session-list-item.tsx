@@ -1,3 +1,5 @@
+import {SidebarBranch, SidebarPresence} from "@/features/sidebar/components/sidebar-presence";
+import SidebarLabel from "@/features/sidebar/components/sidebar-label";
 import {useState} from "react";
 import {useLocation} from "@tanstack/react-router";
 import {useWorkspaceOverview} from "@/features/workspace/hooks/use-workspace-overview";
@@ -34,7 +36,7 @@ interface ProjectSessionListItemProps {
 
 /** Renders a sidebar chat with shared actions and local inline renaming. */
 export default function ProjectSessionListItem(props: ProjectSessionListItemProps) {
-  const {session, projectPath, selected, current = selected, streaming, status, unseen, onOpen, onPrefetch, onTogglePinned, managed} = props;
+  const {session, projectPath, selected, current = selected, streaming, status, unseen, onOpen, onPrefetch, onTogglePinned, managed, orchestrator} = props;
   const overview = useWorkspaceOverview();
   const {pathname} = useLocation();
   const [agentView, setAgentView] = useState<{path: string; open: boolean}>();
@@ -52,7 +54,7 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
   const activityLabel = status === "stopping" ? "Stopping" : status === "compacting" ? "Compacting" : streaming ? "Working" : unseen ? "Unread chat" : "Chat";
 
   return (
-    <li data-sidebar-level="chat" onFocusCapture={onPrefetch} onPointerDown={onPrefetch} onPointerEnter={onPrefetch}>
+    <SidebarPresence as="li" level="chat" onPrefetch={onPrefetch}>
       <div className={cn(ledgerRowClassName, current && "bg-overlay-pressed text-ink-strong", selected && !current && "text-ink")} title={session.title}>
         <span className="ml-2 grid w-3 shrink-0 place-items-center">
           {hasAgents && (
@@ -84,7 +86,9 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
             <span className={ledgerMarkClassName} role="img" aria-label={activityLabel} title={activityLabel}>
               <ConversationStar className="size-5" active={streaming || agentsWorking} />
             </span>
-            <SessionTitleText className="min-w-0 flex-1 truncate text-xs leading-5" title={session.title} />
+            <SidebarLabel constant={orchestrator ? "tau" : "phi"} text={session.title} className="min-w-0 flex-1 truncate text-xs leading-5">
+              <SessionTitleText title={session.title} />
+            </SidebarLabel>
           </Button>
         )}
         <LedgerRowEnd
@@ -112,8 +116,10 @@ export default function ProjectSessionListItem(props: ProjectSessionListItemProp
           }
         />
       </div>
-      {hasAgents && expanded && <ChatAgentList sessionId={session.id} live={streaming || agentsWorking} />}
+      <SidebarBranch open={hasAgents && expanded}>
+        <ChatAgentList sessionId={session.id} live={streaming || agentsWorking} />
+      </SidebarBranch>
       {managed && <WorkspaceActivityLink sessionId={session.id} />}
-    </li>
+    </SidebarPresence>
   );
 }

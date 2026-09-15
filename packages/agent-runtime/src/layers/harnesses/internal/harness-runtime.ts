@@ -19,7 +19,8 @@ import {harnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/h
 import {curatorScheduler} from "@supernova/agent-runtime/layers/curator/curator-scheduler";
 import {createCurationRequestTool} from "@supernova/agent-runtime/layers/curator/curator-request-tool";
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
-import {resolveHarnessProject} from "@supernova/agent-runtime/layers/harnesses/lib/harness-config";
+import {createHarnessProjectTool} from "@supernova/agent-runtime/layers/harnesses/internal/harness-project-tool";
+import type {HarnessStore} from "@supernova/agent-runtime/layers/harnesses/internal/harness-store";
 import {toPiThinkingLevel} from "@supernova/agent-runtime/layers/session-runtime/lib/models/thinking-levels";
 import type {PiSdkServiceShape} from "@supernova/agent-runtime/layers/pi-sdk";
 import {createPiCustomTools} from "@supernova/agent-runtime/layers/session-runtime/internal/tools/create-pi-custom-tools";
@@ -134,11 +135,11 @@ export async function createHarnessResources(
         specialistPrompt !== undefined
           ? "Runtime role boundary: You are a delegated specialist worker, not the main agent, Chief Scientist, project lead, or Science Space coordinator. Main-agent and orchestrator role sections in imported project instructions describe your supervisor, not your role. Follow the shared scientific rules and project constraints, perform only your assigned specialist task, and return your result to the delegating agent. Your configured specialist role and tool allowlist apply; delegation grants no extra approval or authority."
           : "",
-        specialistPrompt === undefined && snapshot.delegation?.projects.length
-          ? `Labs reporting to this head orchestrator (use lab_agent with the exact projectId):\n${snapshot.delegation.projects.map((lab) => `${lab.id}: ${lab.name}`).join("\n")}`
+        specialistPrompt === undefined && snapshot.harness.coordinatorProjectId === snapshot.project.id
+          ? `You are the harness lead. Use manage_projects to list current projects, create or assign folders and read their recorded status. The live directory may have changed since this chat began. Give project-scoped tasks through lab_agent (background:true to keep working). Project leads use their own specialists. Send corrections with subagent action:message and exactly one owned runId. Results return through status/wait, and are not automatically injected. Separate user project chats keep their own context and are not silently steered by delegation.`
           : "",
         specialistPrompt === undefined && harness.agents.length > 0
-          ? `Harness specialists available through subagent:\n${harness.agents.map((agent) => `${agent.name}: ${agent.description}`).join("\n")}\nDelegation is explicit; no specialist is running until invoked. For independent tasks use subagent with background:true and tasks (up to three): it returns runIds immediately. Continue your own non-overlapping work while workers run. Do not repeat their tasks or edit their files. When you need the results, call subagent action:wait with those runIds; do not repeatedly poll. Read and integrate the results before claiming completion. Use a chain only for real sequential dependencies. Background results are retrieved through status/wait, not automatically injected into your conversation.`
+          ? `Harness specialists available through subagent:\n${harness.agents.map((agent) => `${agent.name}: ${agent.description}`).join("\n")}\nDelegation is explicit; no specialist is running until invoked. For independent tasks use subagent with background:true and tasks (up to three): it returns runIds immediately. Continue your own non-overlapping work while workers run. Do not repeat their tasks or edit their files. When you need the results, call subagent action:wait with those runIds; do not repeatedly poll. Read and integrate the results before claiming completion. An isolated project lead must collect all its children before finishing; any uncollected children are cancelled when that lead closes. Use a chain only for real sequential dependencies. Send a correction to one of your own running workers with subagent action:message, runIds:[id], message:text. Three direct background workers per lead and twelve across the chat hierarchy are allowed. Background results are retrieved through status/wait, not automatically injected into your conversation.`
           : "",
         specialistPrompt === undefined && harness.workflows?.length
           ? `Named workflows available through harness_workflow (pass the exact workflowId):\n${harness.workflows.map((item) => `${item.id}: ${item.name}. ${item.description}`).join("\n")}`
@@ -153,7 +154,8 @@ export async function createHarnessResources(
 
 const delegationTask = Type.Object({agent: Type.String(), task: Type.String({minLength: 1, maxLength: 100000})});
 const delegateParameters = Type.Object({
-  action: Type.Optional(Type.Union([Type.Literal("start"), Type.Literal("status"), Type.Literal("wait"), Type.Literal("cancel")])),
+  action: Type.Optional(Type.Union([Type.Literal("start"), Type.Literal("status"), Type.Literal("wait"), Type.Literal("cancel"), Type.Literal("message")])),
+  message: Type.Optional(Type.String({minLength: 1, maxLength: 10000})),
   background: Type.Optional(Type.Boolean()),
   runIds: Type.Optional(Type.Array(Type.String(), {minItems: 1, maxItems: 3})),
   agent: Type.Optional(Type.String()),
@@ -170,7 +172,12 @@ const workflowParameters = Type.Object({
 const labParameters = Type.Object({projectId: Type.String(), task: Type.String({minLength: 1, maxLength: 100000}), background: Type.Optional(Type.Boolean())});
 
 /** Runs configured specialists in isolated in-memory sessions with explicit tool allowlists. */
-export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServiceShape, trace?: {chatId: string; store: HarnessRunStore; parentRunId?: string}): ToolDefinition[] {
+export function createHarnessTools(
+  snapshot: HarnessSnapshot,
+  piSdk: PiSdkServiceShape,
+  trace?: {chatId: string; store: HarnessRunStore; parentRunId?: string},
+  configuration: HarnessStore = harnessStore
+): ToolDefinition[] {
   const runSession = async (
     child: HarnessSnapshot,
     name: string,
@@ -249,8 +256,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
         thinkingLevel,
         sessionManager: SessionManager.inMemory(child.project.path),
         ...(agent && {tools: workflow?.effects === "none" ? agent.tools.filter((tool) => workflowReadTools.has(tool)) : [...agent.tools]}),
-        customTools: [...createPiCustomTools(), ...(!agent ? createHarnessTools(child, piSdk, trace ? {...trace, parentRunId: receipt?.id} : undefined) : [])],
-        excludeTools: agent ? ["subagent", "harness_workflow", "lab_agent", "manage_lab_view"] : ["lab_agent"],
+        customTools: [...createPiCustomTools(), ...(!agent ? createHarnessTools(child, piSdk, trace ? {...trace, parentRunId: receipt?.id} : undefined, configuration) : [])],
+        excludeTools: agent ? ["subagent", "harness_workflow", "lab_agent", "manage_lab_view", "manage_projects"] : ["lab_agent", "manage_projects"],
       });
       let steered = false;
       windDown = () => {
@@ -289,6 +296,14 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
       // Token streams are coalesced to one receipt write per second; completed messages flush immediately.
       const transcriptTimer = trace ? setInterval(flushTranscript, 1000) : undefined;
       transcriptTimer?.unref();
+      const receiveCorrection = async (text: string): Promise<void> => {
+        if (!session.isStreaming || signal?.aborted) throw new Error("This worker has finished or stopped; assign a new task using its saved result.");
+        await session.steer(text);
+        const at = new Date().toISOString();
+        update({events: [...(receipt?.events ?? []), {at, message: `Correction from supervising lead: ${text}`}].slice(-200)});
+        await writes;
+        if (writeError) throw new Error("Correction reached the worker, but its receipt could not be saved. Check its transcript before retrying.");
+      };
       const unsubscribe = trace
         ? session.subscribe((event) => {
             if (transcript.record(event)) {
@@ -296,6 +311,7 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
               if (event.type !== "message_update" && event.type !== "tool_execution_update") flushTranscript();
             }
             if (event.type === "agent_start") {
+              if (receiptId) backgroundDelegations.connect(trace.chatId, receiptId, receiveCorrection);
               const runtime = captureHarnessContext(session, resources.resourceLoader);
               update({status: "running", activity: "Working", runtime, model: runtime.model});
             }
@@ -317,7 +333,8 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
       try {
         if (signal?.aborted) throw new Error("Delegation cancelled.");
         await session.bindExtensions({});
-        await session.prompt(task);
+        const response = session.prompt(task);
+        await response;
         await session.agent.waitForIdle();
         reportUsage();
         await usageWrites;
@@ -347,6 +364,7 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
         );
         return {runId: receipt?.id, text, usage};
       } finally {
+        if (trace && receipt && !agent) await backgroundDelegations.cancelOwned(trace.chatId, receipt.id);
         if (transcriptTimer) clearInterval(transcriptTimer);
         flushTranscript();
         await writes;
@@ -424,12 +442,14 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
           : [
               {
                 id: runIds[index]!,
+                projectKey: job.agent ? undefined : `${job.snapshot.harness.id}:${job.snapshot.project.id}`,
                 execute: (childSignal: AbortSignal, ready: () => void) =>
                   runSession(job.snapshot, job.name, job.task, ctx, childSignal, job.agent, {onStarted: async () => ready()}, runIds[index]),
               },
             ]
       ),
-      signal
+      signal,
+      trace.parentRunId ?? "root"
     );
     return {
       content: [
@@ -441,20 +461,50 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
       details: {harnessId: snapshot.harness.id, runIds, background: true},
     };
   };
+  const collectBackground = async (runIds: readonly string[], ctx: ExtensionContext, signal?: AbortSignal, throwOnFailure = false) => {
+    if (!trace) throw new Error("Delegation results need an owning chat.");
+    const delivery = await backgroundDelegations.wait(trace.chatId, runIds, signal, ctx.hasPendingMessages ? () => ctx.hasPendingMessages() : undefined);
+    const runs = await Promise.all(runIds.map((id) => trace.store.get(trace.chatId, id)));
+    const failure = runs.find((run) => run.status === "failed" || run.status === "cancelled");
+    if (throwOnFailure && delivery === "completed" && failure) throw new Error(failure.error || `Delegation ${failure.status}.`);
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: [
+            ...(delivery === "steering" ? ["A new message is waiting for this lead. The workers remain active; apply the correction before waiting again."] : []),
+            ...runs.map((run) => `${run.id} · ${run.agentName} · ${run.status}\n${run.output || run.error || run.activity || ""}`),
+          ].join("\n\n---\n\n"),
+        },
+      ],
+      details: {runIds, delivery},
+    };
+  };
   const delegate: ToolDefinition<typeof delegateParameters> = {
     name: "subagent",
     label: "Harness specialists",
     description:
-      "Delegate ad hoc work to this harness's specialists: agent/task for one, chain for sequential handoffs, or up to three parallel tasks. Set background:true to return runIds immediately and continue your own independent work. Use action:wait with runIds to join results, status to inspect, cancel to stop. A chain remains synchronous. Assign separate ownership; do not duplicate tasks or overlap writes. Free text in, free text out, with a chat-owned execution receipt and public conversation. Use harness_workflow instead to run one of this harness's named workflows. Specialists cannot recursively delegate.",
+      "Delegate ad hoc work to this harness's specialists: agent/task for one, chain for sequential handoffs, or up to three parallel tasks. Set background:true to return runIds immediately and continue your own independent work. Use action:wait with runIds to join results, status to inspect, cancel to stop, message with a correction to steer a running worker. Message exactly one runId at a time; the receipt confirms acceptance, not completion. Only your own direct assignments can be controlled. A chain remains synchronous. Assign separate ownership; do not duplicate tasks or overlap writes. Free text in, free text out, with a chat-owned execution receipt and public conversation. Use harness_workflow instead to run one of this harness's named workflows. Specialists cannot recursively delegate.",
     parameters: delegateParameters,
     executionMode: "sequential",
     async execute(_id, params, signal, _update, ctx) {
       if (params.action && params.action !== "start") {
         if (!trace || !params.runIds?.length) throw new Error("Provide runIds belonging to this chat.");
         if (params.agent || params.task || params.tasks || params.chain) throw new Error("Do not combine an inspection action with new assignments.");
-        // Validate ownership before waiting or cancelling anything.
-        await Promise.all(params.runIds.map((id) => trace.store.get(trace.chatId, id)));
-        if (params.action === "wait") await backgroundDelegations.wait(trace.chatId, params.runIds, signal);
+        // A nested lead must not steer, cancel or read another lead's assignments.
+        const owned = await Promise.all(params.runIds.map((id) => trace.store.get(trace.chatId, id)));
+        if (owned.some((run) => run.parentRunId !== trace.parentRunId)) throw new Error("Only this lead's direct assignments can be controlled here.");
+        if (params.action === "message") {
+          if (params.runIds.length !== 1 || !params.message?.trim()) throw new Error("Provide exactly one runId and a nonempty message.");
+          const messageId = `${trace.parentRunId ?? "root"}:${_id}`;
+          await backgroundDelegations.message(trace.chatId, params.runIds[0]!, messageId, params.message);
+          return {
+            content: [{type: "text", text: "Correction accepted by the running worker. Use wait for its final result."}],
+            details: {runId: params.runIds[0], messageId, delivery: "steered"},
+          };
+        }
+        if (params.message) throw new Error("Use action:message to send a correction.");
+        if (params.action === "wait") return collectBackground(params.runIds, ctx, signal);
         if (params.action === "cancel") await backgroundDelegations.cancel(trace.chatId, params.runIds);
         const runs = await Promise.all(params.runIds.map((id) => trace.store.get(trace.chatId, id)));
         return {
@@ -462,17 +512,18 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
           details: {runIds: params.runIds},
         };
       }
-      if (params.runIds) throw new Error("Use an inspection action with runIds.");
+      if (params.runIds || params.message) throw new Error("Use a control action with runIds; corrections require action:message.");
       if (Number(Boolean(params.agent && params.task)) + Number(Boolean(params.chain)) + Number(Boolean(params.tasks)) !== 1)
         throw new Error("Choose exactly one delegation mode: agent/task, chain, or tasks.");
-      if (params.background) {
+      if (params.background || (trace && !params.chain && !signal?.aborted)) {
         if (params.chain) throw new Error("Use background tasks for independent work; chains wait for each predecessor.");
         const jobs = (params.tasks ?? [{agent: params.agent!, task: params.task!}]).map((task) => {
           const agent = snapshot.harness.agents.find((item) => item.name === task.agent);
           if (!agent) throw new Error(`Unknown harness specialist: ${task.agent}`);
           return {snapshot, name: agent.name, task: task.task, agent};
         });
-        return startBackground(_id, jobs, ctx, signal);
+        const result = await startBackground(_id, jobs, ctx, signal);
+        return params.background ? result : collectBackground(result.details.runIds, ctx, signal, true);
       }
       const text = params.chain
         ? await chain(params.chain, ctx, signal)
@@ -525,21 +576,24 @@ export function createHarnessTools(snapshot: HarnessSnapshot, piSdk: PiSdkServic
   };
   const lab: ToolDefinition<typeof labParameters> = {
     name: "lab_agent",
-    label: "Lab orchestrator",
+    label: "Project lead",
     description:
-      "Delegate a bounded task to a lab under Science Space. The lab gets its own working directory, instructions, model, skills, and specialists. Set background:true to return immediately, continue independent work and collect the result with subagent action:wait and runIds. No experiment approval is implied.",
+      "Delegate a bounded task to a project under this harness lead. Use manage_projects list for current project IDs. Only one lead per project may run in this chat at a time; correct it with subagent action:message instead of spawning another instance. The lab gets its own working directory, instructions, model, skills, and specialists. Set background:true to return immediately, continue independent work and collect the result with subagent action:wait and runIds. No experiment approval is implied.",
     parameters: labParameters,
     executionMode: "sequential",
     async execute(_id, params, signal, _update, ctx) {
-      const project = snapshot.delegation?.projects.find((item) => item.id === params.projectId);
-      if (!project || !snapshot.delegation) throw new Error("This lab does not report to this head orchestrator.");
-      const child = resolveHarnessProject(snapshot.delegation.harness, project, snapshot.revision);
-      if (params.background) return startBackground(_id, [{snapshot: child, name: project.name, task: params.task}], ctx, signal);
+      const child = await configuration.delegatedProject(snapshot, params.projectId);
+      const project = child.project;
+      if (params.background || (trace && !signal?.aborted)) {
+        const result = await startBackground(_id, [{snapshot: child, name: project.name, task: params.task}], ctx, signal);
+        return params.background ? result : collectBackground(result.details.runIds, ctx, signal, true);
+      }
       const {text} = await runSession(child, project.name, params.task, ctx, signal);
       return {content: [{type: "text", text: `${project.name}\n${text}`}], details: {projectId: project.id, agentName: project.name}};
     },
   };
-  const view = createHarnessViewTool(snapshot, harnessStore);
+  const view = createHarnessViewTool(snapshot, configuration);
   const curation = trace ? [createCurationRequestTool(snapshot, trace.chatId)] : [];
-  return snapshot.delegation?.projects.length ? [delegate, workflow, lab, view, ...curation] : [delegate, workflow, view, ...curation];
+  const head = snapshot.harness.coordinatorProjectId === snapshot.project.id && !trace?.parentRunId;
+  return head ? [delegate, workflow, lab, createHarnessProjectTool(snapshot, configuration, trace), view, ...curation] : [delegate, workflow, view, ...curation];
 }

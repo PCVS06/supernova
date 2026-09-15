@@ -140,6 +140,10 @@
     outline-offset: 3px;
   }
 
+  :is(button, a, [role="button"]):focus:not(:focus-visible) {
+    outline: none;
+  }
+
   ::selection {
     background: var(--theme-ink-strong);
     color: var(--theme-surface);
@@ -166,6 +170,44 @@
       color 160ms ease,
       filter 160ms ease,
       opacity 160ms ease;
+  }
+
+  .chat-workspace,
+  .worker-run-surface {
+    animation: surface-enter 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .ui-disclosure-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 180ms ease,
+      visibility 240ms;
+  }
+
+  .ui-disclosure[data-open="true"] > .ui-disclosure-reveal {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .ui-disclosure-chevron {
+    transition: transform 240ms ease;
+  }
+
+  :root[data-mathematical-motion="off"] :is(.chat-workspace, .worker-run-surface, .ui-disclosure-reveal, .ui-disclosure-chevron) {
+    animation: none;
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(.chat-workspace, .worker-run-surface, .ui-disclosure-reveal, .ui-disclosure-chevron) {
+      animation: none;
+      transition: none;
+    }
   }
 
   :root {
@@ -231,6 +273,17 @@
     font-weight: 500;
     letter-spacing: 0.025em;
     line-height: 1rem;
+  }
+}
+
+@keyframes surface-enter {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
   }
 }
 

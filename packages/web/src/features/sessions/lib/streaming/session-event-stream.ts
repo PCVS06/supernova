@@ -7,6 +7,7 @@ import {allProjectSessionsQueryKey, listProjectSessionsQueryKey} from "@/feature
 import {allSessionsQueryKey, sessionQueryKey} from "@/features/sessions/hooks/api/use-session";
 import {useSessionLiveStore} from "@/features/sessions/stores/session-live-store";
 import type {RpcClient, RpcClientFiber} from "@/rpc/transport/protocol";
+import {useConnectionStore} from "@/rpc/connection-store";
 
 let connectionGeneration = 0;
 let fiber: RpcClientFiber | null = null;
@@ -30,7 +31,9 @@ function applyEvent(input: {event: SessionStreamEvent; queryClient: QueryClient}
   const {event, queryClient} = input;
 
   if (event.type === "connected") {
+    useConnectionStore.getState().setStatus("connected");
     useSessionLiveStore.getState().resetRevisions();
+    void queryClient.invalidateQueries({queryKey: ["agent", "session-controls"]});
     void queryClient.invalidateQueries({queryKey: ["agent", "workspace-overview"]});
     void queryClient.invalidateQueries({queryKey: ["agent", "workflow-runs"]});
     void queryClient.invalidateQueries({queryKey: ["agent", "harness-runs"]});
@@ -99,6 +102,7 @@ export function connectSessionEvents(input: ConnectSessionEventsInput): () => vo
         void newFiber.completed.then(() => {
           if (generation !== connectionGeneration || fiber !== newFiber) return;
           fiber = null;
+          useConnectionStore.getState().setStatus("reconnecting");
           reconnectTimer = window.setTimeout(start, 1_000);
         });
       })
@@ -106,6 +110,7 @@ export function connectSessionEvents(input: ConnectSessionEventsInput): () => vo
         if (generation !== connectionGeneration) return;
         isConnecting = false;
         fiber = null;
+        useConnectionStore.getState().setStatus("reconnecting");
         reconnectTimer = window.setTimeout(start, 1_000);
       });
   };

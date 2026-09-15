@@ -1,3 +1,6 @@
+import "@/features/sidebar/components/sidebar.css";
+import ConnectionStatus from "@/features/sessions/components/connection-status";
+import MathematicalSky from "@/components/brand/mathematical-sky";
 import {useState} from "react";
 import type {CSSProperties, PointerEvent, ReactNode} from "react";
 import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
@@ -60,7 +63,7 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
   const sidebarStyle = {"--sidebar-width": `${sidebarWidth}px`} as CSSProperties;
 
   return (
-    <main className={cn("h-svh overflow-hidden text-ink", desktopEnvironment && "bg-transparent", className)}>
+    <main className={cn("relative isolate h-svh overflow-hidden text-ink", desktopEnvironment && "bg-transparent", className)}>
       <section
         className={cn(
           "relative flex h-full min-h-0 overflow-hidden",
@@ -69,10 +72,7 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
         )}
       >
         {(titlebarActions != null || macEnvironment || appEnvironment === "windows") && (
-          <div
-            className={cn("absolute inset-x-0 top-0 z-10 flex h-12 items-center [-webkit-app-region:drag]", workspaceChrome && "border-b border-border-muted")}
-            style={sidebarStyle}
-          >
+          <div className={cn("absolute inset-x-0 top-0 z-10 flex h-12 items-center [-webkit-app-region:drag]", workspaceChrome && "workspace-header-seam")} style={sidebarStyle}>
             <div
               className={cn(
                 "flex h-full items-center gap-1 pr-3",
@@ -94,8 +94,9 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
         <aside
           aria-hidden={!sidebarVisible}
           aria-label="Primary sidebar"
+          data-visible={sidebarVisible}
           className={cn(
-            "relative shrink-0 overflow-hidden will-change-[width]",
+            "workspace-sidebar relative shrink-0 overflow-hidden will-change-[width]",
             !resizing && "transition-[width] duration-250 ease-in-out",
             sidebarVisible ? (resizable ? "w-full md:w-(--sidebar-width)" : "w-(--sidebar-width)") : "w-0"
           )}
@@ -103,27 +104,22 @@ export default function SidebarLayout(props: SidebarLayoutProps) {
           style={sidebarStyle}
         >
           <div
-            className={cn(
-              "h-full transition-opacity duration-200 ease-out",
-              !workspaceChrome && "pt-12",
-              resizable ? "w-screen md:w-(--sidebar-width)" : "w-(--sidebar-width)",
-              sidebarVisible ? "opacity-100" : "opacity-0"
-            )}
+            data-sidebar-content={sidebarVisible ? "open" : "closing"}
+            className={cn("workspace-sidebar-content h-full", !workspaceChrome && "pt-12", resizable ? "w-screen md:w-(--sidebar-width)" : "w-(--sidebar-width)")}
           >
             {sidebar}
           </div>
-          {resizable && sidebarVisible && <div className="absolute bottom-0 right-0 top-0 hidden w-1 cursor-col-resize md:block" onPointerDown={handleResizePointerDown} />}
+          {resizable && sidebarVisible && (
+            <div className="workspace-sidebar-resizer absolute bottom-3 right-0 top-3 hidden w-1 cursor-col-resize md:block" onPointerDown={handleResizePointerDown} />
+          )}
         </aside>
 
-        <section
-          className={cn(
-            "flex h-full min-h-0 min-w-0 flex-1 flex-col border-l bg-surface",
-            sidebarVisible ? "border-border-strong" : "border-l-transparent transition-[border-color] delay-200 duration-0"
-          )}
-        >
+        <section data-sidebar-visible={sidebarVisible} className="workspace-content-seam relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-surface">
+          <ConnectionStatus />
           {children}
         </section>
       </section>
+      <MathematicalSky />
     </main>
   );
 }

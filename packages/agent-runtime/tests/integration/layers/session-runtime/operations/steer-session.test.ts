@@ -107,4 +107,89 @@ describe("steering a running session", () => {
     expect(pi.faux.getPendingResponseCount()).toBe(1);
     expect(manager.buildSessionContext().messages.filter((message) => message.role === "user")).toHaveLength(1);
   });
+
+  it("accepts a correction exactly once while the visible turn is saving its final checkpoint", async () => {
+    let releaseCheckpoint = () => {};
+    let reachedCheckpoint = () => {};
+    const checkpoint = new Promise<void>((resolve) => {
+      releaseCheckpoint = resolve;
+    });
+    const reached = new Promise<void>((resolve) => {
+      reachedCheckpoint = resolve;
+    });
+    let captures = 0;
+    const pi = await createPiTestRuntime({
+      checkpointStore: {
+        capture: async () => {
+          if (++captures === 2) {
+            reachedCheckpoint();
+            await checkpoint;
+          }
+        },
+        restore: async () => {},
+        deleteSession: async () => {},
+      },
+    });
+    runtimes.push(pi);
+    const {info, manager} = pi.createSession();
+    const prompted: string[][] = [];
+    pi.faux.setResponses([
+      fauxAssistantMessage("First answer"),
+      (context) => {
+        prompted.push(userTexts(context.messages));
+        return fauxAssistantMessage("Correction received");
+      },
+    ]);
+    try {
+      await pi.runWithSessionRuntime(
+        Effect.flatMap(Effect.service(SessionRuntimeService), (runtime) =>
+          runtime.sendMessage({
+            sessionId: info.id,
+            contentParts: [{type: "text", text: "Start"}],
+            modelReference: selectedModelReference,
+          })
+        )
+      );
+      await reached;
+      const receipt = await pi.runWithSessionRuntime(
+        Effect.flatMap(Effect.service(SessionRuntimeService), (runtime) =>
+          runtime.steerSession({
+            sessionId: info.id,
+            text: "Correct the result",
+            fallback: {modelReference: selectedModelReference, captureCheckpoints: false},
+          })
+        )
+      );
+      expect(receipt).toMatchObject({delivery: "queued"});
+      expect(pi.faux.state.callCount).toBe(1);
+      releaseCheckpoint();
+      await waitUntil(() => expect(prompted).toHaveLength(1));
+      expect(prompted[0]).toEqual(["Start", "Correct the result"]);
+      await waitUntil(() => expect(manager.buildSessionContext().messages.filter((message) => message.role === "user")).toHaveLength(2));
+    } finally {
+      releaseCheckpoint();
+      await pi.runtime.dispose();
+    }
+  });
+
+  it("never resumes a stopped session through the late-steering fallback", async () => {
+    const pi = await createPiTestRuntime();
+    runtimes.push(pi);
+    const {info} = pi.createSession();
+    pi.faux.setResponses([fauxAssistantMessage("Done"), fauxAssistantMessage("Must not run")]);
+    await pi.sendMessage({sessionId: info.id, message: "Start", modelReference: selectedModelReference});
+    await pi.runWithSessionRuntime(Effect.flatMap(Effect.service(SessionRuntimeService), (runtime) => runtime.abortSession(info.id)));
+    await expect(
+      pi.runWithSessionRuntime(
+        Effect.flatMap(Effect.service(SessionRuntimeService), (runtime) =>
+          runtime.steerSession({
+            sessionId: info.id,
+            text: "Late correction",
+            fallback: {modelReference: selectedModelReference},
+          })
+        )
+      )
+    ).rejects.toThrow("not accepting steering");
+    expect(pi.faux.state.callCount).toBe(1);
+  });
 });

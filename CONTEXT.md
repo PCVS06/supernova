@@ -34,8 +34,7 @@ _Avoid_: Team member, chat
 **Agent**: A named specialist with its own system prompt and permitted tools. A configured agent is a role definition, not an already-running process.
 _Avoid_: Chat, project
 
-**Agent workflow**: An ordered graph of specialist handoffs that can be invoked explicitly. It is distinct from Science Pi's Idea Graph, which stores research ideas and relationships.
-_Avoid_: Idea Graph
+**Agent workflow**: An ordered graph of specialist handoffs that can be invoked explicitly.
 
 **Context policy**: The harness's instructions for context, project instruction loading, additional context files, and conversation compaction.
 

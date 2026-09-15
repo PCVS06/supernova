@@ -40,11 +40,9 @@ describe("authoritative goal and queue tray", () => {
   beforeEach(() => buttons.clear());
 
   it.each([
-    {label: "Pause", action: {type: "pause_goal"}},
-    {label: "Clear goal", action: {type: "clear_goal"}},
-    {label: "Mark complete", action: {type: "complete_goal"}},
+    {label: "Delete goal", action: {type: "clear_goal"}},
     {label: "Resume queue", action: {type: "resume_queue"}},
-    {label: "Steer now", action: {type: "steer_queued", id: "next"}},
+    {label: "Steer", action: {type: "steer_queued", id: "next"}},
     {label: "Remove queued message 1", action: {type: "remove_queued", id: "next"}},
   ] satisfies Array<{label: string; action: SessionControlsAction}>)("$label dispatches its explicit server action", ({label, action}) => {
     const onAction = vi.fn(async () => true);
@@ -56,7 +54,7 @@ describe("authoritative goal and queue tray", () => {
     // No optimistic removal: complete text remains inspectable until the server changes state.
     expect(html).toContain("Including this second line");
     expect(html).toContain("Then verify every finding");
-    expect(html).toContain("<details");
+    expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain("passes");
     expect(html).toContain("w-full");
     expect(html).not.toContain("mx-1");
@@ -65,22 +63,20 @@ describe("authoritative goal and queue tray", () => {
   });
 
   it.each([
-    {status: "paused", used: 2, resumes: true, label: "Paused"},
-    {status: "blocked", used: 2, resumes: true, label: "Needs attention"},
-    {status: "blocked", used: 10, resumes: false, label: "Needs attention"},
-    {status: "completed", used: 2, resumes: false, label: "Done"},
-  ] as const)("$status goal with $used passes has valid continuation controls", ({status, used, resumes, label}) => {
+    {status: "paused", used: 2, label: "Paused"},
+    {status: "blocked", used: 2, label: "Needs attention"},
+    {status: "blocked", used: 10, label: "Needs attention"},
+    {status: "completed", used: 2, label: "Done"},
+  ] as const)("$status goal with $used passes exposes only disclosure and deletion", ({status, used, label}) => {
     const onAction = vi.fn(async () => true);
     const html = renderToStaticMarkup(
       <SessionControlsTray state={{...base, goal: {...base.goal!, status, turnsUsed: used}}} pending={false} working={false} onAction={onAction} onRefresh={vi.fn()} />
     );
     expect(html).toContain(label);
-    expect(buttons.has("Resume")).toBe(resumes);
-    if (resumes) {
-      buttons.get("Resume")!.onClick?.({} as MouseEvent<HTMLButtonElement>);
-      expect(onAction).toHaveBeenCalledWith({type: "resume_goal"});
-    }
-    expect(buttons.has("Mark complete")).toBe(status !== "completed");
+    expect(buttons.has("Resume")).toBe(false);
+    expect(buttons.has("Pause")).toBe(false);
+    expect(buttons.has("Mark complete")).toBe(false);
+    expect(buttons.has("Delete goal")).toBe(true);
   });
 
   it.each(["uncertain", "storage", "pending"])("prevents unsafe replay during %s", (problem) => {
@@ -90,16 +86,27 @@ describe("authoritative goal and queue tray", () => {
       queue: base.queue.map((message) => ({...message, deliveryStatus: problem === "uncertain" ? "uncertain" : undefined})),
     };
     const html = renderToStaticMarkup(<SessionControlsTray state={state} pending={problem === "pending"} working onAction={vi.fn()} onRefresh={vi.fn()} />);
-    expect(buttons.get("Steer now")!.disabled).toBe(true);
+    expect(buttons.get("Steer")!.disabled).toBe(true);
     expect(buttons.get("Resume queue")!.disabled).toBe(true);
     expect(buttons.get("Remove queued message 1")!.disabled).toBe(problem !== "uncertain");
-    if (problem === "uncertain") expect(html).toContain("Inspect the chat");
+    if (problem === "uncertain") expect(html).toContain("Delivery needs review");
     if (problem === "storage") expect(html).toContain("restart the server");
   });
 
   it("does not show a disabled steering action when no turn is running", () => {
     const html = renderToStaticMarkup(<SessionControlsTray state={base} pending={false} working={false} onAction={vi.fn()} onRefresh={vi.fn()} />);
 
-    expect(html).not.toContain("Steer now");
+    expect(html).not.toContain("Steer");
+  });
+
+  it("shows an editable objective on expansion without starting work", () => {
+    const onAction = vi.fn();
+    const html = renderToStaticMarkup(
+      <SessionControlsTray state={base} pending={false} working goalDraft="Corrected objective" onGoalEdit={vi.fn()} onAction={onAction} onRefresh={vi.fn()} />
+    );
+    expect(html).toContain('aria-label="Goal objective"');
+    expect(html).toContain("Corrected objective</textarea>");
+    expect(html).toContain('aria-expanded="true"');
+    expect(onAction).not.toHaveBeenCalled();
   });
 });

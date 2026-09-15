@@ -1,4 +1,4 @@
-import {mkdtemp, mkdir, readFile, rm} from "node:fs/promises";
+import {mkdtemp, mkdir, readFile, realpath, rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
@@ -77,13 +77,19 @@ describe("chat-owned worker receipts and view boundaries", () => {
 
   it("persists actual nested lab and specialist runs under one chat, with distinct instruction owners", async () => {
     const {harness, project} = configuration();
-    const head = {...project, id: "head", name: "Science Space", systemPrompt: "HEAD BRIEF"};
+    const head = {...project, id: "head", name: "Science Space", path: join(root, "head"), systemPrompt: "HEAD BRIEF"};
+    await mkdir(head.path);
     const shared = {...harness, coordinatorProjectId: head.id, orchestratorPrompt: "HEAD ROLE"};
     const lab = {...project, parentProjectId: head.id, orchestratorPrompt: "LAB ROLE"};
-    const snapshot = {...resolveHarnessProject(shared, head, 4), delegation: {harness: shared, projects: [lab]}};
+    const library = new HarnessStore(join(root, "configuration"));
+    await library.save({...shared, coordinatorProjectId: undefined}, 0);
+    await library.saveProject(head, 1);
+    await library.saveProject(lab, 2);
+    await library.save(shared, 3);
+    const snapshot = await library.resolveProject("head");
     const store = new HarnessRunStore(join(root, "runs"));
     const {sdk, disposals} = fakeSdk();
-    const tool = createHarnessTools(snapshot, sdk, {chatId: "chat", store}).find((tool) => tool.name === "lab_agent")!;
+    const tool = createHarnessTools(snapshot, sdk, {chatId: "chat", store}, library).find((tool) => tool.name === "lab_agent")!;
     await tool.execute("lab", {projectId: lab.id, task: "Investigate lab question"}, undefined, undefined, {model: selectedPiModel} as unknown as ExtensionContext);
     const runs = await store.list("chat");
     expect(runs).toHaveLength(2);
@@ -102,7 +108,7 @@ describe("chat-owned worker receipts and view boundaries", () => {
       expect.objectContaining({kind: "tool", output: "Source found", status: "completed"}),
     ]);
     expect(JSON.stringify(receipt.transcript)).not.toContain("NOT PUBLIC");
-    expect(receipt.projectPath).toBe(root);
+    expect(receipt.projectPath).toBe(await realpath(root));
     expect(disposals.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
     const summary = await readFile(join(root, "runs", "chat", `${worker.id}.summary.json`), "utf8");
     expect(summary).not.toContain("PROJECT BRIEF");

@@ -25,7 +25,7 @@ test("keeps the chat compact and unfolds its identity into nested work on demand
   await expect(system).toHaveAttribute("data-expanded", "true");
   await expect(system.locator(".chat-orbit-sun .constant-orb")).toHaveAttribute("data-constant", "tau");
   await expect(system.locator(".chat-orbit-sun")).toHaveCount(1);
-  await expect(system.locator('[data-orbit-track="run:research-lead"]')).toHaveCount(1);
+  await expect(system.locator('[data-orbit-track="project:science:research"]')).toHaveCount(1);
   await expect(system.locator("[data-orbit-satellite]")).toHaveCount(2);
   await expect(page.locator(".workspace-map, .delegation-network")).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -65,9 +65,7 @@ test("saves orbital and sidebar choices in General and keeps them after reload",
   await page.getByRole("button", {name: "Open chat solar system", exact: true}).click();
   const canvas = page.getByRole("group", {name: "Orbital delegation"});
   await expect(canvas).toHaveAttribute("data-orbit-moving", "false");
-  await page.getByRole("button", {name: "Orbit options", exact: true}).click();
-  await expect(page.getByRole("combobox", {name: "Orbit detail"})).toHaveValue("compact");
-  await expect(page.getByRole("button", {name: "Resume orbital motion"})).toBeVisible();
+  await expect(page.getByRole("button", {name: "Orbit options", exact: true})).toHaveCount(0);
 });
 
 test("reveals sidebar controls on hover, expands agents under their chat and opens their result", async ({page, timeline}) => {
@@ -87,7 +85,12 @@ test("reveals sidebar controls on hover, expands agents under their chat and ope
   await expect(sidebar.getByRole("list", {name: "Agents in this chat"})).toHaveCount(0);
   await expand.click();
   const agents = sidebar.getByRole("list", {name: "Agents in this chat"});
+  await expect(agents.getByRole("link")).toHaveCount(3);
+  await agents.getByRole("button", {name: "Show 1 earlier completed run", exact: true}).click();
   await expect(agents.getByRole("link")).toHaveCount(4);
+  await agents.getByRole("button", {name: "Hide earlier completed runs", exact: true}).click();
+  await expect(agents.getByRole("link")).toHaveCount(3);
+  await agents.getByRole("button", {name: "Show 1 earlier completed run", exact: true}).click();
   const marks = [
     sidebar.locator('[data-sidebar-level="harness"] > div .constant-orb').first(),
     sidebar.locator('[data-sidebar-level="lead"] .constant-orb').first(),

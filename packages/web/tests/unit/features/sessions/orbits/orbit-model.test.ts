@@ -23,14 +23,38 @@ function worker(id: string, overrides: Partial<HarnessRunSummary> = {}): Harness
 const defaults = {chatId: "chat", title: "Lead chat", constant: "tau" as const, busy: false, workflows: []};
 
 describe("chat orbital ownership", () => {
+  it("represents repeated project assignments as one planet with all its workers", () => {
+    const model = buildOrbitModel({
+      ...defaults,
+      runs: [
+        worker("first", {role: "lab-orchestrator", status: "completed"}),
+        worker("second", {role: "lab-orchestrator"}),
+        worker("old-worker", {parentRunId: "first", status: "completed"}),
+        worker("current-worker", {parentRunId: "second"}),
+      ],
+    });
+    const planets = [...model.bodies.values()].filter((body) => body.kind === "orchestrator");
+    expect(planets).toHaveLength(1);
+    expect(planets[0]).toMatchObject({active: true, runId: "second"});
+    expect(model.children.get(planets[0]!.id)?.toSorted()).toEqual(["run:current-worker", "run:old-worker"]);
+  });
+  it("excludes removed projects and their workers from the live system", () => {
+    const input = {...defaults, projects: [], runs: [worker("removed", {role: "lab-orchestrator"}), worker("moon", {parentRunId: "removed"})]};
+    const model = buildOrbitModel(input);
+    expect([...model.bodies.keys()]).toEqual([model.rootId]);
+  });
+  it("keeps direct workers in a chat outside the harness directory while excluding deleted delegated projects", () => {
+    const model = buildOrbitModel({...defaults, projects: [], runs: [worker("own"), worker("removed", {role: "lab-orchestrator", projectId: "deleted"})]});
+    expect([...model.bodies.keys()]).toEqual([model.rootId, "run:own"]);
+  });
   it("preserves a chat's identity, direct agents and nested project delegations without importing other chats", () => {
     const model = buildOrbitModel({
       ...defaults,
       runs: [worker("direct"), worker("project-lead", {role: "lab-orchestrator"}), worker("moon", {parentRunId: "project-lead"}), worker("foreign", {chatId: "other"})],
     });
     expect(model.bodies.get(model.rootId)?.constant).toBe("tau");
-    expect(model.children.get(model.rootId)).toEqual(["run:direct", "run:project-lead"]);
-    expect(model.children.get("run:project-lead")).toEqual(["run:moon"]);
+    expect(model.children.get(model.rootId)).toEqual(["run:direct", "project:harness:project"]);
+    expect(model.children.get("project:harness:project")).toEqual(["run:moon"]);
     expect(model.bodies.has("run:foreign")).toBe(false);
   });
   it.each(["completed", "cancelled", "interrupted"] as const)("retains %s participation and distinguishes independent activity", (status) => {
@@ -39,8 +63,8 @@ describe("chat orbital ownership", () => {
       runs: [worker("lead", {role: "lab-orchestrator", status}), worker("moon", {parentRunId: "lead", status})],
       otherRuns: [worker("external", {chatId: "independent"})],
     });
-    expect(model.bodies.get("run:lead")).toMatchObject({active: false, independentChats: ["independent"]});
-    expect(model.children.get("run:lead")).toEqual(["run:moon"]);
+    expect(model.bodies.get("project:harness:project")).toMatchObject({active: false, independentChats: ["independent"]});
+    expect(model.children.get("project:harness:project")).toEqual(["run:moon"]);
     expect(model.bodies.has("run:external")).toBe(false);
   });
   it("opens a delegated project as its own system and excludes peers and its original chat root", () => {
@@ -78,7 +102,7 @@ describe("chat orbital ownership", () => {
     });
     expect(model.bodies.has("run:source-worker")).toBe(false);
     expect(model.children.get("step:flow:source")).toEqual(["run:nested"]);
-    expect(model.bodies.get("step:flow:review")?.parentId).toBe("run:lead");
+    expect(model.bodies.get("step:flow:review")?.parentId).toBe("project:harness:project");
     expect(model.transfers).toEqual([{from: "step:flow:source", to: "step:flow:review", kind: "result"}]);
   });
   it("keeps damaged parent records reachable without claiming a real direct delegation", () => {
@@ -96,6 +120,27 @@ describe("chat orbital ownership", () => {
     expect(view.primary.length).toBeLessThanOrEqual(4);
     expect(view.primary.some((body) => body.id === `run:${count - 1}`)).toBe(true);
     expect(orbitDescendants(model, model.rootId)).toHaveLength(count);
+  });
+  it.each([4, 6, 8])("keeps agents visible beside all %i project planets", (count) => {
+    const runs = Array.from({length: count}, (_, index) => [
+      worker(`lead-${index}`, {role: "lab-orchestrator", projectId: `project-${index}`, status: "completed"}),
+      ...Array.from({length: 3}, (_, child) => worker(`agent-${index}-${child}`, {parentRunId: `lead-${index}`, projectId: `project-${index}`, status: "completed"})),
+    ]).flat();
+    const model = buildOrbitModel({...defaults, runs});
+    const view = projectOrbits(model, model.rootId, 8);
+    expect(view.primary).toHaveLength(count);
+    expect(view.hidden).toBe(0);
+    expect([...view.satellites.values()].flat()).toHaveLength(count * 3);
+  });
+  it("shows a six-agent team and keeps a selected agent visible in larger teams", () => {
+    const model = buildOrbitModel({
+      ...defaults,
+      runs: [worker("lead", {role: "lab-orchestrator"}), ...Array.from({length: 9}, (_, i) => worker(`agent-${i}`, {parentRunId: "lead"}))],
+    });
+    const view = projectOrbits(model, model.rootId, 8, "run:agent-8");
+    const agents = view.satellites.get("project:harness:project")!;
+    expect(agents).toHaveLength(6);
+    expect(agents.some((agent) => agent.id === "run:agent-8")).toBe(true);
   });
   it("handles very deep recorded delegation without recursive traversal", () => {
     const model = buildOrbitModel({...defaults, runs: Array.from({length: 1000}, (_, i) => worker(String(i), {parentRunId: i ? String(i - 1) : undefined}))});

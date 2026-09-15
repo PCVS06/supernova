@@ -1,0 +1,75 @@
+.mathematical-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: var(--theme-ink);
+  contain: strict;
+}
+.mathematical-sky-formula {
+  fill: currentColor;
+  font-family: Georgia, "Times New Roman", serif;
+  animation: mathematical-sky-drift var(--sky-cycle) ease-in-out var(--sky-phase) infinite alternate;
+}
+.mathematical-sky-meteor {
+  opacity: 0;
+  animation: mathematical-sky-shoot var(--meteor-cycle) linear var(--meteor-delay) infinite;
+}
+@keyframes mathematical-sky-drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(var(--sky-drift-x), var(--sky-drift-y));
+  }
+}
+@keyframes mathematical-sky-shoot {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  1% {
+    opacity: 0.48;
+  }
+  4% {
+    opacity: 0;
+    transform: translate(var(--meteor-x), var(--meteor-y));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--meteor-x), var(--meteor-y));
+  }
+}
+:root[data-color-mode="light"] .mathematical-sky {
+  opacity: 0.4;
+}
+:root[data-mathematical-motion="subtle"] .mathematical-sky {
+  opacity: 0.65;
+}
+:root[data-mathematical-motion="subtle"] .mathematical-sky-formula {
+  animation-duration: calc(var(--sky-cycle) * 2);
+}
+:root[data-mathematical-motion="subtle"] .mathematical-sky-meteor {
+  animation-duration: calc(var(--meteor-cycle) * 2);
+}
+:root[data-motion-paused="true"] .mathematical-sky * {
+  animation-play-state: paused;
+}
+:root[data-mathematical-motion="off"] .mathematical-sky * {
+  animation: none;
+}
+:root[data-mathematical-motion="off"] .mathematical-sky-meteor {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mathematical-sky * {
+    animation: none !important;
+  }
+  .mathematical-sky-meteor {
+    display: none;
+  }
+}

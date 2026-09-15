@@ -14,6 +14,7 @@ import {
   SendMessagePayload,
   SteerSessionPayload,
   SteerSessionError,
+  SteerSessionResult,
   SessionStreamEvent,
   UndoCheckpointPayload,
   WatchEventsPayload,
@@ -25,6 +26,7 @@ export const SendMessageRpc = Rpc.make("sendMessage", {
 
 export const SteerSessionRpc = Rpc.make("steerSession", {
   payload: SteerSessionPayload,
+  success: SteerSessionResult,
   error: SteerSessionError,
 });
 

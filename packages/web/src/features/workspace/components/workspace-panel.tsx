@@ -1,3 +1,6 @@
+import {Link} from "@tanstack/react-router";
+import {useSession} from "@/features/sessions/hooks/api/use-session";
+import type {WorkspaceTarget} from "@/features/workspace/stores/workspace-panel-store";
 import type {CSSProperties, PointerEvent} from "react";
 import {useRef, useState} from "react";
 import {useAppearanceStore} from "@/features/settings/stores/appearance-store";
@@ -10,6 +13,24 @@ import WorkspacePanelHeader from "@/features/workspace/components/workspace-pane
 import WorkspaceTerminalView from "@/features/workspace/components/workspace-terminal-view";
 import WorkspaceViewPicker from "@/features/workspace/components/workspace-view-picker";
 import {useWorkspacePanelStore} from "@/features/workspace/stores/workspace-panel-store";
+
+interface WorkspaceOwnerProps {
+  readonly target: WorkspaceTarget;
+}
+
+function WorkspaceOwner({target}: WorkspaceOwnerProps) {
+  const {data: session} = useSession(target.sessionId);
+  return (
+    <div aria-label="Workspace owner" className="shrink-0 border-b border-border-muted px-3 py-2 text-xs">
+      <Link className="block truncate text-ink-muted hover:text-ink" to="/session/$sessionId" params={{sessionId: target.sessionId}}>
+        Chat · {session?.title ?? "Loading…"}
+      </Link>
+      <p className="truncate text-ink-faint" title={target.projectPath}>
+        {target.projectPath}
+      </p>
+    </div>
+  );
+}
 
 interface WorkspacePanelProps {
   readonly appEnvironment: AppEnvironment;
@@ -71,14 +92,15 @@ export default function WorkspacePanel(props: WorkspacePanelProps) {
     >
       <div
         className={cn(
-          "absolute inset-y-0 right-0 flex min-h-0 flex-col border-l border-border-strong transition-opacity duration-200 ease-out motion-reduce:transition-none",
+          "workspace-panel-seam absolute inset-y-0 right-0 flex min-h-0 flex-col transition-opacity duration-200 ease-out motion-reduce:transition-none",
           glassChrome ? "app-glass-chrome bg-surface-sidebar-translucent" : "bg-surface-sidebar",
           visible ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         style={{width: panelWidth}}
       >
-        {visible && <div className="absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize" onPointerDown={handleResizePointerDown} />}
+        {visible && <div className="workspace-sidebar-resizer absolute bottom-3 left-0 top-3 z-30 w-1 cursor-col-resize" onPointerDown={handleResizePointerDown} />}
         <WorkspacePanelHeader />
+        {visible && target && <WorkspaceOwner target={target} />}
 
         {pickerVisible && <WorkspaceViewPicker />}
         {visible && !pickerVisible && activeView === "browser" && <WorkspaceBrowserView appEnvironment={appEnvironment} />}

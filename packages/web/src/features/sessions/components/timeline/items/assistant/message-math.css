@@ -1,0 +1,13 @@
+.session-markdown .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.5rem;
+}
+.session-markdown .katex {
+  white-space: normal;
+}
+.session-markdown .katex-error {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

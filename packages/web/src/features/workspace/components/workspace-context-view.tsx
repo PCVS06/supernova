@@ -68,7 +68,7 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3">
       {context.isPending && (
         <p className="py-6 text-sm text-ink-muted" role="status">
-          Loading captured context…
+          Loading context…
         </p>
       )}
       {context.error && (
@@ -84,7 +84,8 @@ export default function WorkspaceContextView(props: WorkspaceContextViewProps) {
           <ContextGroup>
             <WorkspaceProjectFiles paths={projectDocuments} />
             <InstructionReceipt
-              captured={context.data.captured}
+              captured={snapshot ? context.data.captured : undefined}
+              revision={snapshot?.revision}
               layers={context.data.instructions}
               runtime={context.data.runtime}
               roleConstant={(snapshot?.harness ?? library.data?.harnesses.find((harness) => harness.id === harnessId))?.coordinatorProjectId === projectId ? "tau" : "phi"}

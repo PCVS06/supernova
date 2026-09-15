@@ -38,7 +38,7 @@ test("moves the same compact symbol into the system and returns it without occup
   expect(positions.filter((x) => x > initial + 10 && x < final - 10).length).toBeGreaterThan(2);
   await expect(canvas.locator(".chat-orbit-sun")).toHaveCount(1);
   await page.screenshot({path: testInfo.outputPath("expanded-system.png")});
-  await page.getByRole("button", {name: "Close solar system", exact: true}).click();
+  await page.getByRole("button", {name: "Close chat solar system", exact: true}).click();
   await expect.poll(() => canvas.evaluate((element) => element.clientHeight)).toBeLessThanOrEqual(80);
   await expect(canvas.getByRole("button", {name: "Open chat solar system", exact: true})).toBeFocused();
   await expect(canvas.getByRole("button", {name: /^Research lead/})).toHaveCount(0);
@@ -74,11 +74,15 @@ test("keeps nested work in the chat and restores the parent system", async ({pag
   await canvas.getByRole("button", {name: /^Research lead/}).click();
   await expect(canvas.locator(".chat-orbit-sun .constant-orb")).toHaveAttribute("data-constant", "phi");
   await expect(canvas.getByRole("button", {name: /^Literature researcher/})).toBeVisible();
+  await page.getByRole("region", {name: "Selected work: Research lead", exact: true}).getByRole("button", {name: "Result", exact: true}).click();
   await expect(page.getByRole("region", {name: "Selected work: Research lead", exact: true})).toContainText("comparing hardware");
   await page.getByRole("button", {name: "Back to parent system"}).click();
   await expect(canvas.locator(".chat-orbit-sun .constant-orb")).toHaveAttribute("data-constant", "tau");
   await expect(page).toHaveURL(`/session/${TIMELINE_SESSION_ID}`);
   await page.goto(`/session/${TIMELINE_SESSION_ID}/run/research-lead`);
+  await expect(page.getByRole("button", {name: "Delegated work", exact: true})).toBeVisible();
+  await expect(canvas).toHaveCount(0);
+  await page.getByRole("button", {name: "Delegated work", exact: true}).click();
   await expect(canvas.locator(".chat-orbit-sun .constant-orb")).toHaveAttribute("data-constant", "phi");
   await expect(canvas.locator('[data-orbit-body="session:timeline-session"]')).toHaveCount(0);
   await page.goto("/session/research-0");
@@ -92,7 +96,7 @@ test("carries a selected project from its orbital position into the center", asy
   await page.getByRole("button", {name: "Open chat solar system", exact: true}).click();
   const canvas = page.getByRole("group", {name: "Orbital delegation"});
   await canvas.scrollIntoViewIfNeeded();
-  const lead = canvas.locator('[data-orbit-body="run:research-lead"]');
+  const lead = canvas.locator('[data-orbit-body="project:science:research"]');
   await lead.hover();
   await expect(canvas).toHaveAttribute("data-orbit-moving", "false");
   await lead.evaluate((button) => {
@@ -136,7 +140,7 @@ test("opens existing work without replaying old assignments as live signals", as
   await timeline.openMainSession();
   await page.evaluate(() => window.__supernovaTimelineMock?.setConstellationStatus("running"));
   const canvas = page.getByRole("group", {name: "Orbital delegation"});
-  await expect(canvas.locator('[data-orbit-body="run:research-lead"]')).toHaveAttribute("data-active", "true", {timeout: 15000});
+  await expect(canvas.locator('[data-orbit-body="project:science:research"]')).toHaveAttribute("data-active", "true", {timeout: 15000});
   await page.getByRole("button", {name: "Open chat solar system", exact: true}).click();
   await expect(canvas).toHaveAttribute("data-expanded", "true");
   expect(await canvas.locator("[data-orbit-packet]").evaluateAll((packets) => packets.every((packet) => getComputedStyle(packet).display === "none"))).toBe(true);
@@ -147,7 +151,7 @@ test("moves smoothly, pauses for inspection, and preserves completed work", asyn
   await timeline.openMainSession();
   await page.getByRole("button", {name: "Open chat solar system", exact: true}).click();
   const canvas = page.getByRole("group", {name: "Orbital delegation"});
-  const lead = canvas.locator('[data-orbit-body="run:research-lead"]');
+  const lead = canvas.locator('[data-orbit-body="project:science:research"]');
   await canvas.scrollIntoViewIfNeeded();
   await page.mouse.move(0, 0);
   await expect(canvas).toHaveAttribute("data-orbit-moving", "true");
@@ -176,7 +180,7 @@ test("groups a thousand participants and opens a searched historical result", as
   const canvas = page.getByRole("group", {name: "Orbital delegation"});
   await expect(canvas.getByRole("button", {name: /Earlier work/})).toBeVisible({timeout: 15000});
   expect(await canvas.locator("[data-orbit-body]").count()).toBeLessThanOrEqual(25);
-  expect(await canvas.locator(".constant-orb").count()).toBeLessThanOrEqual(7);
+  expect(await canvas.locator(".constant-orb").count()).toBeLessThanOrEqual(9);
   await expect(canvas.locator(".chat-orbit-drift")).toHaveCount(0);
   await canvas.getByRole("button", {name: /Earlier work/}).click();
   const members = page.getByRole("region", {name: "Orbit participants"});
@@ -186,6 +190,7 @@ test("groups a thousand participants and opens a searched historical result", as
   await members.getByRole("textbox", {name: "Find a participant"}).fill("Participant 0999");
   await expect(members.getByRole("listitem")).toHaveCount(1);
   await members.getByRole("button", {name: /Participant 0999/}).click();
+  await page.getByRole("region", {name: "Selected work: Participant 0999", exact: true}).getByRole("button", {name: "Result", exact: true}).click();
   await expect(page.getByRole("region", {name: "Selected work: Participant 0999", exact: true})).toContainText("Recorded result 999");
   await expect(canvas.locator('[data-orbit-body="run:bulk-999"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page).toHaveURL(`/session/${TIMELINE_SESSION_ID}`);

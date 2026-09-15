@@ -38,6 +38,15 @@ function missingFolderError(path: string): Error {
   return new Error(`The project folder is missing: ${path}. Restore the folder, or remove the project and add it again, before starting a chat.`);
 }
 
+/** Rechecks the current lead relationship instead of trusting a chat's old project list. */
+function requireHarnessLead(actor: HarnessSnapshot, library: HarnessLibrary): HarnessConfig {
+  const harness = library.harnesses.find((item) => item.id === actor.harness.id);
+  const project = library.projects.find((item) => item.id === actor.project.id && item.harnessId === actor.harness.id && item.path === actor.project.path);
+  if (!harness || !project || harness.coordinatorProjectId !== project.id || actor.harness.coordinatorProjectId !== actor.project.id)
+    throw new Error("Only this harness's current lead can manage its projects.");
+  return harness;
+}
+
 /** Keeps an identifier usable as one path segment; project and agent identifiers are already narrow, legacy ones are not. */
 function safeSegment(value: string): string {
   const safe = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
@@ -223,6 +232,86 @@ export class HarnessStore {
     });
   }
 
+  /** Lists the lead's current project directory, including projects added after its chat began. */
+  public async projectsForLead(actor: HarnessSnapshot): Promise<HarnessLibrary> {
+    const library = await this.list();
+    requireHarnessLead(actor, library);
+    return {
+      ...library,
+      harnesses: library.harnesses.filter((item) => item.id === actor.harness.id),
+      projects: library.projects.filter((item) => item.harnessId === actor.harness.id),
+    };
+  }
+
+  /** Creates or links a project under the lead, or updates its brief; never rewrites existing files or moves other harnesses' projects. */
+  public manageProject(
+    actor: HarnessSnapshot,
+    change: {
+      action: "create" | "assign" | "update";
+      projectId: string;
+      name?: string;
+      path?: string;
+      createDirectory?: boolean;
+      systemPrompt?: string;
+      contextInstructions?: string;
+    },
+    expectedRevision: number
+  ): Promise<HarnessLibrary> {
+    return this.update(expectedRevision, async (library) => {
+      const harness = requireHarnessLead(actor, library);
+      const existing = library.projects.find((item) => item.id === change.projectId);
+      if (existing && (existing.harnessId !== harness.id || existing.id === actor.project.id)) throw new Error("Choose a child project in this harness.");
+      if (change.action === "update" && !existing) throw new Error("Project not found. List the projects first.");
+      if (existing && change.path !== undefined && resolve(change.path) !== existing.path) throw new Error("An existing project's folder cannot be reassigned.");
+      if (change.action === "create" && existing) throw new Error("This project already exists. List its status before retrying.");
+      const name = change.name?.trim() ?? existing?.name;
+      if (!name || name.length > 120) throw new Error("Use a project name between 1 and 120 characters.");
+      if (!/^[a-zA-Z0-9_-]{1,100}$/.test(change.projectId)) throw new Error("Use a valid project ID.");
+      // Validate instructions before creating anything on disk.
+      resolveHarnessProject(
+        harness,
+        {
+          ...(existing ?? {id: change.projectId, harnessId: harness.id, agents: [], systemPrompt: "", contextInstructions: ""}),
+          name,
+          path: existing?.path ?? change.path ?? "",
+          ...(change.systemPrompt !== undefined && {systemPrompt: change.systemPrompt}),
+          ...(change.contextInstructions !== undefined && {contextInstructions: change.contextInstructions}),
+        },
+        library.revision
+      );
+      let path = existing?.path;
+      if (!path) {
+        if (!change.path || !isAbsolute(change.path)) throw new Error("Provide an absolute project folder path.");
+        // Creating a folder is explicit; linking an existing directory never writes into it.
+        const parent = await directory(resolve(change.path, ".."));
+        const target = join(parent, basename(change.path));
+        if (library.projects.some((item) => item.path === target)) throw new Error("This folder is already assigned to a project.");
+        if (change.createDirectory) await mkdir(target, {mode: 0o700});
+        path = await directory(target);
+        if (library.projects.some((item) => item.path === path)) throw new Error("This folder is already assigned to a project.");
+      }
+      const project: HarnessProject = {
+        ...(existing ?? {id: change.projectId, harnessId: harness.id, agents: [], systemPrompt: "", contextInstructions: ""}),
+        name,
+        path,
+        parentProjectId: actor.project.id,
+        ...(change.systemPrompt !== undefined && {systemPrompt: change.systemPrompt}),
+        ...(change.contextInstructions !== undefined && {contextInstructions: change.contextInstructions}),
+      };
+      resolveHarnessProject(harness, project, library.revision);
+      return {...library, projects: existing ? library.projects.map((item) => (item.id === project.id ? project : item)) : [...library.projects, project]};
+    });
+  }
+
+  /** Resolves a currently assigned child with fresh settings before starting a new delegated run. */
+  public async delegatedProject(actor: HarnessSnapshot, projectId: string): Promise<HarnessSnapshot> {
+    const library = await this.projectsForLead(actor);
+    const project = library.projects.find((item) => item.id === projectId && item.parentProjectId === actor.project.id);
+    if (!project) throw new Error("This project does not report to this harness lead.");
+    await directory(project.path);
+    return resolveHarnessProject(library.harnesses[0]!, project, library.revision);
+  }
+
   /** Unlinks a project. Its folder and files stay on disk; chats already bound to it keep their pinned snapshot. */
   public removeProject(projectId: string, expectedRevision: number): Promise<HarnessLibrary> {
     return this.update(expectedRevision, async (library) => {
@@ -237,7 +326,7 @@ export class HarnessStore {
     });
   }
 
-  /** Grants the head access to its known labs; project leads can change only their own presentation. */
+  /** Grants the current head access to its assigned projects; project leads can change only their own presentation. */
   public updateView(
     actor: HarnessSnapshot,
     change: {projectId: string; name?: string; color?: string; beforeProjectId?: string},
@@ -248,10 +337,7 @@ export class HarnessStore {
       const target = library.projects.find((item) => item.id === change.projectId && item.harnessId === actor.harness.id);
       const harness = library.harnesses.find((item) => item.id === actor.harness.id);
       const head = harness?.coordinatorProjectId === currentActor?.id && actor.harness.coordinatorProjectId === actor.project.id;
-      const allowed =
-        currentActor &&
-        target &&
-        (target.id === currentActor.id || (head && target.parentProjectId === currentActor.id && actor.delegation?.projects.some((item) => item.id === target.id)));
+      const allowed = currentActor && target && (target.id === currentActor.id || (head && target.parentProjectId === currentActor.id));
       if (!allowed || !target || !harness) throw new Error("This lead cannot manage that lab's view.");
       if (change.name !== undefined && (!change.name.trim() || change.name.length > 120)) throw new Error("Use a name between 1 and 120 characters.");
       if (change.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(change.color)) throw new Error("Use a six-digit hex color.");
@@ -297,10 +383,15 @@ export class HarnessStore {
         ...createDefaultHarness("science", "Science Pi"),
         source,
         agents,
-        description: "Scientific research, evidence, literature, memory, and Idea Graph tools. Imported from your local Science Pi setup.",
+        description: "Scientific research, evidence, literature, and memory tools. Imported from your local Science Pi setup.",
         systemPrompt: await readFile(join(source.packagePath, "APPEND_SYSTEM.md"), "utf8"),
-        // The app supplies isolated specialists in place of the package's CLI subprocess tool.
-        extensions: (manifest.pi.extensions as string[]).filter((path) => !path.includes("/subagent/")).map((path) => resolve(source.packagePath, path)),
+        // The app supplies isolated specialists in place of the package's CLI subprocess tool and does not expose Idea Graph in the harness.
+        extensions: (manifest.pi.extensions as string[])
+          .filter((path) => {
+            const extensionName = path.split(/[\\/]/).at(-2);
+            return extensionName !== "subagent" && extensionName !== "idea-graph";
+          })
+          .map((path) => resolve(source.packagePath, path)),
         skills: [join(source.packagePath, "skills")],
         graph: {steps: ["research-architect", "methodologist", "source-verifier", "scientific-synthesizer"].filter((name) => agents.some((agent) => agent.name === name))},
       };

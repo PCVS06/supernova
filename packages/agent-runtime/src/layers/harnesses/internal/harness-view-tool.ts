@@ -20,7 +20,7 @@ export function createHarnessViewTool(snapshot: HarnessSnapshot, store: HarnessS
     parameters,
     executionMode: "sequential",
     description:
-      "Manage Radian sidebar presentation when the user asks. First list to get IDs and revision, then update a lab's name, hex color, or position (beforeProjectId; empty string moves to end). Science Space may manage its known labs; a lab lead may only update its own lab. Never deletes work, changes prompts or folders, or grants research approval. Report every change to the user.",
+      "Manage Radian sidebar presentation when the user asks. First list to get IDs and revision, then update a lab's name, hex color, or position (beforeProjectId; empty string moves to end). The harness lead may manage its currently assigned projects; a lab lead may only update its own lab. Never deletes work, changes prompts or folders, or grants research approval. Report every change to the user.",
     async execute(_id, params) {
       let library = await store.list();
       if (params.action === "update") {
@@ -31,7 +31,9 @@ export function createHarnessViewTool(snapshot: HarnessSnapshot, store: HarnessS
           params.expectedRevision
         );
       }
-      const allowed = new Set([snapshot.project.id, ...(snapshot.delegation?.projects.map((project) => project.id) ?? [])]);
+      const current = library.harnesses.find((harness) => harness.id === snapshot.harness.id);
+      const head = current?.coordinatorProjectId === snapshot.project.id && snapshot.harness.coordinatorProjectId === snapshot.project.id;
+      const allowed = new Set([snapshot.project.id, ...library.projects.filter((project) => head && project.parentProjectId === snapshot.project.id).map((project) => project.id)]);
       const labs = library.projects
         .filter((project) => project.harnessId === snapshot.harness.id && allowed.has(project.id))
         .toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0))

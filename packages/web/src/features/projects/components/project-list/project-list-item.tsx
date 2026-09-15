@@ -1,9 +1,10 @@
-import {useCallback, useRef, useState} from "react";
+import {useState} from "react";
 import ConstantOrb from "@/components/brand/constant-orb";
 import type {MouseEvent} from "react";
 import {useLocation, useNavigate} from "@tanstack/react-router";
 import {useQueryClient} from "@tanstack/react-query";
-import {autoAnimate} from "@formkit/auto-animate";
+import {AnimatePresence} from "framer-motion";
+import SidebarLabel from "@/features/sidebar/components/sidebar-label";
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
@@ -46,7 +47,6 @@ export default function ProjectListItem(props: ProjectListItemProps) {
 
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [visibleSessionLimit, setVisibleSessionLimit] = useState(INITIAL_SESSION_LIMIT);
-  const animatedSessionListsRef = useRef(new WeakSet<HTMLElement>());
   const location = useLocation();
   const navigate = useNavigate();
   const selectProject = useHarnessNavigationStore((state) => state.selectProject);
@@ -124,8 +124,6 @@ export default function ProjectListItem(props: ProjectListItemProps) {
   const harnessId = project.harnessId;
   const harnessProjectId = harnessId ? project.harnessProjectId : undefined;
   const projectLabel = harnessProjectId ? agentLabel(project.name) : project.name;
-  // The chat tree only draws its guide line when it has something to show, so a collapsed project stays a single clean row.
-  const sessionTreeVisible = displayedSessions.length > 0 || (expanded && (sessionsQuery.isPending || sessionsQuery.error != null || !hasSessions));
 
   const followHarness = (): void => {
     if (harnessId) selectProject(harnessId, harnessProjectId);
@@ -187,15 +185,6 @@ export default function ProjectListItem(props: ProjectListItemProps) {
     setVisibleSessionLimit(INITIAL_SESSION_LIMIT);
   };
 
-  const attachSessionListAutoAnimateRef = useCallback((node: HTMLElement | null): void => {
-    if (!node || animatedSessionListsRef.current.has(node)) return;
-    autoAnimate(node, {
-      duration: 180,
-      easing: "ease-out",
-    });
-    animatedSessionListsRef.current.add(node);
-  }, []);
-
   return (
     <>
       <div
@@ -244,7 +233,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
               )}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium leading-5">{projectLabel}</span>
+              <SidebarLabel constant={project.isCoordinator ? "tau" : "phi"} text={projectLabel} className="block truncate text-sm font-medium leading-5" />
               {(folderMissing || (sidebarDetail && (project.isCoordinator || workingSessions.length > 0 || activity.working > 0 || activity.attention > 0))) && (
                 <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-faint">
                   {sidebarDetail && project.isCoordinator && <span>Harness lead</span>}
@@ -346,8 +335,7 @@ export default function ProjectListItem(props: ProjectListItemProps) {
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget)) setHeldOrder(undefined);
           }}
-          className={cn("flex flex-col gap-0.5", sessionTreeVisible && "ml-3 border-l border-border-muted")}
-          ref={attachSessionListAutoAnimateRef}
+          className="ml-3 flex flex-col gap-0.5"
         >
           {expanded && sessionsQuery.isPending && (
             <li className="flex items-center gap-2 px-2 py-1 text-xs text-ink-faint">
@@ -360,33 +348,35 @@ export default function ProjectListItem(props: ProjectListItemProps) {
               Unable to load chats.
             </li>
           )}
-          {displayedSessions.map((session) => {
-            const selected = location.pathname === `/session/${session.id}` || location.pathname.startsWith(`/session/${session.id}/`);
-            const sessionLive = sessionLiveStates[session.id];
-            const sessionStreaming = sessionLive?.status === "streaming" || sessionLive?.status === "stopping" || sessionLive?.status === "compacting";
-            const sessionUnseen = !sessionStreaming && hasUnseenActivity({activityAtMs: session.timestamp, visitedAt: sessionVisits[session.id]});
+          <AnimatePresence initial={false}>
+            {displayedSessions.map((session) => {
+              const selected = location.pathname === `/session/${session.id}` || location.pathname.startsWith(`/session/${session.id}/`);
+              const sessionLive = sessionLiveStates[session.id];
+              const sessionStreaming = sessionLive?.status === "streaming" || sessionLive?.status === "stopping" || sessionLive?.status === "compacting";
+              const sessionUnseen = !sessionStreaming && hasUnseenActivity({activityAtMs: session.timestamp, visitedAt: sessionVisits[session.id]});
 
-            return (
-              <ProjectSessionListItem
-                key={session.id}
-                onOpen={() => handleOpenSession(session.id)}
-                onPrefetch={() => handlePrefetchSession(session.id)}
-                onTogglePinned={() => {
-                  const stored = useProjectsStore.getState().addProject(project.path, project.harnessId);
-                  if (stored) toggleSessionPinned(stored.id, session.id);
-                }}
-                projectPath={project.path}
-                selected={selected}
-                current={location.pathname === `/session/${session.id}`}
-                session={session}
-                managed={!!harnessProjectId}
-                orchestrator={project.isCoordinator}
-                streaming={sessionStreaming}
-                status={sessionLive?.status}
-                unseen={sessionUnseen}
-              />
-            );
-          })}
+              return (
+                <ProjectSessionListItem
+                  key={session.id}
+                  onOpen={() => handleOpenSession(session.id)}
+                  onPrefetch={() => handlePrefetchSession(session.id)}
+                  onTogglePinned={() => {
+                    const stored = useProjectsStore.getState().addProject(project.path, project.harnessId);
+                    if (stored) toggleSessionPinned(stored.id, session.id);
+                  }}
+                  projectPath={project.path}
+                  selected={selected}
+                  current={location.pathname === `/session/${session.id}`}
+                  session={session}
+                  managed={!!harnessProjectId}
+                  orchestrator={project.isCoordinator}
+                  streaming={sessionStreaming}
+                  status={sessionLive?.status}
+                  unseen={sessionUnseen}
+                />
+              );
+            })}
+          </AnimatePresence>
 
           {canShowMoreSessions && (
             <li>

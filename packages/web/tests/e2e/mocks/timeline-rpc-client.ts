@@ -26,6 +26,8 @@ class TimelineRpcClient implements RpcClient {
   private readonly sessions = createTimelineSessions();
   private constellationStatus: "running" | "completed" | "failed" | "offline" = "completed";
   private orbitSize = 0;
+  private projectScenario = false;
+  private library = structuredClone(constellationLibrary);
   private activeContentParts: readonly UserMessageContentPart[] | null = null;
   private activeSessionId = TIMELINE_SESSION_ID;
   private lineCount = 0;
@@ -39,6 +41,12 @@ class TimelineRpcClient implements RpcClient {
   public constructor() {
     for (const session of constellationSessions()) this.sessions.set(session.id, session);
     window.__supernovaTimelineMock = {
+      setOrbitProjects: () => {
+        this.projectScenario = true;
+      },
+      removeOrbitProject: (id) => {
+        this.library = {...this.library, revision: this.library.revision + 1, projects: this.library.projects.filter((project) => project.id !== id)};
+      },
       setOrbitSize: (count) => {
         this.orbitSize = count;
       },
@@ -88,6 +96,19 @@ class TimelineRpcClient implements RpcClient {
   /** Generates a finite, contract-shaped large system without transcript payloads. */
   private orbitRuns() {
     const runs = constellationRuns(this.constellationStatus === "offline" ? "running" : this.constellationStatus);
+    if (this.projectScenario)
+      return [
+        ...runs,
+        {...runs[0]!, id: "earlier-research", task: "Earlier research assignment", startedAt: "2026-09-12T08:00:00Z"},
+        {...runs[0]!, id: "removed-lead", projectId: "removed", agentName: "Removed project"},
+        ...runs.slice(0, 3).map((run, index) => ({
+          ...run,
+          id: `modeling-${index}`,
+          parentRunId: index ? "modeling-0" : undefined,
+          projectId: "modeling",
+          agentName: index ? `Modeling worker ${index}` : "Cost modeling lead",
+        })),
+      ];
     if (!this.orbitSize) return runs;
     return Array.from({length: this.orbitSize}, (_, index) => ({
       ...runs[1]!,
@@ -111,7 +132,7 @@ class TimelineRpcClient implements RpcClient {
       createSession: () => Effect.succeed(this.session(EMPTY_SESSION_ID)),
       createHarnessSession: () => Effect.succeed(this.session(EMPTY_SESSION_ID)),
       getFolderStatus: () => Effect.succeed({exists: true, kind: "directory"}),
-      getHarnessLibrary: () => Effect.succeed(constellationLibrary),
+      getHarnessLibrary: () => Effect.succeed(this.library),
       listCuration: () => Effect.succeed({proposals: [curatorProposal], reviews: [curatorReview]}),
       getWorkspaceOverview: () =>
         this.constellationStatus === "offline"
@@ -124,7 +145,7 @@ class TimelineRpcClient implements RpcClient {
                 return {projectId: project.id, projectPath: project.path, total: sessions.length, sessions: sessions.map(timelineSessionSummary)};
               }),
               runs: this.orbitRuns(),
-              workflows: [{...constellationWorkflow, status: this.constellationStatus}],
+              workflows: this.orbitSize ? [] : [{...constellationWorkflow, status: this.constellationStatus}],
               controls: [],
               curators: [{harnessId: "science", pending: 1, updatedAt: curatorProposal.createdAt}],
               activityTotals: [],
@@ -136,7 +157,9 @@ class TimelineRpcClient implements RpcClient {
         this.constellationStatus === "offline" ? Effect.fail(new Error("Connection interrupted")) : Effect.succeed(this.orbitRuns().find((run) => run.id === runId)),
       listWorkflowRuns: ({sessionId}: {sessionId: string}) =>
         Effect.succeed(
-          sessionId === TIMELINE_SESSION_ID ? [{...constellationWorkflow, status: this.constellationStatus === "offline" ? "running" : this.constellationStatus}] : []
+          sessionId === TIMELINE_SESSION_ID && !this.orbitSize
+            ? [{...constellationWorkflow, status: this.constellationStatus === "offline" ? "running" : this.constellationStatus}]
+            : []
         ),
       getWorkflowRun: () => Effect.succeed(constellationWorkflow),
       getSession: ({sessionId}: {readonly sessionId: string}) => Effect.sync(() => this.session(sessionId)),

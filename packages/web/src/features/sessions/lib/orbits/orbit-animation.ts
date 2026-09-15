@@ -17,6 +17,7 @@ export interface OrbitAnimationState {
   phases: Map<string, number>;
   order: Map<string, readonly string[]>;
   positions?: Map<string, OrbitPoint & {width: number}>;
+  handoff?: {positions: Map<string, OrbitPoint & {width: number}>; remaining: number};
 }
 
 function line(element: SVGLineElement | undefined, from: OrbitPoint, to: OrbitPoint): void {
@@ -49,7 +50,9 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
   const svg = element.querySelector<SVGSVGElement>(".chat-orbit-paths")!;
   const sizes = new Map<string, {width: number; height: number}>();
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const previousPositions = state.positions;
+  const handoff = state.handoff;
+  const previousPositions = handoff?.positions ?? state.positions;
+  state.handoff = undefined;
   const focusChanged = state.focus !== undefined && state.focus !== projection.root.id;
   const transitions: Animation[] = [];
   const arrivals = new Set<string>();
@@ -58,14 +61,13 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
     height = 0,
     frame = 0,
     last = 0,
-    hovered = element.querySelector("button:hover") !== null,
-    focused = element.querySelector("button:focus-visible") !== null,
+    hovered = element.querySelector(".chat-orbit-body:hover") !== null,
+    focused = element.querySelector(".chat-orbit-body:focus-visible") !== null,
     visible = true,
     disposed = false;
   const previous = state.order.get(projection.root.id) ?? [];
   const currentIds = projection.primary.map((body) => body.id);
-  const activity = new Map(projection.primary.map((body) => [body.id, body.active ? 0 : body.attention ? 1 : 2]));
-  const order = [...previous.filter((id) => currentIds.includes(id)), ...currentIds.filter((id) => !previous.includes(id))].toSorted((a, b) => activity.get(a)! - activity.get(b)!);
+  const order = [...previous.filter((id) => currentIds.includes(id)), ...currentIds.filter((id) => !previous.includes(id))];
   state.order.set(projection.root.id, order);
   // A newly opened snapshot is a baseline, never an invented burst of old messages.
   if (options.ready && !stale) {
@@ -108,12 +110,16 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
     const nested = [...projection.satellites.values()].some((children) => children.length > 0);
     const margin = nested ? (vertical ? 50 : 66) : 40;
     const maximum = Math.max(0, Math.min((width / 2 - margin) / (vertical ? 0.78 : 1.03), (height / 2 - margin) / (vertical ? 1.03 : 0.72)));
-    const minimum = vertical ? (nested ? 106 : 94) : nested ? 152 : 144;
+    const minimum = vertical ? (nested ? 144 : 94) : nested ? 188 : 144;
     const points = new Map<string, OrbitPoint>([[projection.root.id, center]]);
+    // Nearby projected lanes share a phase clock so planetary systems cannot drift through one another.
+    const clockKey = `${projection.root.id}:formation`;
+    const clock = (state.phases.get(clockKey) ?? orbitPhase(projection.root.id)) + (delta / 70000) * Math.PI * 2;
+    state.phases.set(clockKey, clock % (Math.PI * 2));
     for (const body of projection.primary) {
       const index = order.indexOf(body.id);
-      const base = order.length === 1 ? Math.min(maximum, minimum + 40) : minimum + (index / (order.length - 1)) * Math.max(0, maximum - minimum);
-      const target = base - (body.active ? Math.min(14, base * 0.08) : 0);
+      // Peers share one orbit. Status changes affect the mark, not its lane.
+      const target = Math.min(maximum, minimum + 40);
       const key = `${projection.root.id}:${body.id}`;
       const radius = Math.min(
         maximum,
@@ -121,11 +127,9 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
       );
       if (expanded) state.radii.set(key, Math.min(radius, maximum));
       const eccentricity = 0.025;
-      const period = 70 * (Math.max(radius, minimum) / minimum) ** 1.5;
-      const phase = (state.phases.get(key) ?? orbitPhase(body.id)) + (delta / (period * 1000)) * Math.PI * 2;
-      state.phases.set(key, phase % (Math.PI * 2));
-      const plane = orbitPhase(`${body.id}:plane`) / (Math.PI * 2);
-      const lane = {radius, eccentricity, phase, period, tilt: (vertical ? 0.08 : -0.16) + (plane - 0.5) * 0.16, flatten: 0.62 + plane * 0.04};
+      const period = 70;
+      const phase = clock + (index * Math.PI * 2) / order.length;
+      const lane = {radius, eccentricity, phase, period, tilt: vertical ? 0.04 : -0.1, flatten: 0.72};
       const offset = orbitPosition(lane, 0, vertical);
       const ellipse = orbitEllipse(lane, vertical);
       const track = tracks.get(body.id)!;
@@ -139,22 +143,20 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
       const node = nodes.get(body.id)!;
       node.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, -50%)`;
       const depth = (Math.sin(phase) + 1) / 2;
-      node.style.setProperty("--orbit-scale", String(0.94 + depth * 0.12));
-      node.style.setProperty("--orbit-luminance", String(0.82 + depth * 0.18));
+      node.style.setProperty("--orbit-luminance", String(0.92 + depth * 0.08));
       node.style.zIndex = String(2 + Math.round(depth * 3));
       node.dataset.labelEdge = point.x < 100 ? "left" : point.x > width - 100 ? "right" : "center";
+      node.dataset.labelSide = point.y < center.y ? "above" : "below";
     }
     for (const satellite of satellites) {
       const parent = points.get(satellite.dataset.parent!);
       if (!parent) continue;
       const index = Number(satellite.dataset.slot);
-      const radius = (vertical ? 28 : 38) + index * (vertical ? 6 : 8);
-      const key = `${satellite.dataset.parent}:${satellite.dataset.orbitSatellite}`;
-      const period = 35 * (1 + index * 0.3) ** 1.5;
+      const radius = vertical ? 36 : 48;
+      const period = 35;
       const count = projection.satellites.get(satellite.dataset.parent!)?.length ?? 1;
-      const phase = (state.phases.get(key) ?? orbitPhase(satellite.dataset.parent!) + (index * Math.PI * 2) / count) + (delta / (period * 1000)) * Math.PI * 2;
-      state.phases.set(key, phase % (Math.PI * 2));
-      const lane = {radius, eccentricity: 0, phase, period, flatten: 0.7, tilt: -0.24 + index * 0.15};
+      const phase = clock * 2 + orbitPhase(satellite.dataset.parent!) + (index * Math.PI * 2) / count;
+      const lane = {radius, eccentricity: 0, phase, period, flatten: 0.92, tilt: -0.15};
       const offset = orbitPosition(lane, 0);
       const ellipse = orbitEllipse(lane);
       satellite.setAttribute("transform", `translate(${parent.x} ${parent.y})`);
@@ -168,8 +170,8 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
       const moon = nodes.get(id);
       if (moon) {
         moon.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, -50%)`;
-        moon.style.setProperty("--orbit-scale", String(0.95 + Math.sin(phase) * 0.05));
         moon.dataset.labelEdge = point.x < 100 ? "left" : point.x > width - 100 ? "right" : "center";
+        moon.dataset.labelSide = point.y < parent.y ? "above" : "below";
       }
     }
     if (expanded) {
@@ -225,6 +227,7 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
     frame = requestAnimationFrame(tick);
   };
   const sync = (): void => {
+    element.dataset.orbitVisible = String(visible && !document.hidden);
     element.dataset.orbitMoving = String(running());
     for (const transition of transitions) {
       if ((!visible || document.hidden) && transition.playState === "running") transition.pause();
@@ -240,19 +243,19 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
   };
   const resize = (): void => {
     width = element.clientWidth;
-    height = element.clientHeight;
+    height = svg.clientHeight;
     for (const [id, node] of nodes) sizes.set(id, {width: node.offsetWidth, height: node.offsetHeight});
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     options.onResize(width);
     draw();
   };
   const pointer = (event: PointerEvent): void => {
-    hovered = event.type !== "pointerleave" && event.target instanceof Element && Boolean(event.target.closest("button"));
+    hovered = event.type !== "pointerleave" && event.target instanceof Element && Boolean(event.target.closest(".chat-orbit-body"));
     sync();
   };
   const focus = (event: FocusEvent): void => {
     const target = event.type === "focusin" ? event.target : event.relatedTarget;
-    focused = target instanceof Element && element.contains(target) && target.matches(":focus-visible");
+    focused = target instanceof Element && element.contains(target) && target.matches(".chat-orbit-body:focus-visible");
     sync();
   };
   const visibility = new IntersectionObserver(([entry]) => {
@@ -270,7 +273,7 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
   reduced.addEventListener("change", sync);
   resize();
   if (expanded && moving && !reduced.matches && !stale) {
-    if (focusChanged) {
+    if (focusChanged || handoff) {
       for (const [id, node] of nodes) {
         const from = previousPositions?.get(id),
           to = state.positions?.get(id);
@@ -286,27 +289,16 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
                   {opacity: 0, scale: "0.7"},
                   {opacity: 1, scale: "1"},
                 ],
-            {duration: 620, easing: "cubic-bezier(.22,1,.36,1)"}
+            {duration: focusChanged ? 620 : handoff!.remaining, easing: "cubic-bezier(.22,1,.36,1)"}
           )
         );
       }
       transitions.push(svg.animate([{opacity: 0}, {opacity: 1}], {duration: 620, easing: "ease-in"}));
     } else {
       for (const id of arrivals) {
-        const node = nodes.get(id),
-          parent = model.bodies.get(id)?.parentId;
-        const from = parent && state.positions?.get(parent),
-          to = state.positions?.get(id);
-        if (!node || !from || !to) continue;
-        transitions.push(
-          node.animate(
-            [
-              {translate: `${from.x - to.x}px ${from.y - to.y}px`, scale: "0.15", opacity: 0},
-              {translate: "0px 0px", scale: "1", opacity: 1},
-            ],
-            {duration: 850, easing: "cubic-bezier(.16,1,.3,1)"}
-          )
-        );
+        const node = nodes.get(id);
+        if (!node) continue;
+        transitions.push(node.animate([{opacity: 0}, {opacity: 1}], {duration: 850, easing: "cubic-bezier(.16,1,.3,1)"}));
       }
     }
   }
@@ -314,6 +306,19 @@ export function animateOrbitScene(element: HTMLElement, options: AnimateOrbitSce
   return () => {
     disposed = true;
     cancelAnimationFrame(frame);
+    const unfinished = transitions.filter((transition) => transition.playState === "running" || transition.playState === "paused");
+    if (expanded && unfinished.length > 0) {
+      const bounds = element.getBoundingClientRect();
+      state.handoff = {
+        positions: new Map(
+          [...nodes].map(([id, node]) => {
+            const box = node.getBoundingClientRect();
+            return [id, {x: box.x + box.width / 2 - bounds.x, y: box.y + box.height / 2 - bounds.y, width: box.width}];
+          })
+        ),
+        remaining: Math.max(80, ...unfinished.map((transition) => Number(transition.effect?.getComputedTiming().endTime ?? 620) - Number(transition.currentTime ?? 0))),
+      };
+    }
     for (const transition of transitions) transition.cancel();
     visibility.disconnect();
     size.disconnect();

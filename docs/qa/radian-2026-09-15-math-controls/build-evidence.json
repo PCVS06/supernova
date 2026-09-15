@@ -1,0 +1,52 @@
+{
+  "branch": "docs/graph-workflow-engineering",
+  "baseCommit": "6cdf7664d56228729f24365e9c2431916c2c1642",
+  "version": "0.2.0",
+  "changedFiles": {
+    "CHANGELOG.md": "605485c204be133173c397285455740492fdea7dc67346e0e5de3c46dd38284f",
+    "bun.lock": "193a42186f3f8bb932c4607445f90e42a0e666a6164772d3b670bd28283814d8",
+    "packages/web/package.json": "8f19d8447c2df7216833dc05b49436d3cd6beb212875ae51f57e1e25b83b2003",
+    "packages/web/src/features/sessions/components/composer/pickers/thinking-level-picker.css": "f81b04c3c9a84beda8977b17681978995959004ced45cf3eecad287b2184429d",
+    "packages/web/src/features/sessions/components/composer/pickers/thinking-level-picker.tsx": "6230237805148aa92dc2078d08da8db408e603dd8b2bca6b21ab908ea18703be",
+    "packages/web/src/features/sessions/components/session-conversation.tsx": "54eb2776a2fb9e52d382593f110929191ec3dfb1aa7dfc238d35dbe6d2c8a55d",
+    "packages/web/src/features/sessions/components/session-layout.tsx": "d9ffcd4f0f5133996e71ef06cdae61b9f84dc474ee0abcd507bd75f5cca7d37f",
+    "packages/web/src/features/sessions/components/timeline/items/assistant/assistant-message-content.tsx": "837fc19ddbd5590da64c81d16f80a455dcd49c4a59cee54198e3dd03e0e13ed5",
+    "packages/web/src/features/sessions/components/timeline/items/assistant/message-math.css": "b16ed2787d76b4f1b088f06a9b2bf23c9105856f787cfc6bf406cd7a2e6f9a92",
+    "packages/web/src/features/sessions/components/timeline/items/user-message.tsx": "a31456b492d8bd18616385eea285fe479dafba3e0b70372f15e73ada97c50786",
+    "packages/web/src/features/sessions/lib/composer/composer-content-parts.ts": "2949748141fc2480502b98eaad82abc1aa8f3446665e0472c7a4dd64bb3b35d1",
+    "packages/web/src/features/sessions/lib/streaming/math-markdown.ts": "24d13444c86d9cd8bcea68631fce652166eda5112c7a97086eaf3ca675cabe2c",
+    "packages/web/src/features/sessions/lib/streaming/message-segments.ts": "1b95096d6f6cd439e6bf61bf7d2f083191776ae7291b5717733d9b13c65cabd7",
+    "packages/web/tests/e2e/specs/runtime/session-workflow.spec.ts": "d4112c272c0969f96f405141525dfba465f45f184d0ef2ed99dee9eef9c41098",
+    "packages/web/tests/e2e/specs/timeline/composer-continuity.spec.ts": "25ed1590ce43d644876f748e01038d33fee38d79c7f02b145ce03ab5251b73b9",
+    "packages/web/tests/e2e/specs/timeline/product-feedback.spec.ts": "be237e99bde63a1b43656bf4e9344f71626d1198853aa4010e8104c6b8900463",
+    "packages/web/tests/e2e/specs/timeline/product-motion.spec.ts": "2f45c5a726a323382e3460dcad3a96636415663b4b44a289cbba86babdafe519",
+    "packages/web/tests/unit/features/harnesses/context-inspection.test.tsx": "f6f965632e5cc99db21c01a5e29b476418c3519da6d7cfffe8f4b975a0bf7666",
+    "packages/web/tests/unit/features/sessions/components/message-math.test.tsx": "19a80b120b46b19cd112d80af2fbd7fcd06f4a632e4523a147afe960f60add69",
+    "packages/web/tests/unit/features/sessions/lib/composer/composer-content-parts.test.ts": "beced41f1a6762bc5382095602d41c3dd4d907540dabc424d6315bb5f41d483e"
+  },
+  "sourceDigest": "44d11589cbc61bd67b3bdaea214a03be62f51af6e581dffe9bb08453f7200ec2",
+  "bundle": "apps/desktop/dist/mac-arm64/Radian.app",
+  "installation": {
+    "path": "/Applications/Radian.app",
+    "backup": "/var/folders/fc/5twr3n1s2_q7qg6qllx4vqdh0000gn/T/radian-before-math-controls-wsrphe7u/Radian.app",
+    "signature": "verified",
+    "hashes": {
+      "Contents/Resources/app.asar": "355454984d3eb6c6ad19bc56791db82c3c08ad48486a29e3e9c30dc717997910",
+      "Contents/Resources/server/cli.js": "41a04cd02f8a72659f9be956f5650187c709f273e41e9448764d8b2a63be3f41"
+    },
+    "webFilesVerified": 418,
+    "liveVerification": {
+      "status": "passed",
+      "observed": [
+        "chat title/project bar absent",
+        "reverse button inside composer",
+        "restore preview present and cancellation checked",
+        "clickable effort menu with Max selected; dismissed without changing effort"
+      ],
+      "math": "Covered by production browser tests. The live conversation showed later messages rolled back during native verification; that state was preserved."
+    },
+    "webDigest": "d14f98c1921dbf380819392f21653682e27856f849ae84624f5bf5d6139a50bf",
+    "previousWebDigest": "ba0e04f19e767ab365849f723b35d3f81c3bcab18e7d9092c58ab4ef1e65082d",
+    "verifiedAt": "2026-09-15T16:00:37.192834+00:00"
+  }
+}

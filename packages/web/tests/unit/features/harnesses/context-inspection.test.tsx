@@ -4,7 +4,11 @@ import InstructionReceipt from "@/features/harnesses/components/instruction-rece
 import SessionLayout from "@/features/sessions/components/session-layout";
 
 describe("context inspection", () => {
-  it.each([true, false])("keeps instruction context concise when captured=%s", (captured) => {
+  it.each([
+    {captured: true, origin: "Captured for this chat"},
+    {captured: false, origin: "Current defaults"},
+    {captured: undefined, origin: "Configuration source not recorded"},
+  ])("shows $origin while keeping instruction details collapsed", ({captured, origin}) => {
     const html = renderToStaticMarkup(
       <InstructionReceipt
         captured={captured}
@@ -14,8 +18,9 @@ describe("context inspection", () => {
         ]}
       />
     );
-    expect(html).not.toContain("Captured for this chat");
-    expect(html).not.toContain("No saved configuration snapshot");
+    expect(html).toContain(origin);
+    expect(html.includes("This chat has no saved configuration snapshot")).toBe(captured === false);
+    expect(html).toContain("No runtime snapshot recorded.");
     expect(html).toContain("Always cite primary evidence.");
     expect(html).toContain("Retain falsification criteria.");
     expect(html).toContain("<details");
@@ -27,6 +32,34 @@ describe("context inspection", () => {
     expect(html).toContain(">Runtime<");
   });
 
+  it("identifies the recorded model and capture time without implying skills were used", () => {
+    const capturedAt = "2026-09-15T12:00:00.000Z";
+    const html = renderToStaticMarkup(
+      <InstructionReceipt
+        captured
+        revision={4}
+        scope="run"
+        layers={[]}
+        runtime={{
+          capturedAt,
+          systemPrompt: "Verify the evidence.",
+          model: {providerId: "test-provider", id: "research-model", thinkingLevel: "high"},
+          skills: ["source-verification"],
+          contextFiles: ["evidence.md"],
+          tools: ["read"],
+        }}
+      />
+    );
+
+    expect(html).toContain("Captured for this run");
+    expect(html).toContain("Configuration revision 4");
+    expect(html).toContain(`dateTime="${capturedAt}"`);
+    expect(html).toContain("Model at capture");
+    expect(html).toContain("test-provider / research-model · high");
+    expect(html).toContain("Available skills may not have been invoked.");
+    expect(html).toContain("System prompt at capture");
+  });
+
   it.each([
     {header: false, variant: "primary" as const},
     {header: true, variant: "pane" as const},
@@ -36,5 +69,6 @@ describe("context inspection", () => {
     expect(html).toContain("Conversation");
     expect(html).toContain("Composer");
     expect(html.includes("Research")).toBe(header);
+    expect(html).not.toContain("Chat identity");
   });
 });

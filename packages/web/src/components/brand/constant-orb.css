@@ -17,10 +17,6 @@
   shape-rendering: crispEdges;
 }
 
-.constant-orb[data-state="working"] {
-  --orb-cycle: 7s;
-}
-
 .constant-orb-glyph {
   filter: drop-shadow(0 0 var(--orb-glow, var(--white-glow-mark, 3px)) rgb(255 255 255 / 65%));
 }
@@ -67,10 +63,6 @@
   animation: none;
 }
 
-.constant-orb[data-constant="i"] .constant-orb-digits {
-  animation-timing-function: steps(4, end);
-}
-
 /* Completion resolves each existing contour in its own mathematical geometry. */
 .constant-orb[data-state="complete"] .constant-orb-digits {
   animation: constant-pi-complete 900ms ease-out both;
@@ -90,40 +82,27 @@
 }
 
 @keyframes constant-pi-ripple {
-  0% {
-    opacity: var(--orb-digit-fade, 0.2);
-    transform: scale(0.93);
+  from {
+    transform: rotate(0deg);
   }
-  30%,
-  65% {
-    opacity: 1;
-  }
-  100% {
-    opacity: var(--orb-digit-fade, 0.2);
-    transform: scale(1.05);
+  to {
+    transform: rotate(360deg);
   }
 }
 @keyframes constant-phi-grow {
-  0% {
-    opacity: var(--orb-digit-fade, 0.25);
-    transform: rotate(-18deg) scale(0.88);
+  from {
+    transform: rotate(0deg);
   }
-  35%,
-  65% {
-    opacity: 1;
-  }
-  100% {
-    opacity: var(--orb-digit-fade, 0.25);
-    transform: rotate(42deg) scale(1.04);
+  to {
+    transform: rotate(360deg);
   }
 }
 @keyframes constant-e-wave {
-  0%,
-  100% {
-    transform: rotate(-12deg) scaleX(0.92);
+  from {
+    transform: rotate(0deg);
   }
-  50% {
-    transform: rotate(12deg) scaleX(1.04);
+  to {
+    transform: rotate(-360deg);
   }
 }
 @keyframes constant-tau-sweep {

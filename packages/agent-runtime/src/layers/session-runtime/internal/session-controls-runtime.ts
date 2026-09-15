@@ -1,5 +1,5 @@
 import {randomUUID} from "node:crypto";
-import type {SendMessagePayload, SessionControlsAction} from "@supernova/contracts/session-runtime/procedures";
+import type {SendMessagePayload, SessionControlsAction, SteerSessionPayload, SteerSessionResult} from "@supernova/contracts/session-runtime/procedures";
 import type {QueuedSessionMessage, SessionControls} from "@supernova/contracts/session-runtime/schemas";
 import type {PiSessionRuntime} from "@supernova/agent-runtime/layers/session-runtime/internal/pi-session-runtime";
 import type {PiSessionTitleGeneratorShape} from "@supernova/agent-runtime/layers/session-runtime/internal/pi-session-title-generator";
@@ -13,6 +13,14 @@ const DEFAULT_GOAL_TURNS = 10;
 const MAX_GOAL_TURNS = 50;
 const MAX_QUEUE_MESSAGES = 50;
 const MAX_QUEUE_BYTES = 32 * 1024 * 1024;
+
+/** Applies the same capacity limit to queued drafts and corrections arriving at a settled turn. */
+function appendQueuedMessage(state: SessionControls, message: QueuedSessionMessage): SessionControls {
+  if (state.queue.length >= MAX_QUEUE_MESSAGES || Buffer.byteLength(JSON.stringify([...state.queue, message])) > MAX_QUEUE_BYTES) {
+    throw new Error("Queue limit reached (50 messages or 32 MiB). Remove queued messages before adding more.");
+  }
+  return {...state, queue: [...state.queue, message]};
+}
 
 /** Serializes durable chat controls without holding the lock across provider execution. */
 export class SessionControlsRuntime {
@@ -37,7 +45,7 @@ export class SessionControlsRuntime {
   public get(): Promise<SessionControls> {
     return this.exclusive(async () => {
       const record = await this.load();
-      if (!this.storageFailure) return structuredClone(record.state);
+      if (!this.storageFailure) return structuredClone({...record.state, steering: record.steering.map((entry) => entry.message)});
       const uncertain = [...record.steering.map((entry) => entry.message), ...(record.inFlight ? [record.inFlight] : [])];
       const ids = new Set(uncertain.map((entry) => entry.id));
       return structuredClone({
@@ -69,33 +77,63 @@ export class SessionControlsRuntime {
             id: randomUUID(),
             createdAt: now,
           };
-          if (current.queue.length >= MAX_QUEUE_MESSAGES || Buffer.byteLength(JSON.stringify([...current.queue, message])) > MAX_QUEUE_BYTES) {
-            throw new Error("Queue limit reached (50 messages or 32 MiB). Remove queued messages before adding more.");
-          }
-          next = {...current, queue: [...current.queue, message]};
+          next = appendQueuedMessage(current, message);
           break;
         }
         case "remove_queued":
           if (!current.queue.some((entry) => entry.id === action.id)) throw new Error("Queued message not found.");
           next = {...current, queue: current.queue.filter((entry) => entry.id !== action.id)};
           break;
+        case "edit_queued":
+        case "move_queued": {
+          if (current.revision !== action.expectedRevision) throw new Error("The queue changed. Review it and reopen the message before trying again.");
+          const index = current.queue.findIndex((entry) => entry.id === action.id);
+          const message = current.queue[index];
+          if (!message) throw new Error("This message has already left the queue.");
+          if (message.deliveryStatus === "uncertain") throw new Error("Review uncertain delivery in the chat before changing this message.");
+          const queue = [...current.queue];
+          if (action.type === "edit_queued") {
+            if (!current.queuePaused) throw new Error("Pause the queue before editing a message. The current turn can keep running.");
+            const contentParts = [
+              ...(action.text.trim() ? [{type: "text" as const, text: action.text.trim()}] : []),
+              ...message.contentParts.filter((part) => part.type !== "text"),
+            ];
+            if (!contentParts.length) throw new Error("A queued message cannot be empty.");
+            queue[index] = {...message, contentParts};
+            if (Buffer.byteLength(JSON.stringify(queue)) > MAX_QUEUE_BYTES) throw new Error("The edited queue exceeds 32 MiB.");
+          } else {
+            const target = index + (action.direction === "up" ? -1 : 1);
+            if (!queue[target]) throw new Error("The message is already at the edge of the queue.");
+            if (queue[target]!.deliveryStatus === "uncertain") throw new Error("Review uncertain delivery before moving messages across it.");
+            [queue[index], queue[target]] = [queue[target]!, message];
+          }
+          next = {...current, queue};
+          break;
+        }
         case "steer_queued": {
           const message = current.queue.find((entry) => entry.id === action.id);
           if (!message) throw new Error("Queued message not found.");
           if (message.deliveryStatus === "uncertain") throw new Error("Delivery is uncertain after a restart. Check the chat before removing and resending this message.");
-          await this.deliverSteer(record, message);
+          // Explicit promotion remains valid at the boundary where Pi stops
+          // accepting input. Keep the same message identity for deferred delivery.
+          await this.deliverSteer(record, message, true);
           return structuredClone((await this.load()).state);
         }
-        case "start_goal": {
+        case "start_goal":
+        case "update_goal": {
           const objective = action.objective.trim();
-          const maxTurns = action.maxTurns ?? DEFAULT_GOAL_TURNS;
+          const updating = action.type === "update_goal";
+          if (updating && current.goal?.id !== action.id) throw new Error("This goal changed. Reopen it before submitting your revision.");
+          const maxTurns = updating ? current.goal!.maxTurns : (action.maxTurns ?? DEFAULT_GOAL_TURNS);
           if (!objective || objective.length > 20_000) throw new Error("A goal needs an objective of 1–20,000 characters.");
           if (!Number.isInteger(maxTurns) || maxTurns < 1 || maxTurns > MAX_GOAL_TURNS) throw new Error("Goal maxTurns must be an integer between 1 and 50.");
-          if (current.goal && ["active", "paused", "blocked"].includes(current.goal.status)) throw new Error("Clear or complete the existing goal before starting another.");
+          if (!updating && current.goal && ["active", "paused", "blocked"].includes(current.goal.status)) throw new Error("Expand the existing goal to edit and resend it.");
           this.runtime.resolveModel(action.modelReference);
           next = {
             ...current,
             goal: {
+              // A revision gets a new execution identity so an older in-flight
+              // report cannot complete or block the revised objective.
               id: randomUUID(),
               objective,
               status: "active",
@@ -103,7 +141,7 @@ export class SessionControlsRuntime {
               maxTurns,
               modelReference: action.modelReference,
               captureCheckpoints: action.captureCheckpoints,
-              createdAt: now,
+              createdAt: updating ? current.goal!.createdAt : now,
               updatedAt: now,
             },
           };
@@ -126,6 +164,9 @@ export class SessionControlsRuntime {
         case "complete_goal":
           if (!current.goal) throw new Error("There is no goal to complete.");
           next = {...current, goal: {...current.goal, status: "completed", updatedAt: now, message: "Marked complete by you."}};
+          break;
+        case "pause_queue":
+          next = {...current, queuePaused: true};
           break;
         case "resume_queue":
           if (current.queue.some((entry) => entry.deliveryStatus === "uncertain"))
@@ -154,20 +195,28 @@ export class SessionControlsRuntime {
     });
   }
 
-  /** Durably accepts steering; an idle or stopping turn is a rejection, never a silent drop. */
-  public steer(text: string): Promise<void> {
-    return this.exclusive(async () => {
+  /** Accepts a correction once; an explicit fallback queues it if the answer settled, but never overrides Stop. */
+  public async steer(text: string, fallback?: SteerSessionPayload["fallback"]): Promise<SteerSessionResult> {
+    const receipt = await this.exclusive(async () => {
       this.assertMutable();
       if (!text.trim()) throw new Error("A steering message cannot be empty.");
-      if (!this.runtime.canSteer() || this.halted) throw new Error("The session is not accepting steering. Send or queue the message instead.");
+      if ((!fallback && !this.runtime.canSteer()) || this.halted || this.runtime.isCancelled())
+        throw new Error("The session is not accepting steering. Send or queue the message instead.");
+      const record = await this.load();
+      const modelReference = fallback?.modelReference ?? this.runtime.getSelectedModel().modelReference;
+      this.runtime.resolveModel(modelReference);
       const message: QueuedSessionMessage = {
         id: randomUUID(),
         createdAt: new Date().toISOString(),
         contentParts: [{type: "text", text}],
-        modelReference: this.runtime.getSelectedModel().modelReference,
+        modelReference,
+        captureCheckpoints: fallback?.captureCheckpoints,
       };
-      await this.deliverSteer(await this.load(), message);
+      const delivery = await this.deliverSteer(record, message, !!fallback);
+      return {delivery, messageId: message.id};
     });
+    this.kick();
+    return receipt;
   }
 
   /** Serializes checkpoint/compaction commands with control transitions and dispatch. */
@@ -262,17 +311,27 @@ export class SessionControlsRuntime {
     }
   }
 
-  private async deliverSteer(record: StoredSessionControls, message: QueuedSessionMessage): Promise<void> {
-    if (!this.runtime.canSteer() || this.halted) throw new Error("The session is not accepting steering. The message has not been removed.");
+  private async deliverSteer(record: StoredSessionControls, message: QueuedSessionMessage, allowQueue = false): Promise<"steered" | "queued"> {
+    const queueAfterSettlement = async (): Promise<"queued"> => {
+      if (!allowQueue || this.halted || this.runtime.isCancelled()) throw new Error("The session is not accepting steering. The message has not been removed.");
+      const withoutMessage = {...record.state, queue: record.state.queue.filter((entry) => entry.id !== message.id)};
+      const queued = appendQueuedMessage(withoutMessage, message);
+      // A correction takes the next safe opportunity ahead of ordinary queued
+      // work, without duplicating a message promoted from that queue.
+      await this.save({...record, inFlight: undefined, state: {...queued, queue: [message, ...withoutMessage.queue]}});
+      return "queued";
+    };
+    if (!this.runtime.canSteer() || this.halted) return queueAfterSettlement();
     const manager = await this.runtime.getSessionManager();
     const context = await prepareSendMessageContext(
       {...message, sessionId: this.runtime.sessionId},
       {projectPath: manager.getCwd(), resourceCatalog: this.runtime.resourceCatalog}
     );
-    if (!this.runtime.canSteer() || this.halted) throw new Error("The turn finished before steering could be accepted. The message has not been removed.");
+    if (!this.runtime.canSteer() || this.halted) return queueAfterSettlement();
     await this.save({...record, inFlight: message});
     let acceptedText: string;
     try {
+      if (!this.runtime.canSteer() || this.halted) return await queueAfterSettlement();
       acceptedText = await steerSession(this.runtime, {sessionId: this.runtime.sessionId, text: context.prompt}, undefined, [...context.images]);
     } catch (error) {
       await this.save({...record, inFlight: undefined});
@@ -284,6 +343,7 @@ export class SessionControlsRuntime {
       steering: [...record.steering, {message, text: acceptedText}],
       state: {...record.state, queue: record.state.queue.filter((entry) => entry.id !== message.id)},
     });
+    return "steered";
   }
 
   /** Dispatches only on idle boundaries, with queued user work taking priority over goal continuation. */
@@ -394,7 +454,9 @@ export class SessionControlsRuntime {
       })
       .map((entry) => entry.message);
     const cancelled = this.runtime.isCancelled();
-    if (error || cancelled || undelivered.length) this.halted = true;
+    // An unconsumed correction is still valid work. Only failure or an explicit
+    // Stop should pause it; ordinary settlement must dispatch it next.
+    if (error || cancelled) this.halted = true;
     const goal = record.state.goal;
     await this.save({
       state: {

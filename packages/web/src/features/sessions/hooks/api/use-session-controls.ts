@@ -4,6 +4,7 @@ import type {SessionControls as SessionControlsState} from "@supernova/contracts
 import type {SessionControlsAction} from "@supernova/contracts/session-runtime/procedures";
 import {eq} from "@/rpc/effect-query";
 import {RpcProtocolClientService} from "@/rpc/transport/client";
+import {showToast} from "@/components/ui/toast-manager";
 export type {SessionControlsState, SessionControlsAction};
 
 /** Keeps a late poll from replacing a newer acknowledged control action. */
@@ -35,8 +36,9 @@ export function useUpdateSessionControls(sessionId?: string) {
         }),
       retry: false,
       scope: sessionId ? {id: `session-controls:${sessionId}`} : undefined,
-      onSuccess: (state) => {
+      onSuccess: (state, input) => {
         queryClient.setQueryData<SessionControlsState>(["agent", "session-controls", state.sessionId], (current) => newestControls(current, state) as SessionControlsState);
+        if (input.action.type === "steer_queued") showToast("Steering accepted", "Your correction will be delivered at the next available agent step.", {timeout: 3000});
       },
       onSettled: (_data, _error, input) => {
         void queryClient.invalidateQueries({queryKey: ["agent", "session-controls", input.sessionId]});

@@ -189,7 +189,11 @@ describe("sidebar rows", () => {
     state.pendingProposals = 0;
     state.pathname = "/";
     state.liveSessions = {};
-    vi.stubGlobal("window", {});
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      matchMedia: () => ({matches: true, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn()}),
+    });
   });
 
   it("keeps the project name clear of its hover actions in a reserved slot", () => {

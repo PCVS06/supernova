@@ -1,6 +1,8 @@
-import {lazy, Suspense} from "react";
+import {lazy, Suspense, useState} from "react";
 import {Link} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
+import Disclosure from "@/components/ui/disclosure";
+import ConstantOrb from "@/components/brand/constant-orb";
 import {useWorkflowRun} from "@/features/harnesses/hooks/api/use-workflow-runs";
 import type {OrbitBody} from "@/features/sessions/lib/orbits/orbit-model";
 
@@ -26,13 +28,14 @@ function StepResult(props: {body: OrbitBody}) {
         <>
           <p>{record.error ?? record.waitReason ?? record.status}</p>
           {(record.output || record.rawOutput) && (
-            <pre className="whitespace-pre-wrap break-words font-sans leading-6">{record.output ? JSON.stringify(record.output, null, 2) : record.rawOutput}</pre>
+            <Disclosure label="Result">
+              <pre className="whitespace-pre-wrap break-words font-sans leading-6">{record.output ? JSON.stringify(record.output, null, 2) : record.rawOutput}</pre>
+            </Disclosure>
           )}
-          <details>
-            <summary className="cursor-pointer py-2">Assignment and inputs</summary>
+          <Disclosure label="Assignment and inputs">
             <p className="py-2">{definition?.instructions}</p>
             <pre className="whitespace-pre-wrap break-words">{JSON.stringify(record.input, null, 2)}</pre>
-          </details>
+          </Disclosure>
           {record.runId && (
             <Link className="chat-constellation-link" to="/session/$sessionId/run/$runId" params={{sessionId: body.chatId, runId: record.runId}}>
               Open agent conversation
@@ -50,18 +53,42 @@ function StepResult(props: {body: OrbitBody}) {
 /** Opens public results on demand without loading every orbiting worker's transcript. */
 export default function OrbitInspector(props: {body: OrbitBody; onClose: () => void}) {
   const {body, onClose} = props;
+  const [assignmentId, setAssignmentId] = useState<string>();
+  const assignment = body.assignments?.find((run) => run.id === assignmentId);
   return (
     <section className="chat-orbit-inspector" aria-label={`Selected work: ${body.label}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-medium">{body.label}</h3>
-          <p className="mt-1 text-xs text-ink-muted">{body.status}</p>
+        <div className="flex min-w-0 items-center gap-3">
+          <ConstantOrb constant={body.constant} detail="compact" className="size-8" state="still" />
+          <div className="min-w-0">
+            <h3 className="text-sm font-medium">{body.label}</h3>
+            <p className="mt-1 text-xs text-ink-muted">{body.status}</p>
+          </div>
         </div>
         <Button aria-label="Close selected work" onClick={onClose}>
           ×
         </Button>
       </div>
       {!body.parentKnown && <p className="mb-3 text-xs text-ink-muted">The delegating record is unavailable. This work remains accessible without an inferred connection.</p>}
+      {body.assignments && body.assignments.length > 1 && (
+        <Disclosure label="Assignment history">
+          <label className="mb-3 flex items-center gap-3 text-xs text-ink-muted">
+            <span className="sr-only">Assignment history</span>
+            <select
+              aria-label="Project assignment"
+              className="min-w-0 flex-1 rounded-lg bg-surface-control p-2 text-ink"
+              value={assignment?.id ?? body.runId}
+              onChange={(event) => setAssignmentId(event.target.value)}
+            >
+              {body.assignments.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.status} · {run.task.slice(0, 120)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </Disclosure>
+      )}
       {body.independentChats.length > 0 && (
         <details className="mb-3 text-xs">
           <summary className="cursor-pointer">Work continues in another chat</summary>
@@ -77,7 +104,13 @@ export default function OrbitInspector(props: {body: OrbitBody; onClose: () => v
         <StepResult key={body.id} body={body} />
       ) : (
         <Suspense fallback={<p className="text-xs">Loading recorded work…</p>}>
-          <RunPreview sessionId={body.chatId} runId={body.workflowId ?? body.runId} kind={body.workflowId ? "workflow" : "agent"} detail={body.detail} />
+          <RunPreview
+            key={assignment?.id ?? body.runId}
+            sessionId={body.chatId}
+            runId={assignment?.id ?? body.workflowId ?? body.runId}
+            kind={body.workflowId ? "workflow" : "agent"}
+            detail={assignment?.task ?? body.detail}
+          />
         </Suspense>
       )}
     </section>

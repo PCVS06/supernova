@@ -13,6 +13,8 @@ export const SessionControlsAction = Schema.Union([
     captureCheckpoints: Schema.optional(Schema.Boolean),
   }),
   Schema.Struct({type: Schema.Literals(["remove_queued", "steer_queued"]), id: Schema.String}),
+  Schema.Struct({type: Schema.Literal("edit_queued"), id: Schema.String, text: Schema.String, expectedRevision: Schema.Number}),
+  Schema.Struct({type: Schema.Literal("move_queued"), id: Schema.String, direction: Schema.Literals(["up", "down"]), expectedRevision: Schema.Number}),
   Schema.Struct({
     type: Schema.Literal("start_goal"),
     objective: Schema.String,
@@ -20,7 +22,14 @@ export const SessionControlsAction = Schema.Union([
     captureCheckpoints: Schema.optional(Schema.Boolean),
     maxTurns: Schema.optional(Schema.Number),
   }),
-  Schema.Struct({type: Schema.Literals(["pause_goal", "resume_goal", "clear_goal", "complete_goal", "resume_queue"])}),
+  Schema.Struct({
+    type: Schema.Literal("update_goal"),
+    id: Schema.String,
+    objective: Schema.String,
+    modelReference: ModelReference,
+    captureCheckpoints: Schema.optional(Schema.Boolean),
+  }),
+  Schema.Struct({type: Schema.Literals(["pause_goal", "resume_goal", "clear_goal", "complete_goal", "pause_queue", "resume_queue"])}),
 ]);
 
 export const UpdateSessionControlsPayload = Schema.Struct({sessionId: Schema.String, action: SessionControlsAction});

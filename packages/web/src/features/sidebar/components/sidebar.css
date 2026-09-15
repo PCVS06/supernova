@@ -10,6 +10,8 @@
 .group\/ledger:has([data-popup-open]) .sidebar-row-actions,
 .group\/ledger:hover .sidebar-row-disclosure,
 .group\/ledger:focus-within .sidebar-row-disclosure,
+.group\/harness:hover .sidebar-row-actions,
+.group\/harness:focus-within .sidebar-row-actions,
 .group\/harness:hover .sidebar-harness-disclosure,
 .group\/harness:focus-within .sidebar-harness-disclosure {
   opacity: 1;
@@ -45,7 +47,163 @@
 /* Consistent small contours keep the hierarchy visible without a bright halo. */
 [aria-label="Workspace ledger"] .constant-orb {
   --orb-glow: 0px;
+  --orb-digit-fade: 0.76;
 }
-[aria-label="Workspace ledger"] .constant-orb-digits {
-  filter: opacity(0.8);
+[aria-label="Workspace ledger"] .constant-orb-digits path {
+  opacity: clamp(0.44, calc(var(--digit-opacity, 0.5) * 1.35), 0.88);
+}
+:root:not([data-mathematical-motion="off"]) [aria-label="Workspace ledger"] .constant-orb[data-state="idle"] .constant-orb-digits {
+  animation: var(--orb-motion) var(--orb-cycle) linear infinite;
+  animation-delay: calc(var(--digit-phase) * var(--orb-cycle) * -1);
+}
+:root[data-motion-paused="true"] [aria-label="Workspace ledger"] .constant-orb-digits {
+  animation-play-state: paused;
+}
+
+/* The numerical layer shares the title's bounds, so it cannot cover row controls. */
+.sidebar-label {
+  position: relative;
+  display: block;
+}
+.sidebar-label-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: sidebar-name-enter 380ms ease both;
+}
+.sidebar-label-digits {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.035em;
+  opacity: 0;
+  animation: sidebar-digits-enter 380ms ease both;
+}
+.sidebar-identity {
+  animation: sidebar-symbol-enter 380ms ease both;
+}
+:is([data-sidebar-presence="closing"], [data-sidebar-content="closing"]) .sidebar-label-name {
+  animation: sidebar-name-exit 160ms ease both;
+}
+:is([data-sidebar-presence="closing"], [data-sidebar-content="closing"]) .sidebar-label-digits {
+  animation: sidebar-digits-exit 360ms ease both;
+}
+:is([data-sidebar-presence="closing"], [data-sidebar-content="closing"]) .sidebar-identity {
+  animation: sidebar-symbol-exit 260ms ease both;
+}
+@keyframes sidebar-name-enter {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+@keyframes sidebar-digits-enter {
+  0%,
+  25% {
+    opacity: 0.72;
+    clip-path: inset(0);
+  }
+  100% {
+    opacity: 0;
+    clip-path: inset(0 0 0 100%);
+  }
+}
+@keyframes sidebar-symbol-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sidebar-name-exit {
+  to {
+    opacity: 0;
+    clip-path: inset(0 0 0 100%);
+  }
+}
+@keyframes sidebar-digits-exit {
+  0% {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  35%,
+  55% {
+    opacity: 0.85;
+    clip-path: inset(0);
+  }
+  100% {
+    opacity: 0;
+    clip-path: inset(0 0 0 100%);
+  }
+}
+@keyframes sidebar-symbol-exit {
+  to {
+    opacity: 0;
+  }
+}
+.workspace-sidebar[data-visible="false"] {
+  transition-delay: 160ms;
+}
+.workspace-sidebar-content {
+  transition: opacity 180ms ease;
+}
+.workspace-sidebar-content[data-sidebar-content="closing"] {
+  opacity: 0;
+  transition-delay: 220ms;
+}
+/* Inset, fading seams keep the frame legible without crossing the entire workspace. */
+.workspace-header-seam::after {
+  content: "";
+  position: absolute;
+  height: 1px;
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--color-border-muted) 12%, var(--color-border-muted) 88%, transparent);
+}
+.workspace-content-seam::before,
+.workspace-panel-seam::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 1px;
+  pointer-events: none;
+  background: linear-gradient(transparent, var(--color-border-muted) 9%, var(--color-border-muted) 91%, transparent);
+  transition: opacity 180ms ease;
+}
+.workspace-content-seam[data-sidebar-visible="false"]::before {
+  opacity: 0;
+}
+.workspace-sidebar-resizer:hover {
+  background: linear-gradient(transparent, var(--color-border-strong) 15%, var(--color-border-strong) 85%, transparent);
+}
+:root[data-mathematical-motion="off"] :is(.sidebar-label-name, .sidebar-label-digits, .sidebar-identity) {
+  animation: none;
+}
+:root[data-mathematical-motion="off"] :is(.workspace-sidebar, .workspace-sidebar-content) {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-label-name,
+  .sidebar-label-digits,
+  .sidebar-identity {
+    animation: none !important;
+  }
+  .workspace-sidebar,
+  .workspace-sidebar-content {
+    transition: none !important;
+  }
 }

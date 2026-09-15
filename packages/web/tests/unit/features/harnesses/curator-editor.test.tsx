@@ -310,7 +310,12 @@ describe("curator requests", () => {
   });
 
   it("lists what the chats filed, newest first, and keeps the list short", () => {
-    const older = Array.from({length: 10}, (_, index) => ({...problem, id: `Q-old-${index}`, text: `Older request ${index}`, at: new Date(Date.now() - 86_400_000).toISOString()}));
+    const older = Array.from({length: 10}, (_, index) => ({
+      ...problem,
+      id: `Q-old-${index}`,
+      text: `Older request ${index}`,
+      at: new Date(Date.parse(problem.at) - 86_400_000 - index).toISOString(),
+    }));
     rpc.curation = {data: {proposals: [], reviews: [], requests: [...older, problem, decision]}, isPending: false, isError: false, refetch: vi.fn()};
     const html = render();
 

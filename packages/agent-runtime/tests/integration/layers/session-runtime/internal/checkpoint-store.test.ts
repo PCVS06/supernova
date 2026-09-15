@@ -1,3 +1,4 @@
+import {CheckpointReviewRequired} from "@supernova/contracts/session-runtime/procedures";
 import {execFile} from "node:child_process";
 import {createHash} from "node:crypto";
 import {existsSync, mkdtempSync, rmSync} from "node:fs";
@@ -152,6 +153,50 @@ describe("checkpoint store", () => {
     await expect(readFile(join(repo, "staged.txt"), "utf8")).resolves.toBe("staged\n");
     await expect(gitOutput(repo, ["rev-parse", "HEAD"])).resolves.toBe(head);
     await expect(gitOutput(repo, ["diff", "--cached", "--name-only"])).resolves.toBe(staged);
+  });
+
+  it("previews exact restore content, rejects stale approval, and preserves unrelated manual edits and Git state", async () => {
+    const repo = await createRepo();
+    const storageRoot = mkdtempSync(join(tmpdir(), "supernova-checkpoint-preview-"));
+    tempDirs.push(repo, storageRoot);
+    const store = await runCheckpoint(storageRoot, Effect.service(CheckpointStore));
+    await capture(storageRoot, repo, "before");
+    await writeFile(join(repo, "tracked.txt"), "agent change\n");
+    await writeFile(join(repo, "created.txt"), "agent file\n");
+    await capture(storageRoot, repo, "after");
+    await writeFile(join(repo, "tracked.txt"), "manual change\n");
+    await writeFile(join(repo, "outside.txt"), "keep this\n");
+    await git(repo, ["add", "outside.txt"]);
+    const head = await gitOutput(repo, ["rev-parse", "HEAD"]);
+    const index = await readFile(join(repo, ".git", "index"));
+    const input = {projectRoot: repo, sessionId, checkpointId: "before", fromCheckpointId: "after", force: false, review: true};
+    const preview = await store.restore(input).catch((error: unknown) => {
+      expect(error).toBeInstanceOf(CheckpointReviewRequired);
+      return (error as CheckpointReviewRequired).preview;
+    });
+    expect(preview).toMatchObject({
+      manualChanges: true,
+      files: [
+        {path: "created.txt", action: "delete"},
+        {path: "tracked.txt", action: "restore"},
+      ],
+    });
+    expect(preview!.patches[0]?.patch).toContain("-manual change");
+    expect(preview!.patches[0]?.patch).toContain("+before");
+    expect(await readFile(join(repo, "tracked.txt"), "utf8")).toBe("manual change\n");
+    await writeFile(join(repo, "tracked.txt"), "newer manual change\n");
+    const updated = await store.restore({...input, force: true, reviewFingerprint: preview!.fingerprint}).catch((error: unknown) => {
+      expect(error).toBeInstanceOf(CheckpointReviewRequired);
+      return (error as CheckpointReviewRequired).preview;
+    });
+    expect(updated!.fingerprint).not.toBe(preview!.fingerprint);
+    expect(await readFile(join(repo, "tracked.txt"), "utf8")).toBe("newer manual change\n");
+    await store.restore({...input, force: true, reviewFingerprint: updated!.fingerprint});
+    expect(await readFile(join(repo, "tracked.txt"), "utf8")).toBe("before\n");
+    expect(existsSync(join(repo, "created.txt"))).toBe(false);
+    expect(await readFile(join(repo, "outside.txt"), "utf8")).toBe("keep this\n");
+    expect(await gitOutput(repo, ["rev-parse", "HEAD"])).toBe(head);
+    expect(await readFile(join(repo, ".git", "index"))).toEqual(index);
   });
 
   it("fails before mutation when an affected file changed after the current checkpoint", async () => {
