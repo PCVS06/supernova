@@ -77,28 +77,20 @@ describe("harness agents", () => {
     controls.execution = undefined;
   });
 
-  const render = (selectedName?: string, agents = harness.agents) =>
-    renderToStaticMarkup(
-      <AgentsEditor harness={{...harness, agents}} coordinatorName="Science Space" selectedName={selectedName} onSelect={vi.fn()} onChange={vi.fn()} onOpenPage={vi.fn()} />
-    );
+  const render = (selectedName?: string, agents = harness.agents, onSelect = vi.fn(), onChange = vi.fn()) =>
+    renderToStaticMarkup(<AgentsEditor harness={{...harness, agents}} selectedName={selectedName} onSelect={onSelect} onChange={onChange} />);
 
-  it("lists the main orchestrator with the specialists and offers three panels", () => {
+  it("lists the specialists alone, opens the first one, and offers three panels", () => {
     const html = render();
-    expect(html).toContain('aria-label="Configure Main orchestrator"');
-    expect(html).toContain('aria-label="Configure Reviewer"');
+    expect(html).not.toContain("Main orchestrator");
+    expect(html).toContain('aria-label="Configure Reviewer" aria-pressed="true"');
     expect(html).toContain('aria-label="Agent editor tabs"');
     expect(html).toContain('aria-label="Settings" aria-pressed="true"');
     expect(html).toContain('aria-label="Instructions" aria-pressed="false"');
     expect(html).toContain('aria-label="Skills" aria-pressed="false"');
     expect(html).not.toContain('aria-label="Memory"');
-    expect(html).toContain('data-constant="tau"');
-  });
-
-  it("sends the orchestrator's fields to the page that owns them", () => {
-    expect(render()).toContain("Open Overview");
-    expect(render()).toContain("Science Space runs the coordinating chats.");
-    expect(render()).not.toContain('aria-label="Shared operating instructions"');
-    expect(render()).not.toContain("Execution controls");
+    expect(html).not.toContain("Open Overview");
+    expect(html).not.toContain('aria-label="Shared operating instructions"');
   });
 
   it("edits the selected specialist and keeps execution within it", () => {
@@ -111,10 +103,15 @@ describe("harness agents", () => {
     expect(controls.execution?.inherited).toEqual(harness.execution);
   });
 
+  it("falls back to the first specialist for a name that no longer exists", () => {
+    expect(render("main")).toContain('aria-label="Configure Reviewer" aria-pressed="true"');
+  });
+
   it("keeps agent creation accessible when the specialist list is empty", () => {
     const html = render(undefined, []);
     expect(html).toContain('aria-label="Add agent"');
-    expect(html).toContain('aria-label="Configure Main orchestrator"');
+    expect(html).toContain("No specialists yet");
+    expect(html).not.toContain('aria-label="Agent editor tabs"');
   });
 });
 
@@ -129,6 +126,16 @@ describe("workspace draft saves", () => {
     ],
   };
   const library = {revision: 8, harnesses: [draft.harness], projects: draft.projects};
+
+  it("normalizes context-file lines only at save time and acknowledges the editable draft", async () => {
+    const edited = {...base, harness: {...harness, context: {...harness.context, files: [" docs/details.md ", "", "README.md", ""]}}};
+    const writers = {harness: vi.fn().mockResolvedValue(library), project: vi.fn()};
+    const onSaved = vi.fn();
+    await saveWorkspaceDraft(base, edited, writers, onSaved);
+    expect(writers.harness.mock.calls[0]![0].harness.context.files).toEqual(["docs/details.md", "README.md"]);
+    expect(onSaved).toHaveBeenCalledWith({...edited, revision: 8});
+    expect(edited.harness.context.files).toEqual([" docs/details.md ", "", "README.md", ""]);
+  });
 
   it("saves the harness and every changed project, each with the acknowledged revision", async () => {
     const writers = {

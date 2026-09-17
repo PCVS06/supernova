@@ -9,13 +9,15 @@ import SkillsEditor from "@/features/harnesses/components/skills-editor";
 interface LeadsEditorProps {
   harness: HarnessConfig;
   project: HarnessProject;
+  /** The coordinating project: its lead is the main orchestrator of the harness. */
+  isHead?: boolean;
   onChangeProject: (change: Partial<HarnessProject>) => void;
   onOpenSpecialists: () => void;
 }
 
 /** The lead of one project: how its main chat agent runs, what it may use, and which specialists it redefines. */
 export default function LeadsEditor(props: LeadsEditorProps) {
-  const {harness, project, onChangeProject, onOpenSpecialists} = props;
+  const {harness, project, isHead = false, onChangeProject, onOpenSpecialists} = props;
 
   return (
     <SettingsPageShell testId="project-detail-scroll">
@@ -23,8 +25,20 @@ export default function LeadsEditor(props: LeadsEditorProps) {
         <ExecutionEditor value={project.execution} inherited={harness.execution} inheritLabel="Use default model" onChange={(execution) => onChangeProject({execution})} />
       </SettingsGroup>
       <SettingsGroup title="Lead role">
-        <SettingsRow description="Only this project's main chat agent reads this." title="Lead role prompt">
-          <PromptEditor label="Lead role prompt" value={project.orchestratorPrompt ?? ""} onChange={(value) => onChangeProject({orchestratorPrompt: value || undefined})} />
+        <SettingsRow
+          description={
+            isHead
+              ? "This lead coordinates the whole harness. Leave it empty to use the lead role from the harness Instructions."
+              : "Only this project's main chat agent reads this."
+          }
+          title="Lead role prompt"
+        >
+          <PromptEditor
+            label="Lead role prompt"
+            placeholder={isHead ? harness.orchestratorPrompt : undefined}
+            value={project.orchestratorPrompt ?? ""}
+            onChange={(value) => onChangeProject({orchestratorPrompt: value || undefined})}
+          />
         </SettingsRow>
       </SettingsGroup>
       <SettingsGroup title="Skills">

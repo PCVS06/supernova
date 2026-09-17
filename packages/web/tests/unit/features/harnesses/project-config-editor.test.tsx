@@ -81,12 +81,15 @@ describe("project workspace", () => {
     expect(html).not.toContain("agent-editor-portrait");
   });
 
-  it("gives the coordinating project no lead tab and points at the main orchestrator", () => {
+  it("gives the coordinating project a lead tab too and says its lead is the main orchestrator", () => {
     const html = render(head);
-    expect(html).not.toContain('aria-label="Lead"');
-    expect(html).toContain("Open Main orchestrator");
+    expect(html).toContain('aria-label="Lead" aria-pressed="false"');
+    expect(html).toContain("Open Lead tab");
     expect(html).toContain("Coordination role");
-    expect(render(lab)).not.toContain("Open Main orchestrator");
+    expect(html).not.toContain("Open Main orchestrator");
+    expect(render(lab)).not.toContain("Coordination role");
+    expect(render(head, "lead")).toContain("This lead coordinates the whole harness.");
+    expect(render(lab, "lead")).not.toContain("This lead coordinates the whole harness.");
   });
 
   it("puts the lead role, the briefs, the plan and the ledger each on one tab", () => {

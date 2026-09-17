@@ -7,7 +7,8 @@ import type {AppEnvironment} from "@/lib/app-environment";
 const SETTINGS_SIDEBAR_WIDTH = 288;
 
 interface SettingsShellProps {
-  activeSectionId: SettingsSectionId;
+  /** The App page that is open. Harness pages leave it out. */
+  activeSectionId?: SettingsSectionId;
   activeHarnessId?: string;
   activePage?: HarnessPageId;
   appEnvironment: AppEnvironment;
@@ -18,7 +19,7 @@ interface SettingsShellProps {
   title: string;
 }
 
-/** The settings frame: the tree on the left, one page header, one page. */
+/** The settings frame: the two groups on the left, one page header, one page. */
 export default function SettingsShell(props: SettingsShellProps) {
   const {activeSectionId, activeHarnessId, activePage, appEnvironment, children, owner, title} = props;
 

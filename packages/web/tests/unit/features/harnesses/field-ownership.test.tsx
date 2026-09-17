@@ -73,24 +73,13 @@ const project = (section: ProjectSection) =>
   );
 
 const agents = (initialSection: "settings" | "prompt" | "skills") =>
-  renderToStaticMarkup(
-    <AgentsEditor
-      harness={harness}
-      coordinatorName="Science Space"
-      initialSection={initialSection}
-      selectedName="reviewer"
-      onSelect={vi.fn()}
-      onChange={vi.fn()}
-      onOpenPage={vi.fn()}
-    />
-  );
+  renderToStaticMarkup(<AgentsEditor harness={harness} initialSection={initialSection} selectedName="reviewer" onSelect={vi.fn()} onChange={vi.fn()} />);
 
 /** Every configuration surface of one harness, rendered once. */
 function surfaces(): Record<string, string> {
   return {
     overview: renderToStaticMarkup(<OverviewPage harness={harness} projects={[head, lab]} onChange={vi.fn()} />),
     instructions: renderToStaticMarkup(<InstructionsPage harness={harness} onChange={vi.fn()} />),
-    "agents-main": renderToStaticMarkup(<AgentsEditor harness={harness} coordinatorName="Science Space" onSelect={vi.fn()} onChange={vi.fn()} onOpenPage={vi.fn()} />),
     "agents-settings": agents("settings"),
     "agents-prompt": agents("prompt"),
     "agents-skills": agents("skills"),
@@ -105,6 +94,23 @@ function surfaces(): Record<string, string> {
   };
 }
 
+/** The coordinating project's tabs: it has a lead of its own, the main orchestrator of the harness. */
+const headProject = (section: ProjectSection) =>
+  renderToStaticMarkup(
+    <ProjectConfigEditor
+      harness={harness}
+      project={head}
+      projects={[head, lab]}
+      section={section}
+      onSectionChange={vi.fn()}
+      onChangeProject={vi.fn()}
+      onSelect={vi.fn()}
+      onOpenAgents={vi.fn()}
+      onPersistPlanningDocuments={vi.fn(async () => undefined)}
+      onRemoveProject={vi.fn(async () => undefined)}
+    />
+  );
+
 /** One row of the field ownership map: the schema field, the surface that owns it, the label of its editor. */
 const ownership: readonly {field: string; home: string; label: string}[] = [
   {field: "harness.name", home: "overview", label: "Harness name"},
@@ -114,7 +120,7 @@ const ownership: readonly {field: string; home: string; label: string}[] = [
   {field: "harness.loop.timeoutSeconds", home: "overview", label: "Timeout in seconds"},
   {field: "harness.coordinatorProjectId", home: "overview", label: "Coordinating project"},
   {field: "harness.systemPrompt", home: "instructions", label: "Shared operating instructions"},
-  {field: "harness.orchestratorPrompt", home: "instructions", label: "Coordination role prompt"},
+  {field: "harness.orchestratorPrompt", home: "instructions", label: "Default lead role prompt"},
   {field: "harness.context.instructions", home: "instructions", label: "Context instructions"},
   {field: "harness.context.includeProjectInstructions", home: "instructions", label: "Include project instructions"},
   {field: "harness.context.autoCompaction", home: "instructions", label: "Automatic compaction"},
@@ -172,16 +178,25 @@ describe("field ownership", () => {
 
   it("leaves no editor on the surfaces that only link to a field", () => {
     const rendered = surfaces();
-    const main = (section: "settings" | "prompt" | "skills") =>
-      renderToStaticMarkup(<AgentsEditor harness={harness} coordinatorName="Science Space" initialSection={section} onSelect={vi.fn()} onChange={vi.fn()} onOpenPage={vi.fn()} />);
-    expect(main("settings")).toContain("Open Overview");
-    expect(main("prompt")).toContain("Open Instructions");
-    expect(main("skills")).toContain("Open Skills &amp; tools");
     expect(rendered["project-memory"]).toContain("Memory · read-only");
+    expect(rendered.skills).toContain("Open Providers &amp; keys");
     // The former second homes of F3 are gone: no shared manual outside Instructions, no skills outside their pages.
-    for (const id of ["project-setup", "project-lead", "project-instructions", "agents-main"]) {
+    for (const id of ["project-setup", "project-lead", "project-instructions", "agents-settings", "agents-prompt"]) {
       expect(occurrences(rendered[id]!, "Shared operating instructions"), id).toBe(0);
     }
     expect(occurrences(rendered["project-setup"]!, "Model and effort")).toBe(0);
+  });
+
+  it("gives the coordinating project a lead of its own instead of a placeholder agent", () => {
+    // The Agents page lists specialists only; the harness lead role is one field under Instructions.
+    const agentsPage = renderToStaticMarkup(<AgentsEditor harness={harness} onSelect={vi.fn()} onChange={vi.fn()} />);
+    expect(agentsPage).not.toContain("Main orchestrator");
+    expect(agentsPage).not.toContain("Open Overview");
+    expect(agentsPage).toContain('aria-label="Configure Reviewer"');
+    // The coordinating project keeps its lead fields on its own Lead tab and links there from Setup.
+    expect(occurrences(headProject("lead"), "Lead role prompt")).toBe(1);
+    expect(occurrences(headProject("lead"), "Model and effort")).toBe(1);
+    expect(headProject("setup")).toContain("Open Lead tab");
+    expect(headProject("setup")).not.toContain("Open Main orchestrator");
   });
 });

@@ -11,49 +11,38 @@ interface InstructionsPageProps {
   onChange: (change: Partial<HarnessConfig>) => void;
 }
 
-/** Everything this harness says to its agents before a chat starts: the shared manual, the coordination role, the context. */
+/**
+ * What every chat of this harness is told, in the order the runtime assembles it:
+ * the shared instructions, the lead role, then the context rules and files, with compaction last.
+ */
 export default function InstructionsPage(props: InstructionsPageProps) {
   const {harness, onChange} = props;
   const context = harness.context;
 
   return (
     <SettingsPageShell testId="harness-instructions">
-      <SettingsGroup title="Shared manual">
-        <SettingsRow description="Every project of this harness inherits these instructions." title="Shared instructions">
+      <SettingsGroup title="Instructions">
+        <SettingsRow description="Read first by every agent in every project of this harness. A project adds its own on its Instructions tab." title="Shared instructions">
           <PromptEditor label="Shared operating instructions" value={harness.systemPrompt} onChange={(systemPrompt) => onChange({systemPrompt})} />
         </SettingsRow>
         <InstructionHistory target={{kind: "harness", harnessId: harness.id}} onRestore={(systemPrompt) => onChange({systemPrompt})} />
-      </SettingsGroup>
-      <SettingsGroup title="Coordination role">
-        <SettingsRow description="Only the main orchestrator reads this; specialists keep their own prompts." title="Coordination role">
-          <PromptEditor label="Coordination role prompt" value={harness.orchestratorPrompt ?? ""} onChange={(value) => onChange({orchestratorPrompt: value || undefined})} />
+        <SettingsRow
+          description="How a project's main chat agent leads it, unless the project sets its own role on its Lead tab. Specialists have their own role under Agents."
+          title="Lead role"
+        >
+          <PromptEditor
+            label="Default lead role prompt"
+            placeholder="Lead this project's work and review any delegated results."
+            value={harness.orchestratorPrompt ?? ""}
+            onChange={(value) => onChange({orchestratorPrompt: value || undefined})}
+          />
         </SettingsRow>
       </SettingsGroup>
-      <SettingsGroup title="Context rules">
-        <SettingsRow description="Loaded into every chat of this harness, before the conversation starts." title="Shared context instructions">
+      <SettingsGroup title="Context">
+        <SettingsRow description="Added after the role in every chat of this harness. A project appends its own on its Instructions tab." title="Context rules">
           <PromptEditor label="Context instructions" size="sm" value={context.instructions} onChange={(instructions) => onChange({context: {...context, instructions}})} />
         </SettingsRow>
-        <SettingsRow
-          control={
-            <Switch
-              aria-label="Include project instructions"
-              checked={context.includeProjectInstructions}
-              onCheckedChange={(includeProjectInstructions) => onChange({context: {...context, includeProjectInstructions}})}
-            />
-          }
-          description="Reads each project's own AGENTS.md alongside these instructions."
-          title="Include project AGENTS.md"
-        />
-        <SettingsRow
-          control={
-            <Switch aria-label="Automatic compaction" checked={context.autoCompaction} onCheckedChange={(autoCompaction) => onChange({context: {...context, autoCompaction}})} />
-          }
-          description="Summarizes older turns when the context window fills up."
-          title="Automatic compaction"
-        />
-      </SettingsGroup>
-      <SettingsGroup title="Context files">
-        <SettingsRow description="Paths relative to each project, one per line." title="Files for every chat">
+        <SettingsRow description="Loaded into every chat, one path per line, relative to the project folder." title="Context files">
           <PromptEditor
             label="Context files"
             size="sm"
@@ -63,17 +52,32 @@ export default function InstructionsPage(props: InstructionsPageProps) {
               onChange({
                 context: {
                   ...context,
-                  files: value
-                    .split("\n")
-                    .map((file) => file.trim())
-                    .filter(Boolean),
+                  files: value.split("\n"),
                 },
               })
             }
           />
         </SettingsRow>
+        <SettingsRow
+          control={
+            <Switch
+              aria-label="Include project instructions"
+              checked={context.includeProjectInstructions}
+              onCheckedChange={(includeProjectInstructions) => onChange({context: {...context, includeProjectInstructions}})}
+            />
+          }
+          description="Reads each project folder's own AGENTS.md alongside these instructions."
+          title="Include project AGENTS.md"
+        />
       </SettingsGroup>
-      <SettingsGroup title="Context budget">
+      <SettingsGroup title="Compaction">
+        <SettingsRow
+          control={
+            <Switch aria-label="Automatic compaction" checked={context.autoCompaction} onCheckedChange={(autoCompaction) => onChange({context: {...context, autoCompaction}})} />
+          }
+          description="Summarizes older turns when the context window fills up."
+          title="Automatic compaction"
+        />
         <SettingsRow
           control={
             <Input

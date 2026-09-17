@@ -1,5 +1,16 @@
 # Radian: settings restructure plan
 
+## Revision, 17 September 2026
+
+The five phases below shipped on 14 September. Three days of use showed four structural faults in what they produced, fixed on 17 September:
+
+1. **The sidebar tree nested three levels** (Harnesses › harness › page) under a node that was also a page, and the harness node collapsed whenever an App page opened. The sidebar is now two flat groups: _App_ (General, Appearance, Providers & keys, Harnesses, About) and _Harness_, whose header is a switcher between harnesses with a "Manage harnesses…" entry to the library. The seven harness pages are always visible and never nest.
+2. **The Agents page listed a "Main orchestrator" that had no fields**, only "Open Overview" and "Open Instructions" links on all three of its tabs. The entry is gone; Agents lists specialists only. The harness lead role stays under Instructions, and every project, including the coordinating one, has a Lead tab for its own lead role, model, skills and overrides. The old coordinator rule "no Lead tab" hid real fields, because the runtime reads `project.orchestratorPrompt` for the coordinating project as well.
+3. **Every harness page carried a three-line banner and a permanent Save bar** reading "No unsaved changes" with a disabled button. The banner is one sentence at the top of Overview; the Save bar exists only while there is something to save (or a save failed).
+4. **The Instructions page mislabelled its fields.** "Coordination role · only the main orchestrator reads this" was wrong: `harness.orchestratorPrompt` is the default lead role for the coordinating project and for any project without a role of its own. The page is now three groups, Instructions (shared instructions, lead role), Context (context rules, context files, AGENTS.md) and Compaction, with descriptions taken from `harness-prompts.ts` and `harness-config.ts`.
+
+Routes are unchanged. The former `?section=Chats` and `?section=orchestrator` links now land on Instructions instead of a removed agent entry.
+
 Status: proposal, 13 September 2026. Based on the `settings` and `harnesses` features in `packages/web`, the harness schema in `packages/contracts`, the persisted client stores, and the running Radian 0.2.0 desktop app inspected through its own API (library revision 27: harnesses Coding and Science Pi, 13 specialists, 1 workflow, 33 registered tools).
 
 ## Summary
@@ -19,25 +30,25 @@ Five phases, each shippable on its own, each with the tests it must keep green.
 
 ### 1.1 Routes and pages
 
-| Route                                                    | Content                                                                                                                                               | Data owner                                                                                 |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `/settings` → `/settings/general`                        | Git checkpoints: two switches                                                                                                                         | Browser `localStorage` (`supernova-general-settings`); sent with every send-message call   |
-| `/settings/appearance`                                   | Theme (one palette), color mode, light and motion with a live reply preview, chat systems and navigation, typography, translucent sidebar (light only) | `localStorage` (`supernova-appearance`, `radian-workspace-map`)                            |
-| `/settings/providers`                                    | Pi providers: connected and available, OAuth and API-key dialog                                                                                       | Server (Pi auth store)                                                                     |
-| `/settings/harnesses`                                    | Harness cards, create a harness, import Science Pi                                                                                                    | Server (`~/.config/pi-plus/harnesses.json`, revision-checked)                              |
-| `/settings/harness/$id?section=&projectId=&agentName=`   | Harness configuration workspace (1.2)                                                                                                                 | Server, revision-checked; draft in the page                                                |
+| Route                                                  | Content                                                                                                                                                | Data owner                                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `/settings` → `/settings/general`                      | Git checkpoints: two switches                                                                                                                          | Browser `localStorage` (`supernova-general-settings`); sent with every send-message call |
+| `/settings/appearance`                                 | Theme (one palette), color mode, light and motion with a live reply preview, chat systems and navigation, typography, translucent sidebar (light only) | `localStorage` (`supernova-appearance`, `radian-workspace-map`)                          |
+| `/settings/providers`                                  | Pi providers: connected and available, OAuth and API-key dialog                                                                                        | Server (Pi auth store)                                                                   |
+| `/settings/harnesses`                                  | Harness cards, create a harness, import Science Pi                                                                                                     | Server (`~/.config/pi-plus/harnesses.json`, revision-checked)                            |
+| `/settings/harness/$id?section=&projectId=&agentName=` | Harness configuration workspace (1.2)                                                                                                                  | Server, revision-checked; draft in the page                                              |
 
 ### 1.2 Harness configuration workspace
 
 One header (identity, Save changes, Discard), one tab bar, then per tab:
 
-| Tab       | Sub-navigation                                                                | Panels                                                                                                                                     |
-| --------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Agents    | Main orchestrator · Project leads · Specialists · Curator                     | The first three open an agent workbench: list column, hero, then Settings · Instructions · Skills · Memory. Curator: status, model, auto-apply, spend, reviews |
-| Resources | Skills · Tools · Connectors · Context                                         | Skill switches; read-only tool catalogue and extensions; app-wide tool credentials; context rules, files and budget                        |
-| Workflows | Workflows · Limits                                                            | Workflow picker, fields, graph, step inspector; max turns and timeout                                                                       |
-| Projects  | Project list                                                                  | Plan (documents, saves at once) · Instructions (project prompt, history, specialist overrides) · Setup (name, folder, color, remove)        |
-| Inbox     | Pending · Applied · Rejected · All                                            | Curator proposals with approve, edit, reject, roll back                                                                                     |
+| Tab       | Sub-navigation                                            | Panels                                                                                                                                                         |
+| --------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agents    | Main orchestrator · Project leads · Specialists · Curator | The first three open an agent workbench: list column, hero, then Settings · Instructions · Skills · Memory. Curator: status, model, auto-apply, spend, reviews |
+| Resources | Skills · Tools · Connectors · Context                     | Skill switches; read-only tool catalogue and extensions; app-wide tool credentials; context rules, files and budget                                            |
+| Workflows | Workflows · Limits                                        | Workflow picker, fields, graph, step inspector; max turns and timeout                                                                                          |
+| Projects  | Project list                                              | Plan (documents, saves at once) · Instructions (project prompt, history, specialist overrides) · Setup (name, folder, color, remove)                           |
+| Inbox     | Pending · Applied · Rejected · All                        | Curator proposals with approve, edit, reject, roll back                                                                                                        |
 
 Measured on the live app at 1280×820, the Main orchestrator page stacks: settings sidebar, five-crumb breadcrumb, harness header, five harness tabs, four role tabs, agent hero, four editor tabs. The first editable control (Model) sits about 500 px from the top: roughly 60% of the viewport is navigation before content. The Specialists page adds a list column.
 
@@ -51,15 +62,15 @@ Measured on the live app at 1280×820, the Main orchestrator page stacks: settin
 
 ### 1.4 Preferences that live outside Settings
 
-| Store                                | Keeps                                                                | Also editable in                       |
-| ------------------------------------ | -------------------------------------------------------------------- | -------------------------------------- |
-| `supernova-sidebar-sections`         | Sidebar width, expanded projects, collapsed groups                    | Sidebar itself                         |
-| `supernova-workspace-panel-v3`       | Panel visibility, open tabs, width, browser URL                       | Workspace panel                        |
-| `radian-workspace-map`               | Map view, scope, time; orbit motion, orbit detail, sidebar detail     | Map options popover; Appearance page   |
-| `supernova-model-picker`             | Favorite and recent models, last thinking level                       | Composer                               |
-| `supernova-session-model-selection`  | Model per chat                                                        | Composer                               |
-| `pi-plus-harness-navigation`         | Active harness and project (defaults to the hard-coded id `science`)  | Set by navigation                      |
-| Desktop (`electron-window-state`)    | Window bounds; native theme; update state                             | Update button in the home header only  |
+| Store                               | Keeps                                                                | Also editable in                      |
+| ----------------------------------- | -------------------------------------------------------------------- | ------------------------------------- |
+| `supernova-sidebar-sections`        | Sidebar width, expanded projects, collapsed groups                   | Sidebar itself                        |
+| `supernova-workspace-panel-v3`      | Panel visibility, open tabs, width, browser URL                      | Workspace panel                       |
+| `radian-workspace-map`              | Map view, scope, time; orbit motion, orbit detail, sidebar detail    | Map options popover; Appearance page  |
+| `supernova-model-picker`            | Favorite and recent models, last thinking level                      | Composer                              |
+| `supernova-session-model-selection` | Model per chat                                                       | Composer                              |
+| `pi-plus-harness-navigation`        | Active harness and project (defaults to the hard-coded id `science`) | Set by navigation                     |
+| Desktop (`electron-window-state`)   | Window bounds; native theme; update state                            | Update button in the home header only |
 
 ## 2. Findings
 
@@ -69,14 +80,14 @@ Measured on the live app at 1280×820, the Main orchestrator page stacks: settin
 
 **F3 · Fields with more than one home.**
 
-| Field                                             | Edited in                                                                                                                              |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `project.systemPrompt`                            | Agents → orchestrator or lead → Instructions ("Central brief" / "Project brief"); Projects → Instructions ("Project instructions")     |
-| `project.color`                                   | Agents → lead → Settings → Identity; Projects → Setup → Role color                                                                      |
-| `harness.enabledSkills`                           | Resources → Skills; Agents → orchestrator without project scope → Skills                                                              |
-| `harness.execution`                               | Agents → Project leads with no lab selected ("Project lead defaults")                                                                   |
-| `project.execution`, `project.enabledSkills`      | Agents → lead → Settings and Skills, while the same project's name and folder are under Projects → Setup                             |
-| Memory ledger (one per project)                   | Memory tab of the orchestrator, every lead and all 13 specialists: fifteen places for the same data                                     |
+| Field                                        | Edited in                                                                                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `project.systemPrompt`                       | Agents → orchestrator or lead → Instructions ("Central brief" / "Project brief"); Projects → Instructions ("Project instructions") |
+| `project.color`                              | Agents → lead → Settings → Identity; Projects → Setup → Role color                                                                 |
+| `harness.enabledSkills`                      | Resources → Skills; Agents → orchestrator without project scope → Skills                                                           |
+| `harness.execution`                          | Agents → Project leads with no lab selected ("Project lead defaults")                                                              |
+| `project.execution`, `project.enabledSkills` | Agents → lead → Settings and Skills, while the same project's name and folder are under Projects → Setup                           |
+| Memory ledger (one per project)              | Memory tab of the orchestrator, every lead and all 13 specialists: fifteen places for the same data                                |
 
 **F4 · Mixed save semantics in one surface.** Draft plus "Save changes" plus a navigation blocker for most fields. Immediate save for planning documents, tool credentials, project removal, harness creation and import, "Review now", and inbox decisions. Changing the project scope remounts the draft and asks with `window.confirm`.
 
@@ -121,23 +132,23 @@ Rules the structure follows:
 
 ## 4. Field ownership map
 
-| Schema field                                                                         | Only home                     |
-| ------------------------------------------------------------------------------------ | ----------------------------- |
-| `harness.name`, `description`, `execution`, `loop`, `coordinatorProjectId`           | Harness › Overview            |
-| `harness.systemPrompt`, `orchestratorPrompt`, `context.*`                            | Harness › Instructions        |
-| `harness.agents[]` (name, description, systemPrompt, tools, execution, skillNames, color) | Harness › Agents › specialist |
-| `harness.enabledSkills`                                                              | Harness › Skills & tools      |
-| `harness.workflows`, `graph`                                                         | Harness › Workflows           |
-| `harness.curator.*`                                                                  | Harness › Curator             |
-| `project.name`, `path`, `color`, `parentProjectId`, `order`                          | Projects › Setup              |
-| `project.orchestratorPrompt`, `execution`, `enabledSkills`, `agents[]` (overrides)   | Projects › Lead               |
-| `project.systemPrompt`, `contextInstructions`                                        | Projects › Instructions       |
-| `project.planningDocuments`                                                          | Projects › Plan (saves at once) |
-| Memory ledger of a project                                                           | Projects › Memory (read-only) |
-| Pi providers, tool credentials                                                       | App › Providers & keys        |
-| `supernova-general-settings`, `radian-workspace-map` behaviour keys                  | App › General                 |
-| `supernova-appearance`                                                               | App › Appearance              |
-| Version, channel, update state                                                       | App › About                   |
+| Schema field                                                                              | Only home                       |
+| ----------------------------------------------------------------------------------------- | ------------------------------- |
+| `harness.name`, `description`, `execution`, `loop`, `coordinatorProjectId`                | Harness › Overview              |
+| `harness.systemPrompt`, `orchestratorPrompt`, `context.*`                                 | Harness › Instructions          |
+| `harness.agents[]` (name, description, systemPrompt, tools, execution, skillNames, color) | Harness › Agents › specialist   |
+| `harness.enabledSkills`                                                                   | Harness › Skills & tools        |
+| `harness.workflows`, `graph`                                                              | Harness › Workflows             |
+| `harness.curator.*`                                                                       | Harness › Curator               |
+| `project.name`, `path`, `color`, `parentProjectId`, `order`                               | Projects › Setup                |
+| `project.orchestratorPrompt`, `execution`, `enabledSkills`, `agents[]` (overrides)        | Projects › Lead                 |
+| `project.systemPrompt`, `contextInstructions`                                             | Projects › Instructions         |
+| `project.planningDocuments`                                                               | Projects › Plan (saves at once) |
+| Memory ledger of a project                                                                | Projects › Memory (read-only)   |
+| Pi providers, tool credentials                                                            | App › Providers & keys          |
+| `supernova-general-settings`, `radian-workspace-map` behaviour keys                       | App › General                   |
+| `supernova-appearance`                                                                    | App › Appearance                |
+| Version, channel, update state                                                            | App › About                     |
 
 The coordinating project has no Lead tab; its Projects page links to Harness › Agents › Main orchestrator for the coordination role.
 

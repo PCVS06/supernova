@@ -1,7 +1,7 @@
 import {createMemoryHistory, createRouter} from "@tanstack/react-router";
 import {describe, expect, it} from "vitest";
 import {routeTree} from "@/app/router";
-import {defaultHarnessPage, harnessPages, legacyHarnessRoute, mainOrchestratorAgent, resolveHarnessPage} from "@/features/harnesses/lib/harness-sections";
+import {defaultHarnessPage, harnessPages, legacyHarnessRoute, resolveHarnessPage} from "@/features/harnesses/lib/harness-sections";
 import {getSettingsAppPage, settingsAppPages} from "@/features/settings/data/settings-tree";
 
 interface ResolvedRedirect {
@@ -18,10 +18,10 @@ async function resolve(pathname: string): Promise<{href: string; redirect?: Reso
 }
 
 describe("settings tree", () => {
-  it("lists the App pages and keeps the harness library among them", () => {
+  it("lists the App pages with the harness library among them and About last", () => {
     const harnesses = settingsAppPages.find((candidate) => candidate.id === "harnesses");
     expect(harnesses?.label).toBe("Harnesses");
-    expect(settingsAppPages.map((candidate) => candidate.id)).toEqual(["general", "appearance", "providers", "about", "harnesses"]);
+    expect(settingsAppPages.map((candidate) => candidate.id)).toEqual(["general", "appearance", "providers", "harnesses", "about"]);
     expect(settingsAppPages.find((candidate) => candidate.id === "providers")?.label).toBe("Providers & keys");
     expect(getSettingsAppPage("harnesses")).toBe(harnesses);
   });
@@ -79,7 +79,8 @@ describe("settings harness surfaces", () => {
     const cases = [
       {name: "missing", from: undefined, page: defaultHarnessPage, search: {}},
       {name: "unknown", from: "nowhere", page: defaultHarnessPage, search: {}},
-      {name: "legacy_chats", from: "Chats", page: "agents", search: {agent: mainOrchestratorAgent}},
+      // The coordinating role is no agent entry any more: its prompt lives under Instructions.
+      {name: "legacy_chats", from: "Chats", page: "instructions", search: {}},
       {name: "legacy_overview", from: "Overview", page: "overview", search: {}},
       {name: "legacy_prompts", from: "Prompts", page: "instructions", search: {}},
       {name: "legacy_context", from: "Context", page: "instructions", search: {}},
@@ -90,7 +91,7 @@ describe("settings harness surfaces", () => {
       {name: "legacy_team", from: "Team", page: "agents", search: {}},
       {name: "legacy_memory_tab", from: "Memory", page: "projects", search: {}},
       {name: "legacy_memory_section", from: "memory", page: "projects", search: {}},
-      {name: "section_orchestrator", from: "orchestrator", page: "agents", search: {agent: mainOrchestratorAgent}},
+      {name: "section_orchestrator", from: "orchestrator", page: "instructions", search: {}},
       {name: "section_leads", from: "leads", page: "projects", search: {}},
       {name: "section_specialists", from: "specialists", page: "agents", search: {}},
       {name: "section_curator", from: "curator", page: "curator", search: {}},
@@ -124,5 +125,6 @@ describe("settings harness surfaces", () => {
     expect(legacyHarnessRoute({section: "projects", projectId: "lab", agentName: "reviewer"})).toEqual({page: "projects", search: {project: "lab"}});
     expect(legacyHarnessRoute({section: "specialists", projectId: "lab", agentName: "reviewer"})).toEqual({page: "agents", search: {agent: "reviewer"}});
     expect(legacyHarnessRoute({section: "context", projectId: "lab"})).toEqual({page: "instructions", search: {}});
+    expect(legacyHarnessRoute({section: "orchestrator", agentName: "main"})).toEqual({page: "instructions", search: {}});
   });
 });

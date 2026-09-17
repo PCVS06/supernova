@@ -20,6 +20,9 @@ export default function OverviewPage(props: OverviewPageProps) {
 
   return (
     <SettingsPageShell testId="harness-overview">
+      <p className="-mb-6 px-3 text-xs leading-relaxed text-ink-muted sm:px-4">
+        Everything under this harness is a default for new chats. A chat keeps the configuration it started with; open Context inside a chat to see it.
+      </p>
       <SettingsGroup title="Harness">
         <SettingsRow
           control={<Input aria-label="Harness name" className="sm:w-64" value={harness.name} onChange={(event) => onChange({name: event.target.value})} />}

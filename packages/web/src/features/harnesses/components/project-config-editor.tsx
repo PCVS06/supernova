@@ -15,7 +15,6 @@ import PlanningDocumentsEditor from "@/features/harnesses/components/planning-do
 import ProjectConfigList from "@/features/harnesses/components/project-config-list";
 import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import {agentColor, agentLabel} from "@/features/harnesses/lib/agent-identity";
-import {mainOrchestratorAgent} from "@/features/harnesses/lib/harness-sections";
 import {cn} from "@/lib/cn";
 
 export type ProjectSection = "setup" | "lead" | "instructions" | "plan" | "memory";
@@ -36,8 +35,8 @@ interface ProjectConfigEditorProps {
   onSectionChange: (section: ProjectSection) => void;
   onChangeProject: (change: Partial<HarnessProject>) => void;
   onSelect: (projectId: string) => void;
-  /** Opens the Agents page, optionally on one agent. */
-  onOpenAgents: (agent?: string) => void;
+  /** Opens the Agents page, where the specialists a lead may override are defined. */
+  onOpenAgents: () => void;
   /** Saves the document list right away; the plan is not part of the draft behind "Save changes". */
   onPersistPlanningDocuments: (documents: readonly string[]) => Promise<void>;
   onRemoveProject: () => Promise<void>;
@@ -56,8 +55,7 @@ export default function ProjectConfigEditor(props: ProjectConfigEditorProps) {
   const parent = project?.parentProjectId ? projects.find((item) => item.id === project.parentProjectId) : undefined;
   const labs = project ? projects.filter((item) => item.parentProjectId === project.id).length : 0;
   const canOpenInFinder = window.desktopApi?.environment === "mac";
-  // The coordinating project has no lead of its own; its role is the main orchestrator of the harness.
-  const sections = projectSections.filter((item) => item.value !== "lead" || !isHead);
+  const sections = projectSections;
   const current = sections.some((item) => item.value === section) ? section : "setup";
 
   const handleRemove = async (): Promise<void> => {
@@ -101,7 +99,7 @@ export default function ProjectConfigEditor(props: ProjectConfigEditorProps) {
                 onChange={onPersistPlanningDocuments}
               />
             )}
-            {current === "lead" && <LeadsEditor harness={harness} project={project} onChangeProject={onChangeProject} onOpenSpecialists={() => onOpenAgents()} />}
+            {current === "lead" && <LeadsEditor harness={harness} isHead={isHead} project={project} onChangeProject={onChangeProject} onOpenSpecialists={onOpenAgents} />}
             {current === "memory" && (
               <SettingsPageShell testId="project-detail-scroll">
                 <AgentMemoryPanel
@@ -161,11 +159,11 @@ export default function ProjectConfigEditor(props: ProjectConfigEditorProps) {
                   {isHead && (
                     <SettingsRow
                       control={
-                        <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={() => onOpenAgents(mainOrchestratorAgent)}>
-                          Open Main orchestrator
+                        <Button className="rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:text-ink" onClick={() => onSectionChange("lead")}>
+                          Open Lead tab
                         </Button>
                       }
-                      description="This project coordinates the harness, so its role is the main orchestrator."
+                      description="This project coordinates the harness, so its lead is the main orchestrator. Its role, model and skills are on the Lead tab."
                       title="Coordination role"
                     />
                   )}

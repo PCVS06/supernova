@@ -17,7 +17,7 @@ export interface SettingsAppPage {
   label: string;
 }
 
-/** The App branch of the settings tree. The Harnesses branch is built from the library at render time. */
+/** The App group of the settings sidebar. The harness group is built from the library at render time. */
 export const settingsAppPages: readonly SettingsAppPage[] = [
   {
     Component: GeneralSection,
@@ -38,16 +38,16 @@ export const settingsAppPages: readonly SettingsAppPage[] = [
     label: "Providers & keys",
   },
   {
-    Component: AboutSection,
-    icon: "monitor",
-    id: "about",
-    label: "About",
-  },
-  {
     Component: HarnessesPage,
     icon: "workflow",
     id: "harnesses",
     label: "Harnesses",
+  },
+  {
+    Component: AboutSection,
+    icon: "monitor",
+    id: "about",
+    label: "About",
   },
 ];
 

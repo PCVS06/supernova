@@ -1,17 +1,17 @@
 import {useState} from "react";
-import {useBlocker, useNavigate} from "@tanstack/react-router";
+import {Link, useBlocker, useNavigate} from "@tanstack/react-router";
 import type {HarnessAgent, HarnessConfig, HarnessProject} from "@supernova/contracts/harnesses/schemas";
 import Button from "@/components/ui/button";
 import Dialog from "@/components/ui/dialog";
 import SettingsShell from "@/features/settings/components/settings-shell";
 import AgentsEditor from "@/features/harnesses/components/agents-editor";
 import CuratorEditor from "@/features/harnesses/components/curator-editor";
-import HarnessConfigHeader from "@/features/harnesses/components/harness-config-header";
 import InstructionsPage from "@/features/harnesses/components/instructions-page";
 import OverviewPage from "@/features/harnesses/components/overview-page";
 import ProjectConfigEditor from "@/features/harnesses/components/project-config-editor";
 import type {ProjectSection} from "@/features/harnesses/components/project-config-editor";
 import ResourcesEditor from "@/features/harnesses/components/resources-editor";
+import SaveBar from "@/features/harnesses/components/save-bar";
 import WorkflowsEditor from "@/features/harnesses/components/workflows-editor";
 import {useHarnessLibrary, useRemoveHarnessProject, useSaveHarness, useSaveHarnessProject} from "@/features/harnesses/hooks/api/use-harnesses";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
@@ -135,18 +135,13 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
     saveHarness.reset();
     saveProject.reset();
     void saveWorkspaceDraft(base, {...draft, revision: base.revision}, {harness: saveHarness.mutateAsync, project: saveProject.mutateAsync}, setBase).catch(() => {
-      // Mutation errors render below. Saved owners stay saved; unsaved drafts are preserved.
+      // Mutation errors render in the save bar. Saved owners stay saved; unsaved drafts are preserved.
     });
   };
 
   return (
     <>
       <SelectSettingsProject key={`${harness.id}:${selectedProject?.id}`} harnessId={harness.id} projectId={selectedProject?.id} />
-      <p className="shrink-0 border-b border-border-muted px-5 py-2 text-xs leading-relaxed text-ink-muted sm:px-6">
-        {immediate
-          ? "Plan-file selections save immediately. Saving a document updates the shared project file."
-          : "These are defaults for new chats. Chats with a saved configuration keep it; open Context in a chat to inspect its source. Save applies pending edits across this harness and its projects."}
-      </p>
       {base.revision !== revision && !savePending && (
         <div role="status" className="shrink-0 border-b border-border bg-surface-sidebar px-5 py-2 text-xs text-ink-muted sm:px-6">
           Settings changed elsewhere. Your draft has been kept.{" "}
@@ -155,24 +150,10 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
           </button>
         </div>
       )}
-      {saveError && (
-        <p className="shrink-0 px-5 py-3 text-sm text-danger-ink sm:px-6" role="alert">
-          {String(saveError)} Unsaved edits are still here.
-        </p>
-      )}
 
       {page === "overview" && <OverviewPage harness={draft.harness} projects={draft.projects} onChange={patchHarness} />}
       {page === "instructions" && <InstructionsPage harness={draft.harness} onChange={patchHarness} />}
-      {page === "agents" && (
-        <AgentsEditor
-          harness={draft.harness}
-          coordinatorName={head ? agentLabel(head.name) : undefined}
-          selectedName={agent}
-          onSelect={(name) => goTo("agents", {agent: name})}
-          onChange={patchAgents}
-          onOpenPage={(target) => goTo(target)}
-        />
-      )}
+      {page === "agents" && <AgentsEditor harness={draft.harness} selectedName={agent} onSelect={(name) => goTo("agents", name ? {agent: name} : {})} onChange={patchAgents} />}
       {page === "skills" && <ResourcesEditor harness={draft.harness} onChangeHarness={patchHarness} onOpenProviders={goToProviders} />}
       {page === "workflows" && <WorkflowsEditor harness={draft.harness} selected={workflow} onChange={patchHarness} onSelect={(id) => goTo("workflows", {workflow: id})} />}
       {page === "projects" && (
@@ -184,14 +165,14 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
           onSectionChange={setProjectSection}
           onChangeProject={patchProject}
           onSelect={(id) => goTo("projects", {project: id})}
-          onOpenAgents={(name) => goTo("agents", name ? {agent: name} : {})}
+          onOpenAgents={() => goTo("agents")}
           onPersistPlanningDocuments={persistPlanningDocuments}
           onRemoveProject={handleRemoveProject}
         />
       )}
       {page === "curator" && <CuratorEditor harness={draft.harness} onChangeHarness={patchHarness} />}
 
-      {!immediate && <HarnessConfigHeader changed={changed} dirty={dirty} savePending={savePending} onDiscard={reset} onSave={handleSave} />}
+      {!immediate && <SaveBar changed={changed} dirty={dirty} error={saveError ?? undefined} savePending={savePending} onDiscard={reset} onSave={handleSave} />}
 
       <Dialog
         className="max-w-md"
@@ -237,7 +218,7 @@ interface HarnessConfigPageProps {
   workflow?: string;
 }
 
-/** One harness page inside settings: the tree names it, the page header says where you are, one bar saves. */
+/** One harness page inside settings: the sidebar names it, the page header says where you are, one bar saves. */
 export default function HarnessConfigPage(props: HarnessConfigPageProps) {
   const {appEnvironment, harnessId, page, agent, project, workflow} = props;
   const library = useHarnessLibrary();
@@ -246,8 +227,26 @@ export default function HarnessConfigPage(props: HarnessConfigPageProps) {
 
   if (!library.data || !harness) {
     return (
-      <SettingsShell activeHarnessId={harnessId} activePage={resolved.id} activeSectionId="harnesses" appEnvironment={appEnvironment} title={resolved.label}>
-        <p className="p-8 text-sm text-ink-muted">{library.isError ? "Could not load the harness." : "Loading harness…"}</p>
+      <SettingsShell activeHarnessId={harnessId} activePage={resolved.id} appEnvironment={appEnvironment} title={resolved.label}>
+        <div className="p-8 text-sm text-ink-muted" role="status">
+          {library.data ? (
+            <p>
+              This harness no longer exists.{" "}
+              <Link className="underline" params={{sectionId: "harnesses"}} to="/settings/$sectionId">
+                Open Settings › Harnesses
+              </Link>
+            </p>
+          ) : library.isError ? (
+            <p>
+              Could not load the harness.{" "}
+              <Button className="underline" onClick={() => void library.refetch()}>
+                Retry
+              </Button>
+            </p>
+          ) : (
+            "Loading harness…"
+          )}
+        </div>
       </SettingsShell>
     );
   }
@@ -255,7 +254,7 @@ export default function HarnessConfigPage(props: HarnessConfigPageProps) {
   const projects = library.data.projects.filter((item) => item.harnessId === harnessId).toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   return (
-    <SettingsShell activeHarnessId={harness.id} activePage={resolved.id} activeSectionId="harnesses" appEnvironment={appEnvironment} owner={harness.name} title={resolved.label}>
+    <SettingsShell activeHarnessId={harness.id} activePage={resolved.id} appEnvironment={appEnvironment} owner={harness.name} title={resolved.label}>
       <div className="harness-workspace flex min-h-0 flex-1 flex-col overflow-hidden">
         <WorkspaceEditor
           key={harness.id}

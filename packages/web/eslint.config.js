@@ -10,7 +10,8 @@ import {fileURLToPath} from "node:url";
 const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig([
-  globalIgnores(["dist"]),
+  // `.cache` holds git-ignored probes and reports other tools drop while working; they are not part of the package.
+  globalIgnores(["dist", ".cache"]),
 
   {
     files: ["**/*.{ts,tsx}"],

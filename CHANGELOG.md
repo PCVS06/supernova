@@ -10,6 +10,12 @@ All notable changes to Radian are documented in this file.
 
 ### Changed
 
+- Changed the settings sidebar to two flat groups: the App pages, and the pages of one harness behind a switcher, so every harness page is one click away and nothing collapses when an App page opens.
+- Removed the placeholder main orchestrator entry from the Agents page; the harness lead role is one field under Instructions, and every project, including the coordinating one, has a Lead tab.
+- Changed the harness save bar to appear only while there is something to save, and removed the explanatory banner from every harness page.
+- Regrouped the harness Instructions page into Instructions, Context and Compaction, with descriptions that match how the runtime assembles prompts.
+- Changed chat setup to one compact menu for harness, collaboration, model and reasoning effort, with short labels and preserved drafts.
+- Changed the night sky to randomly selected and positioned formulas, with tiny complete identity symbols as shooting stars.
 - Changed chat history to compact backward and forward controls that apply ordinary steps directly, with manual-edit conflicts shown inline and saved-turn details available on demand.
 - Expanded the mathematical night sky across the interface with smaller drifting formulas, scattered stars and occasional shooting stars; motion pauses in the background and respects reduced-motion preferences.
 
@@ -79,6 +85,7 @@ All notable changes to Radian are documented in this file.
 
 ### Added
 
+- Added chat-bar harness switching with saved next-turn changes, preserved conversation history, and Solo, Advisor, Compare, and document Fuse modes.
 - Added a quiet background of mathematical star constellations to the planetary view.
 - Added harness-lead project creation, folder assignment, instruction updates and recorded status, with immediate delegation to newly assigned projects.
 - Added acknowledged corrections to running delegated leads and specialists, with direct-owner controls and room for three workers per lead, up to twelve across a chat hierarchy.
@@ -101,6 +108,19 @@ All notable changes to Radian are documented in this file.
 - Projects can be removed from a harness, from the project's Setup tab or the sidebar menu. The folder stays on disk, existing chats keep their settings, and a coordinating project cannot be removed while it still has labs.
 
 ### Fixed
+
+- Fixed clipped solar-system captions and kept chat reading positions steady while opening or closing the system and changing goal or steering controls.
+- Fixed long drafts and expanded chat controls crowding out the conversation; the chat bar now keeps its actions visible within the window.
+- Fixed keyboard focus disappearing when quickly dismissing chat settings with Escape.
+- Fixed the chat bar jumping on the first sent message by keeping its position and toolbar height consistent before and during replies.
+- Fixed duplicate project rows when opening a folder through an alias or symbolic link.
+- Fixed the folder picker treating directory aliases as missing folders.
+- Fixed context-file lists removing newlines while typing; paths are now cleaned when saving.
+- Fixed discarded curator schedules remaining visible and kept incomplete time edits in the shared settings draft.
+- Fixed local Markdown links, headings and images in project previews, including filenames with spaces and Unicode.
+- Fixed the chat editor's accessibility label and multiline textbox role.
+- Fixed missing harness links getting stuck on Loading and added a retry action for failed settings requests.
+- Fixed the workspace browser returning to an old page after resizing and kept its address and history controls in sync with navigation.
 
 - Fixed chat formulas displaying as raw LaTeX; inline, display and aligned math now render automatically in messages and worker results.
 - Fixed pasted paragraphs losing their line breaks when messages were sent, including multi-line formulas.
