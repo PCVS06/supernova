@@ -148,15 +148,18 @@ describe("curator configuration", () => {
     expect(percent(0, 0)).toBe("—");
   });
 
-  it("orders the panel from status through model, auto-apply, schedule and signals to the limits and requests", () => {
+  it("orders the panel from status through model, auto-apply, schedule and limits, with the activity folded last", () => {
     const html = render();
 
     expect(html.indexOf(">Status<")).toBeLessThan(html.indexOf(">Model<"));
     expect(html.indexOf(">Model<")).toBeLessThan(html.indexOf(">Auto-apply<"));
     expect(html.indexOf(">Auto-apply<")).toBeLessThan(html.indexOf(">Schedule<"));
-    expect(html.indexOf(">Schedule<")).toBeLessThan(html.indexOf(">Signals<"));
-    expect(html.indexOf(">Signals<")).toBeLessThan(html.indexOf(">Spend limits<"));
-    expect(html.indexOf(">Spend limits<")).toBeLessThan(html.indexOf(">Requests<"));
+    expect(html.indexOf(">Schedule<")).toBeLessThan(html.indexOf(">Spend limits<"));
+    expect(html.indexOf(">Spend limits<")).toBeLessThan(html.indexOf(">Signals<"));
+    expect(html.indexOf(">Signals<")).toBeLessThan(html.indexOf(">Requests<"));
+    // What the curator did is reference material: folded, and marked as such.
+    expect(html).toMatch(/<details class="group\/section"><summary[^>]*>.*?>Signals</);
+    expect(html).not.toContain('<details class="group/section" open');
     expect(html).toContain("Uses the harness model");
     expect(html).toContain('aria-label="Memory hygiene"');
     expect(html).toContain('aria-label="Plan log"');

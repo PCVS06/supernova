@@ -65,7 +65,7 @@ export default function ScienceImport(props: ScienceImportProps) {
         )}
       </SettingsRow>
       {importer.error && (
-        <p className="px-3 text-sm text-danger-ink sm:px-4" role="alert">
+        <p className="px-4 py-3 text-sm text-danger-ink" role="alert">
           {String(importer.error)}
         </p>
       )}

@@ -36,7 +36,7 @@ export default function GeneralSection() {
           control={
             <select
               aria-label="Orbit detail"
-              className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs"
+              className="h-9 w-full rounded-xl corner-superellipse/1.3 border border-border bg-surface-control px-2.5 text-sm text-ink outline-none hover:border-border-strong @xl:w-40"
               onChange={(event) => workspace.setOrbitDensity(event.target.value as "balanced" | "compact")}
               value={workspace.orbitDensity}
             >

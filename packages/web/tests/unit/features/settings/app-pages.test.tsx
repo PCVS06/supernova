@@ -89,18 +89,21 @@ describe("About", () => {
   });
 });
 
-describe("Providers & keys", () => {
+describe("Models & keys", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the tool credentials on the page and says they save at once", () => {
+  it("puts the tool keys right after the connected providers and says they save at once", () => {
     stubBrowser();
     const html = renderToStaticMarkup(<ProvidersSection />);
-    expect(html).toContain("Tool credentials");
-    expect(html).toContain("Connector keys");
-    expect(html).toContain("saved as soon as you enter it");
+    expect(html).toContain(">Tool keys<");
+    expect(html).toContain("Saved as soon as you enter them");
     expect(html).toContain("Search key");
+    expect(html.indexOf(">Connected providers<")).toBeLessThan(html.indexOf(">Tool keys<"));
+    expect(html.indexOf(">Tool keys<")).toBeLessThan(html.indexOf(">Add a provider<"));
+    // With nothing connected the catalogue is open, so a new user sees where to sign in.
+    expect(html).toContain('<details class="group/section" open');
   });
 });
 

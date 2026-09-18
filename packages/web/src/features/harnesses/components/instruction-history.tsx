@@ -27,7 +27,7 @@ export default function InstructionHistory(props: InstructionHistoryProps) {
     <SettingsRow
       control={
         <ConfigChoice
-          className="sm:w-64"
+          className="@xl:w-64"
           disabled={!saved.length}
           label="Saved revisions"
           options={[

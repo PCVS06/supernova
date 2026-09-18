@@ -39,7 +39,7 @@ export default function AppearanceSection() {
           control={
             <Input
               aria-label="UI font"
-              className="w-full py-1.5 sm:w-56"
+              className="w-full py-1.5 @xl:w-56"
               onChange={(event) => setUiFont(event.currentTarget.value || undefined)}
               placeholder={DEFAULT_UI_FONT}
               spellCheck={false}
@@ -53,7 +53,7 @@ export default function AppearanceSection() {
           control={
             <Input
               aria-label="Code font"
-              className="w-full py-1.5 sm:w-56"
+              className="w-full py-1.5 @xl:w-56"
               onChange={(event) => setCodeFont(event.currentTarget.value || undefined)}
               placeholder={DEFAULT_CODE_FONT}
               spellCheck={false}

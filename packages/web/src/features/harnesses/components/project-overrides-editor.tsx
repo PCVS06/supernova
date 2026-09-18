@@ -3,7 +3,6 @@ import type {HarnessAgent, HarnessConfig} from "@supernova/contracts/harnesses/s
 import Button from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
-import ConfigCard from "@/features/harnesses/components/config-card";
 import ConfigChoice from "@/features/harnesses/components/config-choice";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
 
@@ -32,7 +31,7 @@ export default function ProjectOverridesEditor(props: ProjectOverridesEditorProp
       >
         <div className="space-y-2">
           {overrides.map((agent) => (
-            <ConfigCard className="flex items-center gap-2" key={agent.name}>
+            <div className="flex items-center gap-2 rounded-xl border border-border px-3 py-2" key={agent.name}>
               <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-muted">{agent.name}</span>
               <Button
                 aria-label={`Remove ${agent.name} override`}
@@ -41,14 +40,14 @@ export default function ProjectOverridesEditor(props: ProjectOverridesEditorProp
               >
                 <Icon name="x" size="xs" />
               </Button>
-            </ConfigCard>
+            </div>
           ))}
         </div>
       </SettingsRow>
       <SettingsRow description="Copies the harness definition into this project so you can change it here." title="Add an override">
         <div className="flex flex-wrap items-center gap-2">
           <ConfigChoice
-            className="sm:w-56"
+            className="@xl:w-56"
             label="Agent to override"
             value={overrideName}
             options={harness.agents.length ? harness.agents.map((agent) => ({value: agent.name, label: agentLabel(agent.name)})) : [{value: "", label: "No specialists yet"}]}

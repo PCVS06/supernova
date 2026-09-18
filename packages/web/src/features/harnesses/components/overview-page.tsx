@@ -7,6 +7,7 @@ import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import PromptEditor from "@/features/harnesses/components/prompt-editor";
 import RunLimitsEditor from "@/features/harnesses/components/run-limits-editor";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
+import {resolveHarnessPage} from "@/features/harnesses/lib/harness-sections";
 
 interface OverviewPageProps {
   harness: HarnessConfig;
@@ -17,31 +18,28 @@ interface OverviewPageProps {
 /** What the harness is and how hard it runs. Every chat of this harness starts from here. */
 export default function OverviewPage(props: OverviewPageProps) {
   const {harness, projects, onChange} = props;
+  const page = resolveHarnessPage("overview");
 
   return (
-    <SettingsPageShell testId="harness-overview">
-      <p className="-mb-6 px-3 text-xs leading-relaxed text-ink-muted sm:px-4">
-        Everything under this harness is a default for new chats. A chat keeps the configuration it started with; open Context inside a chat to see it.
-      </p>
-      <SettingsGroup title="Harness">
+    <SettingsPageShell description={page.description} testId="harness-overview" title={page.label}>
+      <SettingsGroup title="Identity">
         <SettingsRow
-          control={<Input aria-label="Harness name" className="sm:w-64" value={harness.name} onChange={(event) => onChange({name: event.target.value})} />}
-          description="Shown in the sidebar and above every page of this harness."
+          control={<Input aria-label="Harness name" className="@xl:w-64" value={harness.name} onChange={(event) => onChange({name: event.target.value})} />}
+          description="Shown in the sidebar and wherever you pick a harness."
           title="Name"
         />
         <SettingsRow description="One sentence on what this harness is for." title="Description">
           <PromptEditor label="Harness description" size="sm" value={harness.description} onChange={(description) => onChange({description})} />
         </SettingsRow>
       </SettingsGroup>
-      <SettingsGroup title="Default model">
+      <SettingsGroup description="Used by new chats. A chat keeps the configuration it started with; open Context inside a chat to see it." title="Default model">
         <ExecutionEditor inheritLabel="Use chat model" value={harness.execution} onChange={(execution) => onChange({execution})} />
       </SettingsGroup>
-      <RunLimitsEditor harness={harness} onChange={onChange} />
       <SettingsGroup title="Coordination">
         <SettingsRow
           control={
             <ConfigChoice
-              className="sm:w-64"
+              className="@xl:w-64"
               label="Coordinating project"
               value={harness.coordinatorProjectId ?? ""}
               options={[
@@ -55,6 +53,7 @@ export default function OverviewPage(props: OverviewPageProps) {
           title="Coordinating project"
         />
       </SettingsGroup>
+      <RunLimitsEditor harness={harness} onChange={onChange} />
     </SettingsPageShell>
   );
 }

@@ -31,43 +31,45 @@ export default function AgentMemoryPanel(props: AgentMemoryPanelProps) {
   const unavailable = memory.data?.unavailableReason;
 
   return (
-    <SettingsGroup title="Memory · read-only">
-      {projects.length > 1 && (
+    <>
+      <SettingsGroup description={explanation} readOnly title="Memory">
+        {projects.length > 1 && (
+          <SettingsRow
+            control={
+              <ConfigChoice
+                className="@xl:w-64"
+                label="Project ledger"
+                value={project?.id ?? ""}
+                options={projects.map((item) => ({value: item.id, label: agentLabel(item.name)}))}
+                onChange={(id) => {
+                  setSelectedId(id);
+                  setQuery("");
+                }}
+              />
+            }
+            description="Pick the project whose ledger you want to read."
+            title="Project ledger"
+          />
+        )}
         <SettingsRow
           control={
-            <ConfigChoice
-              className="sm:w-64"
-              label="Project ledger"
-              value={project?.id ?? ""}
-              options={projects.map((item) => ({value: item.id, label: agentLabel(item.name)}))}
-              onChange={(id) => {
-                setSelectedId(id);
-                setQuery("");
-              }}
-            />
+            <Button
+              aria-label="Refresh memory"
+              disabled={memory.isFetching}
+              className="flex shrink-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:bg-overlay-hover"
+              onClick={() => void memory.refetch()}
+            >
+              <Icon name="restart" size="xs" />
+              Refresh
+            </Button>
           }
-          description="Pick the project whose ledger you want to read."
-          title="Project ledger"
-        />
-      )}
-      <SettingsRow
-        control={
-          <Button
-            aria-label="Refresh memory"
-            disabled={memory.isFetching}
-            className="flex shrink-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-ink-muted hover:bg-overlay-hover"
-            onClick={() => void memory.refetch()}
-          >
-            <Icon name="restart" size="xs" />
-            Refresh
-          </Button>
-        }
-        description={explanation}
-        title={`${unavailable ? "—" : (memory.data?.total ?? "—")} saved records`}
-      >
-        <Input aria-label="Search memory" placeholder="Search saved records…" value={query} onChange={(event) => setQuery(event.target.value)} />
-      </SettingsRow>
-      <div className="space-y-2 px-3 sm:px-4">
+          description="Written by the agents while they work."
+          title={`${unavailable ? "—" : (memory.data?.total ?? "—")} saved records`}
+        >
+          <Input aria-label="Search memory" placeholder="Search saved records…" value={query} onChange={(event) => setQuery(event.target.value)} />
+        </SettingsRow>
+      </SettingsGroup>
+      <div className="space-y-2">
         {memory.isPending && (
           <p role="status" className="py-8 text-center text-sm text-ink-muted">
             Reading memory…
@@ -134,10 +136,10 @@ export default function AgentMemoryPanel(props: AgentMemoryPanelProps) {
             ))}
           </>
         )}
-        <p className="pt-2 text-xs leading-relaxed text-ink-faint">
+        <p className="break-words px-1 pt-2 text-xs leading-relaxed text-ink-faint">
           Storage · <span className="font-mono">{project ? `${project.path}/.science-memory/ledger.jsonl` : "no project connected"}</span> · written by the agents, read-only here.
         </p>
       </div>
-    </SettingsGroup>
+    </>
   );
 }

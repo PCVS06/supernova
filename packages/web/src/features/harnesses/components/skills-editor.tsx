@@ -1,7 +1,6 @@
 import Button from "@/components/ui/button";
 import Switch from "@/components/ui/switch";
-import {SettingsRow} from "@/features/settings/components/settings-group";
-import ConfigCard from "@/features/harnesses/components/config-card";
+import {SettingsNote, SettingsRow} from "@/features/settings/components/settings-group";
 import {useHarnessSkills} from "@/features/harnesses/hooks/api/use-harnesses";
 
 interface SkillsEditorProps {
@@ -11,7 +10,7 @@ interface SkillsEditorProps {
   onChange: (value: readonly string[] | undefined) => void;
 }
 
-/** Selects named skills from the actual runtime catalogue. Undefined means inherit; [] means none. */
+/** Selects named skills from the actual runtime catalogue. Undefined means inherit; [] means none. Renders rows for a settings card. */
 export default function SkillsEditor(props: SkillsEditorProps) {
   const {harnessId, value, inherited, onChange} = props;
   const skills = useHarnessSkills(harnessId);
@@ -29,28 +28,28 @@ export default function SkillsEditor(props: SkillsEditorProps) {
         description={value === undefined ? "Inheriting every available skill." : `${selected.length} of ${available.length} skills enabled.`}
         title="Skill availability"
       />
-      <div className="space-y-2 px-3 sm:px-4">
-        {skills.isPending && <p className="text-sm text-ink-muted">Loading connected skills…</p>}
-        {skills.isError && (
-          <p className="text-sm text-danger-ink" role="alert">
-            Could not load the connected skill catalogue.
-          </p>
-        )}
-        {skills.isSuccess && available.length === 0 && <ConfigCard className="text-sm text-ink-muted">No skills are enabled at the parent level.</ConfigCard>}
-        {available.map((skill) => (
-          <ConfigCard className="flex items-start justify-between gap-5" key={skill.name}>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-ink-strong">{skill.name}</p>
-              <p className="mt-1 text-xs leading-relaxed text-ink-muted">{skill.description}</p>
-            </div>
-            <Switch
-              aria-label={`Enable ${skill.name}`}
-              checked={selected.includes(skill.name)}
-              onCheckedChange={(checked) => onChange(checked ? [...selected, skill.name] : selected.filter((name) => name !== skill.name))}
-            />
-          </ConfigCard>
-        ))}
-      </div>
+      {skills.isPending && <SettingsNote>Loading connected skills…</SettingsNote>}
+      {skills.isError && (
+        <SettingsNote role="alert" tone="danger">
+          Could not load the connected skill catalogue.
+        </SettingsNote>
+      )}
+      {skills.isSuccess && available.length === 0 && <SettingsNote>No skills are enabled at the parent level.</SettingsNote>}
+      {available.map((skill) => (
+        <div className="flex items-start justify-between gap-5 px-4 py-3" key={skill.name}>
+          <div className="min-w-0">
+            <p className="break-words text-sm font-medium text-ink-strong">{skill.name}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-muted" title={skill.description}>
+              {skill.description}
+            </p>
+          </div>
+          <Switch
+            aria-label={`Enable ${skill.name}`}
+            checked={selected.includes(skill.name)}
+            onCheckedChange={(checked) => onChange(checked ? [...selected, skill.name] : selected.filter((name) => name !== skill.name))}
+          />
+        </div>
+      ))}
     </>
   );
 }

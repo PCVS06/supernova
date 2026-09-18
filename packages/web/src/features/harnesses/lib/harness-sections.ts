@@ -1,24 +1,29 @@
+import type {IconName} from "@/components/ui/icon";
+
 /** The pages of one harness. The settings sidebar lists them flat; a page carries at most one tab row. */
 export type HarnessPageId = "overview" | "instructions" | "agents" | "skills" | "workflows" | "projects" | "curator";
 
 export interface HarnessPage {
   id: HarnessPageId;
   label: string;
+  icon: IconName;
+  /** One sentence under the page title, in the words of someone using the harness. */
+  description: string;
 }
 
 export const harnessPages: readonly HarnessPage[] = [
-  {id: "overview", label: "Overview"},
-  {id: "instructions", label: "Instructions"},
-  {id: "agents", label: "Agents"},
-  {id: "skills", label: "Skills & tools"},
-  {id: "workflows", label: "Workflows"},
-  {id: "projects", label: "Projects"},
-  {id: "curator", label: "Curator"},
+  {id: "overview", label: "General", icon: "sliders", description: "What this harness is, which model it uses, and which project coordinates the others."},
+  {id: "instructions", label: "Instructions", icon: "file", description: "What every agent of this harness is told before a chat starts."},
+  {id: "agents", label: "Agents", icon: "user", description: "Specialists a project's lead can hand bounded tasks to."},
+  {id: "skills", label: "Skills & tools", icon: "skill", description: "What the agents of this harness may use."},
+  {id: "workflows", label: "Workflows", icon: "workflow", description: "Multi-step procedures a lead runs when you ask for them by name."},
+  {id: "projects", label: "Projects", icon: "folder", description: "The folders this harness works in. Each has its own instructions, lead, plan and memory."},
+  {id: "curator", label: "Curator", icon: "shield", description: "A background reviewer that proposes fixes to instructions, plans and memory."},
 ];
 
 export const defaultHarnessPage: HarnessPageId = "overview";
 
-/** Scope of a harness page, always visible in the URL. */
+/** Scope of a harness page, always visible in the URL. A collection page without a scope shows its list. */
 export interface HarnessPageSearch {
   agent?: string;
   project?: string;

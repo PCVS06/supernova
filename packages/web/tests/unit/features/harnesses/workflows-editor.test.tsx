@@ -60,14 +60,16 @@ describe("workflow graph", () => {
   beforeEach(() => {
     controls.execution = undefined;
   });
-  const render = (config = harness) => {
+  // `null` opens the list; an omitted argument opens the fixture's one workflow.
+  const render = (config = harness, selected: string | null = "review") => {
     const onChange = vi.fn();
-    const html = renderToStaticMarkup(<WorkflowsEditor harness={config} onChange={onChange} />).replace(/<path[^>]*>/g, "");
+    const html = renderToStaticMarkup(<WorkflowsEditor harness={config} selected={selected ?? undefined} onChange={onChange} onSelect={vi.fn()} />).replace(/<path[^>]*>/g, "");
     return {html, onChange};
   };
   it("draws one node per step with its agent, contract, effects and overrides", () => {
     const {html} = render();
-    expect(html).toContain('aria-label="Workflow"');
+    expect(html).toContain('aria-label="Workflow name"');
+    expect(html).toContain('aria-label="Workflow description"');
     expect(html).toContain("Evidence review");
     expect(html).toContain('aria-label="Workflow dependency graph. Scroll horizontally to explore branches."');
     expect(html).toContain('aria-label="Inspect step literature-scout"');
@@ -110,8 +112,17 @@ describe("workflow graph", () => {
       graph: {steps: ["literature-scout", "source-verifier"]},
     });
   });
+  it("lists the workflows before any of them is opened", () => {
+    const {html} = render(harness, null);
+    expect(html).toContain('data-testid="workflows-index"');
+    expect(html).toContain('aria-label="Open workflow Evidence review"');
+    expect(html).toContain("Collect sources, then verify them");
+    expect(html).toContain("2 steps");
+    expect(html).toContain("New workflow");
+    expect(html).not.toContain('aria-label="Inspect step literature-scout"');
+  });
   it("invites the first workflow instead of editing a harness without one", () => {
-    const {html} = render({...harness, workflows: []});
+    const {html} = render({...harness, workflows: []}, null);
     expect(html).toContain("No workflow configured. Add one, then give each step an agent.");
     expect(html).not.toContain('aria-label="Workflow dependency graph. Scroll horizontally to explore branches."');
     expect(html).not.toContain('aria-label="Inspect step literature-scout"');

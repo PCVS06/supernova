@@ -13,12 +13,12 @@ export default function RunLimitsEditor(props: RunLimitsEditorProps) {
   const loop = harness.loop;
 
   return (
-    <SettingsGroup title="Run limits">
+    <SettingsGroup collapsible description={`${loop.maxTurns} turns · ${loop.timeoutSeconds} s per run`} title="Run limits">
       <SettingsRow
         control={
           <Input
             aria-label="Maximum turns"
-            className="sm:w-40"
+            className="@xl:w-40"
             type="number"
             min={1}
             max={100}
@@ -33,7 +33,7 @@ export default function RunLimitsEditor(props: RunLimitsEditorProps) {
         control={
           <Input
             aria-label="Timeout in seconds"
-            className="sm:w-40"
+            className="@xl:w-40"
             type="number"
             min={10}
             max={3600}

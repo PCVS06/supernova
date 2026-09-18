@@ -50,7 +50,7 @@ const harness: HarnessConfig = {
   skills: [],
   context: {instructions: "Cite evidence", files: ["docs/plan.md"], includeProjectInstructions: true, autoCompaction: true, reserveTokens: 1000, keepRecentTokens: 1000},
   graph: {steps: []},
-  workflows: [],
+  workflows: [{id: "review", name: "Evidence review", description: "Review the evidence", steps: [], limits: {maxWallClockSeconds: 600}}],
   loop: {maxTurns: 10, timeoutSeconds: 60},
 };
 const head: HarnessProject = {id: "head", harnessId: "science", name: "Science Space", path: "/science", systemPrompt: "Central brief", contextInstructions: "", agents: []};
@@ -72,19 +72,14 @@ const project = (section: ProjectSection) =>
     />
   );
 
-const agents = (initialSection: "settings" | "prompt" | "skills") =>
-  renderToStaticMarkup(<AgentsEditor harness={harness} initialSection={initialSection} selectedName="reviewer" onSelect={vi.fn()} onChange={vi.fn()} />);
-
 /** Every configuration surface of one harness, rendered once. */
 function surfaces(): Record<string, string> {
   return {
     overview: renderToStaticMarkup(<OverviewPage harness={harness} projects={[head, lab]} onChange={vi.fn()} />),
     instructions: renderToStaticMarkup(<InstructionsPage harness={harness} onChange={vi.fn()} />),
-    "agents-settings": agents("settings"),
-    "agents-prompt": agents("prompt"),
-    "agents-skills": agents("skills"),
+    agent: renderToStaticMarkup(<AgentsEditor harness={harness} selectedName="reviewer" onSelect={vi.fn()} onChange={vi.fn()} />),
     skills: renderToStaticMarkup(<ResourcesEditor harness={harness} onChangeHarness={vi.fn()} onOpenProviders={vi.fn()} />),
-    workflows: renderToStaticMarkup(<WorkflowsEditor harness={harness} onChange={vi.fn()} />),
+    workflows: renderToStaticMarkup(<WorkflowsEditor harness={harness} selected="review" onChange={vi.fn()} onSelect={vi.fn()} />),
     curator: renderToStaticMarkup(<CuratorEditor harness={harness} onChangeHarness={vi.fn()} />),
     "project-setup": project("setup"),
     "project-lead": project("lead"),
@@ -127,15 +122,16 @@ const ownership: readonly {field: string; home: string; label: string}[] = [
   {field: "harness.context.files", home: "instructions", label: "Context files"},
   {field: "harness.context.reserveTokens", home: "instructions", label: "Reserved tokens"},
   {field: "harness.context.keepRecentTokens", home: "instructions", label: "Recent tokens to keep"},
-  {field: "harness.agents[].name", home: "agents-settings", label: "Agent identifier"},
-  {field: "harness.agents[].description", home: "agents-settings", label: "Agent role"},
-  {field: "harness.agents[].tools", home: "agents-settings", label: "Allowed tools"},
-  {field: "harness.agents[].execution", home: "agents-settings", label: "Model and effort"},
-  {field: "harness.agents[].color", home: "agents-settings", label: "Agent color #ffffff"},
-  {field: "harness.agents[].systemPrompt", home: "agents-prompt", label: "reviewer system prompt"},
-  {field: "harness.agents[].skillNames", home: "agents-skills", label: "Skill switches"},
+  {field: "harness.agents[].name", home: "agent", label: "Agent identifier"},
+  {field: "harness.agents[].description", home: "agent", label: "Agent role"},
+  {field: "harness.agents[].tools", home: "agent", label: "Allowed tools"},
+  {field: "harness.agents[].execution", home: "agent", label: "Model and effort"},
+  {field: "harness.agents[].color", home: "agent", label: "Agent color #ffffff"},
+  {field: "harness.agents[].systemPrompt", home: "agent", label: "reviewer system prompt"},
+  {field: "harness.agents[].skillNames", home: "agent", label: "Skill switches"},
   {field: "harness.enabledSkills", home: "skills", label: "Skill switches"},
-  {field: "harness.workflows", home: "workflows", label: "Workflow"},
+  {field: "harness.workflows[].name", home: "workflows", label: "Workflow name"},
+  {field: "harness.workflows[].description", home: "workflows", label: "Workflow description"},
   {field: "harness.curator.execution", home: "curator", label: "Model and effort"},
   {field: "harness.curator.enabled", home: "curator", label: "Curator"},
   {field: "harness.curator.maxCostUsdPerRun", home: "curator", label: "Per review in USD"},
@@ -178,10 +174,11 @@ describe("field ownership", () => {
 
   it("leaves no editor on the surfaces that only link to a field", () => {
     const rendered = surfaces();
-    expect(rendered["project-memory"]).toContain("Memory · read-only");
-    expect(rendered.skills).toContain("Open Providers &amp; keys");
+    expect(rendered["project-memory"]).toContain(">Memory<");
+    expect(rendered["project-memory"]).toContain(">Read-only<");
+    expect(rendered.skills).toContain("Open Models &amp; keys");
     // The former second homes of F3 are gone: no shared manual outside Instructions, no skills outside their pages.
-    for (const id of ["project-setup", "project-lead", "project-instructions", "agents-settings", "agents-prompt"]) {
+    for (const id of ["project-setup", "project-lead", "project-instructions", "agent"]) {
       expect(occurrences(rendered[id]!, "Shared operating instructions"), id).toBe(0);
     }
     expect(occurrences(rendered["project-setup"]!, "Model and effort")).toBe(0);

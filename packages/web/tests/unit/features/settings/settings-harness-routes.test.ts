@@ -18,17 +18,21 @@ async function resolve(pathname: string): Promise<{href: string; redirect?: Reso
 }
 
 describe("settings tree", () => {
-  it("lists the App pages with the harness library among them and About last", () => {
+  it("lists the App pages and keeps the harness library with the harness it manages", () => {
     const harnesses = settingsAppPages.find((candidate) => candidate.id === "harnesses");
-    expect(harnesses?.label).toBe("Harnesses");
-    expect(settingsAppPages.map((candidate) => candidate.id)).toEqual(["general", "appearance", "providers", "harnesses", "about"]);
-    expect(settingsAppPages.find((candidate) => candidate.id === "providers")?.label).toBe("Providers & keys");
+    expect(harnesses?.label).toBe("All harnesses");
+    expect(harnesses?.group).toBe("harness");
+    expect(settingsAppPages.filter((candidate) => candidate.group === "app").map((candidate) => candidate.id)).toEqual(["general", "appearance", "providers", "about"]);
+    expect(settingsAppPages.find((candidate) => candidate.id === "providers")?.label).toBe("Models & keys");
+    for (const page of settingsAppPages) expect(page.description.length, page.id).toBeGreaterThan(10);
     expect(getSettingsAppPage("harnesses")).toBe(harnesses);
   });
 
   it("gives every harness one page per surface and opens on the overview", () => {
     expect(harnessPages.map((page) => page.id)).toEqual(["overview", "instructions", "agents", "skills", "workflows", "projects", "curator"]);
     expect(harnessPages.find((page) => page.id === "skills")?.label).toBe("Skills & tools");
+    expect(harnessPages.find((page) => page.id === "overview")?.label).toBe("General");
+    for (const page of harnessPages) expect(page.description.length, page.id).toBeGreaterThan(10);
     expect(defaultHarnessPage).toBe("overview");
     expect(resolveHarnessPage("nowhere").id).toBe("overview");
     expect(resolveHarnessPage("curator").label).toBe("Curator");

@@ -13,15 +13,13 @@ interface SettingsShellProps {
   activePage?: HarnessPageId;
   appEnvironment: AppEnvironment;
   children: ReactNode;
-  /** The harness a page belongs to. App pages leave it out. */
-  owner?: string;
-  /** The name of the page itself. */
-  title: string;
+  /** Where the page sits, outermost first: "Settings", "General" or a harness, its page and the open entry. */
+  crumbs: readonly string[];
 }
 
-/** The settings frame: the two groups on the left, one page header, one page. */
+/** The settings frame: navigation on the left, a breadcrumb above, one page below it. */
 export default function SettingsShell(props: SettingsShellProps) {
-  const {activeSectionId, activeHarnessId, activePage, appEnvironment, children, owner, title} = props;
+  const {activeSectionId, activeHarnessId, activePage, appEnvironment, children, crumbs} = props;
 
   return (
     <SidebarLayout
@@ -30,10 +28,18 @@ export default function SettingsShell(props: SettingsShellProps) {
       sidebar={<SettingsSidebar activeHarnessId={activeHarnessId} activePage={activePage} activeSectionId={activeSectionId} />}
       sidebarWidth={SETTINGS_SIDEBAR_WIDTH}
     >
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-5 [-webkit-app-region:drag] sm:px-6">
-        {owner && <span className="truncate text-xs text-ink-faint">{owner}</span>}
-        <h1 className="truncate text-sm font-medium text-ink-strong">{title}</h1>
-      </header>
+      <nav aria-label="Breadcrumb" className="flex h-12 shrink-0 items-center border-b border-border-muted px-5 [-webkit-app-region:drag] sm:px-8">
+        <ol className="flex min-w-0 items-center gap-1.5 text-xs text-ink-faint">
+          {crumbs.map((crumb, index) => (
+            <li className="flex min-w-0 items-center gap-1.5" key={index}>
+              {index > 0 && <span aria-hidden="true">›</span>}
+              <span aria-current={index === crumbs.length - 1 ? "page" : undefined} className={index === crumbs.length - 1 ? "truncate text-ink-muted" : "truncate"}>
+                {crumb}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </nav>
       {children}
     </SidebarLayout>
   );

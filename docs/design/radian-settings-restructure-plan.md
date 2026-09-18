@@ -1,5 +1,35 @@
 # Radian: settings restructure plan
 
+## Revision, 18 September 2026: the structure of other apps, applied
+
+The owner's verdict on the 17 September state: unsorted, confusing, not written for the person using it, cluttered with unnecessary information, controls that do not work, overflow. The fix below follows `docs/research/settings-information-architecture-survey.md` (Linear, Vercel, GitHub, Discord, Notion, Cursor, Claude, Raycast, VS Code, macOS and others) and an audit of the running app.
+
+**What the audit measured (1280×820, harness "Bachelor Thesis")**
+
+| Page                 | Before                                              | After                                        |
+| -------------------- | --------------------------------------------------- | -------------------------------------------- |
+| Skills & tools       | 6.9 screens for 13 controls                         | 2 screens; tools and extensions folded       |
+| Providers            | 5.4 screens, tool keys at the very bottom           | connected, then tool keys, catalogue folded  |
+| Curator              | 3.2 screens, settings mixed with activity           | settings first, Signals and Requests folded  |
+| Workflows at 1000 px | labels one word per line, inputs over text          | rows stack by card width; inspector overlays |
+| Agent "Tools" field  | a typed comma was swallowed, no tool could be added | keeps the text as typed                      |
+
+**The structure adopted**
+
+1. **One page anatomy** (Linear, VS Code, macOS): a breadcrumb, a page title with one sentence saying what the page is for, then one centred column of titled cards. A card holds rows: what the setting is and does on the left, its control on the right. `SettingsGroup`, `SettingsRow`, `SettingsLinkRow` and `SettingsPageShell` are the only layout primitives.
+2. **Rows lay out by the width of their card, not of the window** (container queries). This is what removes the overflow: in a narrow column a control moves under its label instead of squeezing it.
+3. **Collections are a list, an entry is a page** (Linear teams, GitHub repositories). Agents, Projects, Workflows and Harnesses open as a list of rows; an entry opens on its own page with a way back, the entry in the breadcrumb, and a menu to switch to a sibling. The three-pane list-beside-editor layout is gone. The survey allows a persistent master-detail for homogeneous lists such as specialists; it is not used here because it is what broke in narrow windows.
+4. **Scope switcher outside the tree** (Vercel, Discord): the sidebar is App, then one harness behind a switcher. Collection pages show their size (Agents 12, Workflows 7, Projects 2). "All harnesses" sits with the harness group.
+5. **Search** (macOS, VS Code): the sidebar searches every setting by its name and by other words for it, and every agent, project and workflow of the open harness. The index is `settings-search.ts`; a test checks that every entry points at a page that exists.
+6. **Progressive disclosure is structural** (Apple HIG, Raycast Advanced): rarely changed or read-only material is a folded card whose header says what is inside: run limits, compaction, an agent's skills, identity and tools, workflow limits, registered tools, extensions, curator signals and requests, the provider catalogue. Read-only cards carry a badge.
+7. **Plain names, one sentence each** (Linear, Claude): Overview became General, Providers & keys became Models & keys, project Setup became General, and every page and group says what it is for. Connectors that need no key take one line instead of a row each.
+8. **Destructive actions last**, in a group of their own, on the entry's page.
+9. **Long text grows with its content** up to a share of the window, then scrolls, instead of a fixed box with a nine-fold inner scroll.
+
+The save model is unchanged: one draft per harness, one bar that exists while there is something to save. No surveyed app documents that bar, Discord being the known example the survey could not fetch; it stays because the server save is revision-checked.
+
+Not done, and why: deleting a harness has no server procedure yet, so there is no danger zone on a harness's General page. Adding a project still happens from the main sidebar; the Projects list says so.
+
 ## Revision, 17 September 2026
 
 The five phases below shipped on 14 September. Three days of use showed four structural faults in what they produced, fixed on 17 September:

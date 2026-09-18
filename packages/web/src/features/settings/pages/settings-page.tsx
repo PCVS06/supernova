@@ -13,8 +13,8 @@ export default function SettingsPage(props: SettingsPageProps) {
   const page = getSettingsAppPage(sectionId);
 
   return (
-    <SettingsShell activeSectionId={page.id} appEnvironment={appEnvironment} title={page.label}>
-      <SettingsPageShell>
+    <SettingsShell activeSectionId={page.id} appEnvironment={appEnvironment} crumbs={["Settings", page.label]}>
+      <SettingsPageShell description={page.description} title={page.label}>
         <page.Component key={page.id} />
       </SettingsPageShell>
     </SettingsShell>

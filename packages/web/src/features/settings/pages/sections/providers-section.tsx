@@ -1,13 +1,13 @@
 import {useState} from "react";
 import type {Provider} from "@supernova/contracts/providers/schemas";
 import Dialog from "@/components/ui/dialog";
-import SearchField from "@/components/ui/search-field";
+import Input from "@/components/ui/input";
 import ProviderConnectMethodContent from "@/features/settings/components/providers/provider-connect-method-content";
-import ProviderGroup from "@/features/settings/components/providers/provider-group";
+import ProviderRow from "@/features/settings/components/providers/provider-row";
 import ProviderLoginContent from "@/features/settings/components/providers/provider-login-content";
 import ProvidersSkeleton from "@/features/settings/components/providers/providers-skeleton";
 import ToolCredentialsEditor from "@/features/settings/components/providers/tool-credentials-editor";
-import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
+import {SettingsGroup, SettingsNote} from "@/features/settings/components/settings-group";
 import {useListProviders} from "@/features/settings/hooks/api/providers/use-list-providers";
 import {useLogoutProvider} from "@/features/settings/hooks/api/providers/use-logout-provider";
 import {useProviderConnectFlow} from "@/features/settings/hooks/providers/use-provider-connect-flow";
@@ -27,21 +27,42 @@ export default function ProvidersSection() {
   };
 
   const searchQuery = search.trim().toLowerCase();
-  const matchingProviders = providersQuery.data?.filter((provider) => provider.name.toLowerCase().includes(searchQuery)) ?? [];
-  const connectedProviders = matchingProviders.filter((provider) => provider.connected);
-  const otherProviders = matchingProviders.filter((provider) => !provider.connected);
+  // Search narrows only the catalogue: the providers you already use stay in view.
+  const connectedProviders = providersQuery.data?.filter((provider) => provider.connected) ?? [];
+  const allOtherProviders = providersQuery.data?.filter((provider) => !provider.connected) ?? [];
+  const otherProviders = allOtherProviders.filter((provider) => provider.name.toLowerCase().includes(searchQuery));
 
   return (
     <>
       {providersQuery.isPending && <ProvidersSkeleton />}
-      {providersQuery.error && <p className="px-3 text-sm text-danger-ink sm:px-4">Unable to load providers.</p>}
+      {providersQuery.error && <p className="px-1 text-sm text-danger-ink">Unable to load providers.</p>}
       {providersQuery.data && (
         <>
-          <SearchField className="mx-3 px-0 sm:mx-4" onChange={(event) => setSearch(event.target.value)} placeholder="Search providers" value={search} />
+          <SettingsGroup description="Their models appear in every model picker." title="Connected providers">
+            {connectedProviders.map((provider) => (
+              <ProviderRow key={provider.id} onConnect={connectFlow.connect} onDisconnect={handleDisconnect} provider={provider} />
+            ))}
+            {!connectedProviders.length && <SettingsNote>No provider connected yet. Add one below to start chatting.</SettingsNote>}
+          </SettingsGroup>
 
-          {matchingProviders.length === 0 && <p className="px-3 text-sm text-ink-faint sm:px-4">No providers match your search.</p>}
-          {connectedProviders.length > 0 && <ProviderGroup onConnect={connectFlow.connect} onDisconnect={handleDisconnect} providers={connectedProviders} title="Connected" />}
-          {otherProviders.length > 0 && <ProviderGroup onConnect={connectFlow.connect} onDisconnect={handleDisconnect} providers={otherProviders} title="Available" />}
+          <SettingsGroup description="Saved as soon as you enter them, and used by every harness." title="Tool keys">
+            <ToolCredentialsEditor />
+          </SettingsGroup>
+
+          <SettingsGroup
+            collapsible
+            defaultOpen={connectedProviders.length === 0}
+            description={`${allOtherProviders.length} more providers you can sign in to`}
+            title="Add a provider"
+          >
+            <div className="px-4 py-3">
+              <Input aria-label="Search providers" placeholder="Search providers…" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+            {otherProviders.map((provider) => (
+              <ProviderRow key={provider.id} onConnect={connectFlow.connect} onDisconnect={handleDisconnect} provider={provider} />
+            ))}
+            {!otherProviders.length && <SettingsNote>No provider matches your search.</SettingsNote>}
+          </SettingsGroup>
 
           <Dialog
             containerClassName="h-auto w-[min(calc(100vw-1rem),32rem)]"
@@ -65,12 +86,6 @@ export default function ProvidersSection() {
           </Dialog>
         </>
       )}
-
-      <SettingsGroup title="Tool credentials">
-        <SettingsRow description="Every key is saved as soon as you enter it and is used by every harness of this app." title="Connector keys">
-          <ToolCredentialsEditor />
-        </SettingsRow>
-      </SettingsGroup>
     </>
   );
 }

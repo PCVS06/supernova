@@ -66,27 +66,31 @@ function CredentialField(props: {field: ToolCredentialResult[number]["fields"][n
   );
 }
 
-/** App-wide keys for the tools every harness may call. Each key is stored the moment it is entered. */
+/** App-wide keys for the tools every harness may call. Each key is stored the moment it is entered. Renders rows for a settings card. */
 export default function ToolCredentialsEditor() {
   const credentials = useToolCredentials();
+  // A connector that needs no key has nothing to set, so it takes one line instead of a row.
+  const keyed = credentials.data?.filter((connector) => connector.fields.length > 0) ?? [];
+  const keyless = credentials.data?.filter((connector) => connector.fields.length === 0) ?? [];
+
   return (
-    <div className="space-y-4">
-      {credentials.isPending && <p className="text-sm text-ink-muted">Loading credential status…</p>}
+    <>
+      {credentials.isPending && <p className="px-4 py-3.5 text-xs text-ink-muted">Loading credential status…</p>}
       {credentials.isError && (
-        <p role="alert" className="text-sm text-danger-ink">
+        <p role="alert" className="px-4 py-3.5 text-xs text-danger-ink">
           Could not load credential status. No secret values were requested.
         </p>
       )}
-      {credentials.data?.map((connector) => (
-        <section key={connector.id} className="space-y-4 rounded-xl border border-border bg-surface-raised p-4">
+      {credentials.data && !keyed.length && <p className="px-4 py-3.5 text-xs text-ink-muted">No tool of your harnesses needs a key.</p>}
+      {keyed.map((connector) => (
+        <section key={connector.id} className="space-y-3 px-4 py-3.5">
           <h3 className="text-sm font-medium">{connector.name}</h3>
-          {connector.fields.length ? (
-            connector.fields.map((field) => <CredentialField key={field.name} field={field} />)
-          ) : (
-            <p className="text-xs text-ink-muted">No key required · not tested</p>
-          )}
+          {connector.fields.map((field) => (
+            <CredentialField key={field.name} field={field} />
+          ))}
         </section>
       ))}
-    </div>
+      {keyless.length > 0 && <p className="px-4 py-3 text-xs leading-relaxed text-ink-faint">Work without a key: {keyless.map((connector) => connector.name).join(", ")}.</p>}
+    </>
   );
 }

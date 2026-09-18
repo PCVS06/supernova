@@ -1,6 +1,5 @@
 import type {CuratorMetrics} from "@supernova/contracts/harnesses/schemas";
-import {SettingsGroup} from "@/features/settings/components/settings-group";
-import ConfigCard from "@/features/harnesses/components/config-card";
+import {SettingsGroup, SettingsNote} from "@/features/settings/components/settings-group";
 import {agentLabel} from "@/features/harnesses/lib/agent-identity";
 import {compactChars, percent, spendLabel} from "@/features/harnesses/lib/curation-format";
 
@@ -21,10 +20,8 @@ export default function CuratorSignals(props: CuratorSignalsProps) {
 
   if (!metrics) {
     return (
-      <SettingsGroup title="Signals">
-        <div className="px-3 sm:px-4">
-          <ConfigCard className="text-sm text-ink-muted">No signals yet.</ConfigCard>
-        </div>
+      <SettingsGroup collapsible description="What its work has produced" readOnly title="Signals">
+        <SettingsNote>No signals yet.</SettingsNote>
       </SettingsGroup>
     );
   }
@@ -45,11 +42,11 @@ export default function CuratorSignals(props: CuratorSignalsProps) {
   const failures = metrics.failures.filter((agent) => agent.runs > 0 || agent.previousRuns > 0).toSorted((a, b) => b.failed - a.failed);
 
   return (
-    <SettingsGroup title="Signals">
-      <div className="space-y-4 px-3 sm:px-4">
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <SettingsGroup collapsible description={`What its work has produced over the last ${metrics.windowDays} days`} readOnly title="Signals">
+      <div className="space-y-4 p-4">
+        <dl className="grid grid-cols-2 gap-2 @xl:grid-cols-3">
           {tiles.map((tile) => (
-            <div className="rounded-xl corner-superellipse/1.3 border border-border bg-surface-raised/70 p-3" key={tile.label}>
+            <div className="rounded-xl corner-superellipse/1.3 border border-border bg-surface/60 p-3" key={tile.label}>
               <dt className="text-xs text-ink-muted">{tile.label}</dt>
               <dd className="flex flex-wrap items-baseline gap-1.5 text-sm text-ink-strong">
                 {tile.value}

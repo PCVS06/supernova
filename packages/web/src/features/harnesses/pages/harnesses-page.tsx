@@ -1,15 +1,12 @@
 import {useState} from "react";
 import ConstantOrb from "@/components/brand/constant-orb";
-import {Link, useNavigate} from "@tanstack/react-router";
+import {useNavigate} from "@tanstack/react-router";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
-import Icon from "@/components/ui/icon";
-import {SettingsGroup, SettingsRow} from "@/features/settings/components/settings-group";
-import {configCardClass} from "@/features/harnesses/components/config-card";
+import {SettingsGroup, SettingsLinkRow, SettingsNote, SettingsRow} from "@/features/settings/components/settings-group";
 import ScienceImport from "@/features/harnesses/components/science-import";
 import {useHarnessLibrary, useSaveHarness} from "@/features/harnesses/hooks/api/use-harnesses";
 import {useHarnessNavigationStore} from "@/features/harnesses/stores/harness-navigation-store";
-import {cn} from "@/lib/cn";
 
 /** The harness library, listed inside settings. Each entry opens its configuration on the settings harness route. */
 export default function HarnessesPage() {
@@ -24,15 +21,13 @@ export default function HarnessesPage() {
   if (!library.data) {
     return (
       <SettingsGroup title="Harnesses">
-        <SettingsRow description="Different ways of working, in one app. Each harness owns its instructions, agents, resources, workflows, and projects." title="Your harnesses">
-          {library.isError ? (
-            <p className="text-sm text-danger-ink" role="alert">
-              Could not load your harnesses. {String(library.error)}
-            </p>
-          ) : (
-            <p className="text-sm text-ink-muted">Loading harnesses…</p>
-          )}
-        </SettingsRow>
+        {library.isError ? (
+          <SettingsNote role="alert" tone="danger">
+            Could not load your harnesses. {String(library.error)}
+          </SettingsNote>
+        ) : (
+          <SettingsNote>Loading harnesses…</SettingsNote>
+        )}
       </SettingsGroup>
     );
   }
@@ -70,31 +65,22 @@ export default function HarnessesPage() {
 
   return (
     <>
-      <SettingsGroup title="Harnesses">
-        <SettingsRow description="Different ways of working, in one app. Each harness owns its instructions, agents, resources, workflows, and projects." title="Your harnesses">
-          {harnesses.length === 0 && <p className={cn(configCardClass, "p-5 text-sm text-ink-muted")}>No harness yet. Create one below, then link its first project.</p>}
-          <div className="grid gap-3 sm:grid-cols-2">
-            {harnesses.map((harness) => (
-              <Link
-                key={harness.id}
-                params={{harnessId: harness.id, page: "overview"}}
-                to="/settings/harness/$harnessId/$page"
-                onClick={() => select(harness.id)}
-                className={cn(configCardClass, "group flex flex-col p-5 transition-colors hover:border-border-strong hover:bg-surface-control")}
-              >
-                <span className="flex items-center justify-between">
-                  <ConstantOrb constant="pi" className="size-10" state="still" />
-                  <Icon className="text-ink-faint group-hover:text-ink" name="arrow-right" size="sm" />
-                </span>
-                <span className="mt-4 text-sm font-medium text-ink-strong">{harness.name}</span>
-                <span className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-ink-muted">{harness.description}</span>
-                <span className="mt-4 font-mono text-xs text-ink-faint">
-                  {projects.filter((project) => project.harnessId === harness.id).length} projects · {harness.agents.length} agents
-                </span>
-              </Link>
-            ))}
-          </div>
-        </SettingsRow>
+      <SettingsGroup description="Open a harness to change its instructions, agents, skills, workflows and projects." title={`${harnesses.length} harnesses`}>
+        {harnesses.map((harness) => (
+          <SettingsLinkRow
+            description={harness.description}
+            key={harness.id}
+            label={`Open ${harness.name}`}
+            leading={<ConstantOrb constant="pi" className="size-8" state="still" />}
+            meta={`${projects.filter((project) => project.harnessId === harness.id).length} projects · ${harness.agents.length} agents`}
+            title={harness.name}
+            onClick={() => {
+              select(harness.id);
+              void navigate({to: "/settings/harness/$harnessId/$page", params: {harnessId: harness.id, page: "overview"}});
+            }}
+          />
+        ))}
+        {harnesses.length === 0 && <SettingsNote>No harness yet. Create one below, then link its first project.</SettingsNote>}
       </SettingsGroup>
 
       <SettingsGroup title="Add a harness">
@@ -116,7 +102,7 @@ export default function HarnessesPage() {
       </SettingsGroup>
 
       {save.error && (
-        <p className="px-3 text-sm text-danger-ink sm:px-4" role="alert">
+        <p className="px-1 text-sm text-danger-ink" role="alert">
           {String(save.error)}
         </p>
       )}

@@ -24,7 +24,8 @@ describe("agent memory panel", () => {
 
   it("reads one ledger without a picker, says it is read-only and names the storage file", () => {
     const html = renderToStaticMarkup(<AgentMemoryPanel explanation="Records the agents saved while working in Science Space." harnessId="science" projects={[head]} />);
-    expect(html).toContain("Memory · read-only");
+    expect(html).toContain(">Memory<");
+    expect(html).toContain(">Read-only<");
     expect(html).toContain("Records the agents saved while working in Science Space.");
     expect(html).toContain("/science/.science-memory/ledger.jsonl");
     expect(html).toContain('aria-label="Refresh memory"');

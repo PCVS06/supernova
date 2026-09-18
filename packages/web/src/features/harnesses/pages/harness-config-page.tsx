@@ -31,7 +31,10 @@ interface SelectSettingsProjectProps {
 /** Keeps persisted navigation aligned with the selected route, once per scope. */
 function SelectSettingsProject({harnessId, projectId}: SelectSettingsProjectProps) {
   useMountEffect(() => {
-    useHarnessNavigationStore.getState().selectProject(harnessId, projectId);
+    const navigation = useHarnessNavigationStore.getState();
+    // A list page names no project; it must not clear the project the app is on.
+    if (projectId) navigation.selectProject(harnessId, projectId);
+    else if (navigation.activeHarnessId !== harnessId) navigation.selectHarness(harnessId);
   });
   return null;
 }
@@ -57,8 +60,8 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
   const saveProject = useSaveHarnessProject();
   const removeProject = useRemoveHarnessProject();
   const navigate = useNavigate();
-  const head = draft.projects.find((item) => item.id === draft.harness.coordinatorProjectId);
-  const selectedProject = projectId ? draft.projects.find((item) => item.id === projectId) : (head ?? draft.projects[0]);
+  // A collection page without a scope in the URL shows its list; the entry opens on a page of its own.
+  const selectedProject = projectId ? draft.projects.find((item) => item.id === projectId) : undefined;
   const savePending = saveProject.isPending || saveHarness.isPending;
   const saveError = saveProject.error ?? saveHarness.error;
   const harnessDirty = JSON.stringify(draft.harness) !== JSON.stringify(base.harness);
@@ -66,7 +69,7 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
   const dirty = harnessDirty || changedProjects.length > 0;
   const changed = [...(harnessDirty ? [draft.harness.name] : []), ...changedProjects.map((item) => agentLabel(item.name))].join(", ");
   // Plan documents take effect on click, so that surface never carries a Save bar.
-  const immediate = page === "projects" && projectSection === "plan";
+  const immediate = page === "projects" && !!selectedProject && projectSection === "plan";
 
   const blocker = useBlocker({
     shouldBlockFn: ({next}) => dirty && !next.pathname.startsWith(`/settings/harness/${harness.id}/`),
@@ -155,7 +158,9 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
       {page === "instructions" && <InstructionsPage harness={draft.harness} onChange={patchHarness} />}
       {page === "agents" && <AgentsEditor harness={draft.harness} selectedName={agent} onSelect={(name) => goTo("agents", name ? {agent: name} : {})} onChange={patchAgents} />}
       {page === "skills" && <ResourcesEditor harness={draft.harness} onChangeHarness={patchHarness} onOpenProviders={goToProviders} />}
-      {page === "workflows" && <WorkflowsEditor harness={draft.harness} selected={workflow} onChange={patchHarness} onSelect={(id) => goTo("workflows", {workflow: id})} />}
+      {page === "workflows" && (
+        <WorkflowsEditor harness={draft.harness} selected={workflow} onChange={patchHarness} onSelect={(id) => goTo("workflows", id ? {workflow: id} : {})} />
+      )}
       {page === "projects" && (
         <ProjectConfigEditor
           harness={draft.harness}
@@ -164,7 +169,7 @@ function WorkspaceEditor(props: WorkspaceEditorProps) {
           section={projectSection}
           onSectionChange={setProjectSection}
           onChangeProject={patchProject}
-          onSelect={(id) => goTo("projects", {project: id})}
+          onSelect={(id) => goTo("projects", id ? {project: id} : {})}
           onOpenAgents={() => goTo("agents")}
           onPersistPlanningDocuments={persistPlanningDocuments}
           onRemoveProject={handleRemoveProject}
@@ -227,7 +232,7 @@ export default function HarnessConfigPage(props: HarnessConfigPageProps) {
 
   if (!library.data || !harness) {
     return (
-      <SettingsShell activeHarnessId={harnessId} activePage={resolved.id} appEnvironment={appEnvironment} title={resolved.label}>
+      <SettingsShell activeHarnessId={harnessId} activePage={resolved.id} appEnvironment={appEnvironment} crumbs={["Settings", resolved.label]}>
         <div className="p-8 text-sm text-ink-muted" role="status">
           {library.data ? (
             <p>
@@ -252,9 +257,23 @@ export default function HarnessConfigPage(props: HarnessConfigPageProps) {
   }
 
   const projects = library.data.projects.filter((item) => item.harnessId === harnessId).toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // The open entry, so the breadcrumb says where the page sits: harness, page, entry.
+  const entry =
+    resolved.id === "agents" && agent
+      ? agentLabel(agent)
+      : resolved.id === "projects" && project
+        ? projects.find((item) => item.id === project)?.name
+        : resolved.id === "workflows" && workflow
+          ? harness.workflows?.find((item) => item.id === workflow)?.name
+          : undefined;
 
   return (
-    <SettingsShell activeHarnessId={harness.id} activePage={resolved.id} appEnvironment={appEnvironment} owner={harness.name} title={resolved.label}>
+    <SettingsShell
+      activeHarnessId={harness.id}
+      activePage={resolved.id}
+      appEnvironment={appEnvironment}
+      crumbs={["Settings", harness.name, resolved.label, ...(entry ? [entry] : [])]}
+    >
       <div className="harness-workspace flex min-h-0 flex-1 flex-col overflow-hidden">
         <WorkspaceEditor
           key={harness.id}

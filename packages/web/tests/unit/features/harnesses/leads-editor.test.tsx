@@ -80,38 +80,44 @@ describe("harness agents", () => {
   const render = (selectedName?: string, agents = harness.agents, onSelect = vi.fn(), onChange = vi.fn()) =>
     renderToStaticMarkup(<AgentsEditor harness={{...harness, agents}} selectedName={selectedName} onSelect={onSelect} onChange={onChange} />);
 
-  it("lists the specialists alone, opens the first one, and offers three panels", () => {
+  it("lists the specialists alone until one is opened", () => {
     const html = render();
+    expect(html).toContain('data-testid="agents-index"');
     expect(html).not.toContain("Main orchestrator");
-    expect(html).toContain('aria-label="Configure Reviewer" aria-pressed="true"');
-    expect(html).toContain('aria-label="Agent editor tabs"');
-    expect(html).toContain('aria-label="Settings" aria-pressed="true"');
-    expect(html).toContain('aria-label="Instructions" aria-pressed="false"');
-    expect(html).toContain('aria-label="Skills" aria-pressed="false"');
-    expect(html).not.toContain('aria-label="Memory"');
-    expect(html).not.toContain("Open Overview");
-    expect(html).not.toContain('aria-label="Shared operating instructions"');
+    expect(html).toContain('aria-label="Configure Reviewer"');
+    expect(html).toContain("Review evidence");
+    expect(html).toContain("New agent");
+    expect(html).not.toContain('aria-label="Agent identifier"');
+    expect(html).not.toContain("Execution controls");
   });
 
-  it("edits the selected specialist and keeps execution within it", () => {
+  it("edits the opened specialist on one page without tabs and keeps execution within it", () => {
     const html = render("reviewer");
+    expect(html).toContain('data-testid="agent-detail"');
     expect(html).toContain('aria-label="Reviewer specialist identity"');
     expect(html).toContain('aria-label="Agent identifier"');
     expect(html).toContain('aria-label="Agent role"');
+    expect(html).toContain('aria-label="reviewer system prompt"');
     expect(html).toContain('aria-label="Allowed tools"');
     expect(html).toContain("Execution controls");
+    expect(html).not.toContain('aria-label="Agent editor tabs"');
+    expect(html).not.toContain('aria-label="Shared operating instructions"');
     expect(controls.execution?.inherited).toEqual(harness.execution);
+    // Role first, danger last.
+    expect(html.indexOf(">Role<")).toBeLessThan(html.indexOf(">Model<"));
+    expect(html.indexOf(">Model<")).toBeLessThan(html.indexOf(">Remove<"));
   });
 
-  it("falls back to the first specialist for a name that no longer exists", () => {
-    expect(render("main")).toContain('aria-label="Configure Reviewer" aria-pressed="true"');
+  it("returns to the list and says so for a name that no longer exists", () => {
+    const html = render("main");
+    expect(html).toContain('data-testid="agents-index"');
+    expect(html).toContain("no longer exists");
   });
 
   it("keeps agent creation accessible when the specialist list is empty", () => {
     const html = render(undefined, []);
-    expect(html).toContain('aria-label="Add agent"');
+    expect(html).toContain("New agent");
     expect(html).toContain("No specialists yet");
-    expect(html).not.toContain('aria-label="Agent editor tabs"');
   });
 });
 

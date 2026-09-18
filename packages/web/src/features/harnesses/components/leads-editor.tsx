@@ -41,7 +41,11 @@ export default function LeadsEditor(props: LeadsEditorProps) {
           />
         </SettingsRow>
       </SettingsGroup>
-      <SettingsGroup title="Skills">
+      <SettingsGroup
+        collapsible
+        description={project.enabledSkills === undefined ? "Uses every skill the harness allows" : `${project.enabledSkills.length} chosen for this project`}
+        title="Skills"
+      >
         <SkillsEditor harnessId={harness.id} value={project.enabledSkills} inherited={harness.enabledSkills} onChange={(enabledSkills) => onChangeProject({enabledSkills})} />
       </SettingsGroup>
       <ProjectOverridesEditor harness={harness} overrides={project.agents} onChange={(agents) => onChangeProject({agents})} onOpenSpecialists={onOpenSpecialists} />

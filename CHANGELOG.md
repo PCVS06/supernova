@@ -10,6 +10,12 @@ All notable changes to Radian are documented in this file.
 
 ### Changed
 
+- Rebuilt Settings on one structure: every page has a title, a sentence saying what it is for, and titled cards of rows that lay out by their own width, so nothing overflows in a narrow window.
+- Changed Agents, Projects, Workflows and Harnesses to a list that opens each entry on its own page, with a way back, a breadcrumb and a menu to switch to a sibling.
+- Added search to the settings sidebar: it finds a setting by its name or a related word, and every agent, project and workflow of the open harness.
+- Folded rarely changed and read-only material behind its heading: run limits, compaction, an agent's skills, identity and tools, workflow limits, registered tools, extensions, curator activity and the provider catalogue.
+- Renamed Overview to General and Providers & keys to Models & keys, moved the tool keys directly under the connected providers, and showed the size of each collection in the sidebar.
+- Fixed the agent tools field, which swallowed a typed comma so no tool could be added.
 - Changed the settings sidebar to two flat groups: the App pages, and the pages of one harness behind a switcher, so every harness page is one click away and nothing collapses when an App page opens.
 - Removed the placeholder main orchestrator entry from the Agents page; the harness lead role is one field under Instructions, and every project, including the coordinating one, has a Lead tab.
 - Changed the harness save bar to appear only while there is something to save, and removed the explanatory banner from every harness page.

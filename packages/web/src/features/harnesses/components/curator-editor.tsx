@@ -18,6 +18,7 @@ import ExecutionEditor from "@/features/harnesses/components/execution-editor";
 import {useCuration, useRunCuratorReview} from "@/features/harnesses/hooks/api/use-curation";
 import {relativeTime, spendLabel} from "@/features/harnesses/lib/curation-format";
 import {curatorConfigPatch, defaultCuratorConfig} from "@/features/harnesses/lib/curator-config";
+import {resolveHarnessPage} from "@/features/harnesses/lib/harness-sections";
 
 interface CuratorEditorProps {
   harness: HarnessConfig;
@@ -58,24 +59,26 @@ export default function CuratorEditor(props: CuratorEditorProps) {
     );
   };
 
+  const page = resolveHarnessPage("curator");
+
   return (
-    <SettingsPageShell testId="curator-editor">
-      <header className="flex items-center gap-4 px-3 pb-5 sm:px-4">
-        {completedReview ? (
-          <ConstantCompletion constant="i" className="size-24" label="Curator · imaginary unit" key={completedReview} onComplete={() => setCompletedReview(undefined)} />
+    <SettingsPageShell
+      description={page.description}
+      leading={
+        completedReview ? (
+          <ConstantCompletion constant="i" className="size-12" label="Curator · imaginary unit" key={completedReview} onComplete={() => setCompletedReview(undefined)} />
         ) : (
-          <ConstantOrb constant="i" className="size-24" label="Curator · imaginary unit" state={runReview.isPending ? "working" : "idle"} />
-        )}
-        <div>
-          <h2 className="text-xl font-medium text-ink-strong">Curator</h2>
-          <p className="mt-1 text-xs text-ink-muted">Instructions, plans and memory</p>
-          {runReview.isPending && mathematicalMotion === "playful" && (
-            <p aria-hidden="true" className="mt-1 text-xs text-ink">
-              {constantIdentity.i.caption}…
-            </p>
-          )}
-        </div>
-      </header>
+          <ConstantOrb constant="i" className="size-12" label="Curator · imaginary unit" state={runReview.isPending ? "working" : "idle"} />
+        )
+      }
+      testId="curator-editor"
+      title={page.label}
+    >
+      {runReview.isPending && mathematicalMotion === "playful" && (
+        <p aria-hidden="true" className="-mt-4 px-1 text-xs text-ink">
+          {constantIdentity.i.caption}…
+        </p>
+      )}
       <SettingsGroup title="Status">
         <SettingsRow
           control={<Switch aria-label="Curator" checked={curator?.enabled ?? false} onCheckedChange={(enabled) => patch({enabled})} />}
@@ -142,14 +145,12 @@ export default function CuratorEditor(props: CuratorEditorProps) {
 
       <CuratorSchedule config={limits} onChange={patch} />
 
-      <CuratorSignals metrics={curation.data?.metrics} />
-
       <SettingsGroup title="Spend limits">
         <SettingsRow
           control={
             <Input
               aria-label="Per review in USD"
-              className="sm:w-40"
+              className="@xl:w-40"
               min={0}
               step={0.1}
               type="number"
@@ -164,7 +165,7 @@ export default function CuratorEditor(props: CuratorEditorProps) {
           control={
             <Input
               aria-label="Per day in USD"
-              className="sm:w-40"
+              className="@xl:w-40"
               min={0}
               step={0.5}
               type="number"
@@ -176,6 +177,8 @@ export default function CuratorEditor(props: CuratorEditorProps) {
           title="Per day"
         />
       </SettingsGroup>
+
+      <CuratorSignals metrics={curation.data?.metrics} />
 
       <CuratorRequests requests={curation.data?.requests ?? []} />
     </SettingsPageShell>

@@ -31,7 +31,7 @@ export default function ExecutionEditor(props: ExecutionEditorProps) {
       <SettingsRow
         control={
           <ConfigChoice
-            className="sm:w-64"
+            className="@xl:w-64"
             label="Agent model"
             value={key}
             options={[
@@ -57,7 +57,7 @@ export default function ExecutionEditor(props: ExecutionEditorProps) {
       <SettingsRow
         control={
           <ConfigChoice
-            className="sm:w-64"
+            className="@xl:w-64"
             label="Agent reasoning effort"
             value={value?.effort ?? ""}
             options={[{value: "", label: inherited?.effort ? `Use project default · ${inherited.effort}` : "Use chat effort"}, ...levels]}

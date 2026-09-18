@@ -67,18 +67,21 @@ describe("project workspace", () => {
     vi.stubGlobal("window", {});
   });
 
-  it("opens the selected project on five tabs, without repeating its name", () => {
+  it("opens the selected project on a page of its own, with five tabs and a way back to the list", () => {
     const html = render(lab);
-    expect(html).toContain('aria-label="Open Robot Lab"');
-    expect(html).toContain('title="/robot"');
+    expect(html).toContain('data-testid="project-workspace"');
+    expect(html).toContain(">Robot Lab</h1>");
+    expect(html).toContain(">/robot</p>");
+    expect(html).toContain("Projects</button>");
     expect(html).toContain('aria-label="Project editor tabs"');
-    expect(html).toContain('aria-label="Setup" aria-pressed="true"');
+    expect(html).toContain('aria-label="General" aria-pressed="true"');
     expect(html).toContain('aria-label="Lead" aria-pressed="false"');
     expect(html).toContain('aria-label="Instructions" aria-pressed="false"');
     expect(html).toContain('aria-label="Plan" aria-pressed="false"');
     expect(html).toContain('aria-label="Memory" aria-pressed="false"');
-    expect(html).not.toContain("Robot Lab</h2>");
-    expect(html).not.toContain("agent-editor-portrait");
+    // The list never shares the screen with the editor; siblings are one menu away.
+    expect(html).not.toContain('aria-label="Open Science Space"');
+    expect(html).toContain('aria-label="Switch project"');
   });
 
   it("gives the coordinating project a lead tab too and says its lead is the main orchestrator", () => {
@@ -98,7 +101,7 @@ describe("project workspace", () => {
     expect(render(lab, "instructions")).toContain('aria-label="Project context instructions"');
     expect(render(lab, "plan")).toContain('data-testid="planning-workspace"');
     expect(render(lab, "plan")).toContain('aria-label="PLAN.md content"');
-    expect(render(lab, "memory")).toContain("Memory · read-only");
+    expect(render(lab, "memory")).toContain(">Memory<");
   });
 
   it("says which tabs act at once and which are read-only", () => {
@@ -107,17 +110,20 @@ describe("project workspace", () => {
     expect(render(lab, "setup")).not.toContain("save at once");
   });
 
-  it("puts the coordinating project first and flags a project whose folder is gone", () => {
+  it("lists the projects before any of them is opened, coordinator first, and flags a missing folder", () => {
     const missing = {...head, folderMissing: true};
-    const html = render(missing, "setup", [lab, missing]);
+    const html = render(undefined, "setup", [lab, missing]);
+    expect(html).toContain('data-testid="projects-index"');
     expect(html.indexOf('aria-label="Open Science Space"')).toBeLessThan(html.indexOf('aria-label="Open Robot Lab"'));
-    expect(html).toContain("Folder missing");
-    expect(html).toContain("This folder no longer exists on the server.");
+    expect(html).toContain("Folder missing · /science");
+    expect(html).toContain(">Coordinates<");
+    expect(html).not.toContain('aria-label="Project editor tabs"');
+    expect(render(missing, "setup", [lab, missing])).toContain("This folder no longer exists on the server.");
   });
 
-  it("asks for a project before it shows any editor", () => {
-    const html = render(undefined);
-    expect(html).toContain("Select a project to configure it.");
+  it("says so when the harness has no project yet", () => {
+    const html = render(undefined, "setup", []);
+    expect(html).toContain("No projects yet.");
     expect(html).not.toContain('aria-label="Project editor tabs"');
   });
 });
