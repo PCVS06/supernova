@@ -1,0 +1,5 @@
+.session-composer-content {
+  /* Leave room for the window chrome, readable conversation, and bottom inset.
+     Oversized goals, queues, and drafts scroll above the persistent action bar. */
+  max-height: min(65dvh, calc(100dvh - 12rem));
+}

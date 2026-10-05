@@ -115,6 +115,7 @@ function constrainFileNavigationWidth(width: number): number {
 export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
   const {projectPath, sessionId} = props;
   const activeFilePath = useWorkspacePanelStore((state) => state.activeFilePath);
+  const activeFileAnchor = useWorkspacePanelStore((state) => state.activeFileAnchor);
   const [fileNavigationWidth, setFileNavigationWidth] = useState(DEFAULT_FILE_NAVIGATION_WIDTH);
 
   const handleInsertReference = (): void => {
@@ -158,7 +159,13 @@ export default function WorkspaceFilesView(props: WorkspaceFilesViewProps) {
     <div className="flex min-h-0 min-w-0 flex-1">
       {activeFilePath ? (
         <>
-          <WorkspaceFileViewer key={`${projectPath}:${activeFilePath}`} onAddToChat={handleInsertReference} path={activeFilePath} projectPath={projectPath} />
+          <WorkspaceFileViewer
+            key={`${projectPath}:${activeFilePath}`}
+            anchor={activeFileAnchor}
+            onAddToChat={handleInsertReference}
+            path={activeFilePath}
+            projectPath={projectPath}
+          />
           <div
             aria-label="Resize file list"
             aria-orientation="vertical"

@@ -117,10 +117,12 @@ interface AssistantMessageContentProps {
   fadeNewText?: boolean;
   mode?: "markdown" | "text";
   streaming?: boolean;
+  components?: ComponentProps<typeof ReactMarkdown>["components"];
+  rehypePlugins?: ComponentProps<typeof ReactMarkdown>["rehypePlugins"];
 }
 
 export default function AssistantMessageContent(props: AssistantMessageContentProps) {
-  const {children, className, fadeNewText = false, mode = "markdown", streaming = false} = props;
+  const {children, className, components, rehypePlugins = [], fadeNewText = false, mode = "markdown", streaming = false} = props;
 
   if (streaming) {
     const segments = segmentStreamingMessage(children);
@@ -142,7 +144,7 @@ export default function AssistantMessageContent(props: AssistantMessageContentPr
       {mode === "markdown" && (
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[[rehypeKatex, {trust: false, strict: "ignore", maxExpand: 1000}]]}
+          rehypePlugins={[[rehypeKatex, {trust: false, strict: "ignore", maxExpand: 1000}], ...(rehypePlugins ?? [])]}
           components={{
             a: ({children: linkChildren, href, ...linkProps}) => (
               <a
@@ -164,9 +166,21 @@ export default function AssistantMessageContent(props: AssistantMessageContentPr
                 </code>
               );
             },
-            h1: ({children: headingChildren}) => <h1 className="mb-3 mt-5 text-base font-semibold text-ink first:mt-0">{headingChildren}</h1>,
-            h2: ({children: headingChildren}) => <h2 className="mb-3 mt-5 text-sm font-semibold text-ink first:mt-0">{headingChildren}</h2>,
-            h3: ({children: headingChildren}) => <h3 className="mb-2 mt-4 text-sm font-medium text-ink first:mt-0">{headingChildren}</h3>,
+            h1: ({children: headingChildren, id}) => (
+              <h1 id={id} className="mb-3 mt-5 text-base font-semibold text-ink first:mt-0">
+                {headingChildren}
+              </h1>
+            ),
+            h2: ({children: headingChildren, id}) => (
+              <h2 id={id} className="mb-3 mt-5 text-sm font-semibold text-ink first:mt-0">
+                {headingChildren}
+              </h2>
+            ),
+            h3: ({children: headingChildren, id}) => (
+              <h3 id={id} className="mb-2 mt-4 text-sm font-medium text-ink first:mt-0">
+                {headingChildren}
+              </h3>
+            ),
             hr: () => <hr className="my-6 border-border-muted" />,
             li: ({children: listItemChildren}) => <li className="my-1 pl-1 marker:text-ink-faint">{listItemChildren}</li>,
             ol: ({children: listChildren}) => <ol className="my-3 list-decimal space-y-1 pl-6">{listChildren}</ol>,
@@ -191,6 +205,7 @@ export default function AssistantMessageContent(props: AssistantMessageContentPr
             td: ({children: cellChildren}) => <td className="border-t border-border-muted px-3 py-2 text-ink">{cellChildren}</td>,
             th: ({children: cellChildren}) => <th className="px-3 py-2 font-medium text-ink">{cellChildren}</th>,
             ul: ({children: listChildren}) => <ul className="my-3 list-disc space-y-1 pl-6">{listChildren}</ul>,
+            ...components,
           }}
         >
           {normalizeMathMarkdown(children)}

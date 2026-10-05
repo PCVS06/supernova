@@ -19,6 +19,7 @@ export interface WorkspaceTarget {
 
 interface WorkspacePanelState {
   readonly activeFilePath: string | null;
+  readonly activeFileAnchor: string;
   readonly activeView: WorkspaceView | null;
   readonly browserUrl: string;
   readonly expandedPaths: readonly string[];
@@ -29,7 +30,7 @@ interface WorkspacePanelState {
   readonly visible: boolean;
   readonly width: number;
   readonly closeView: (view: WorkspaceView) => void;
-  readonly openFile: (path: string) => void;
+  readonly openFile: (path: string, anchor?: string) => void;
   readonly openView: (view: WorkspaceView) => void;
   readonly showViewPicker: () => void;
   readonly setBrowserUrl: (url: string) => void;
@@ -45,6 +46,7 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
   persist(
     (set) => ({
       activeFilePath: null,
+      activeFileAnchor: "",
       activeView: null,
       browserUrl: DEFAULT_BROWSER_URL,
       expandedPaths: [],
@@ -79,9 +81,10 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
           };
         });
       },
-      openFile: (path) => {
+      openFile: (path, anchor = "") => {
         set((state) => ({
           activeFilePath: path,
+          activeFileAnchor: anchor,
           activeView: "files",
           expandedPaths: [...new Set([...state.expandedPaths, ...ancestorDirectories(path)])],
           pickerVisible: false,
@@ -105,6 +108,7 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
       selectFile: (path) => {
         set((state) => ({
           activeFilePath: path,
+          activeFileAnchor: "",
           activeView: "files",
           pickerVisible: false,
           tabs: state.tabs.includes("files") ? state.tabs : [...state.tabs, "files"],
@@ -117,7 +121,7 @@ export const useWorkspacePanelStore = create<WorkspacePanelState>()(
           // A different project has a different tree, so revealed paths and the
           // selected file belong to the chat that was replaced.
           const sameProject = state.target?.projectPath === target.projectPath;
-          return sameProject ? {target} : {activeFilePath: null, expandedPaths: [], filter: "", target};
+          return sameProject ? {target} : {activeFilePath: null, activeFileAnchor: "", expandedPaths: [], filter: "", target};
         });
       },
       setWidth: (width) => {

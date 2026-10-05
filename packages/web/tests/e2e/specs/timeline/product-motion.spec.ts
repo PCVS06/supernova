@@ -75,11 +75,12 @@ test("keeps orbit entries on their paths and worker details compact", async ({pa
   await expect(canvas.locator(".chat-orbit-bodies")).toHaveCSS("transform", "none");
   await canvas.getByRole("button", {name: /^Research lead/}).click();
   const result = page.getByRole("region", {name: "Selected work: Research lead", exact: true});
-  await expect(result.getByRole("button", {name: "Result", exact: true})).toHaveAttribute("aria-expanded", "false");
-  await result.getByRole("button", {name: "Result", exact: true}).click();
+  await expect(result.getByRole("button", {name: "Result", exact: true})).toHaveAttribute("aria-expanded", "true");
   await expect(result.getByRole("article", {name: "Agent result"})).toBeVisible();
   await result.getByRole("button", {name: "Result", exact: true}).click();
-  await expect(result.getByRole("article", {name: "Agent result"})).toHaveCount(0);
+  await expect(result.getByRole("article", {name: "Agent result"})).not.toBeVisible();
+  await result.getByRole("button", {name: "Result", exact: true}).click();
+  await expect(result.getByRole("article", {name: "Agent result"})).toBeVisible();
   await page.getByRole("link", {name: "Open full agent conversation ↗", exact: true}).click();
   await expect(page.locator(".worker-run-surface")).toBeVisible();
   await expect(page.getByRole("region", {name: "Chat solar system", exact: true})).toHaveCount(0);
@@ -97,7 +98,7 @@ test("pointer dragging and scrolling do not adjust effort", async ({page, timeli
   await timeline.openMainSession();
   const editor = page.locator('[contenteditable="true"]').first();
   await editor.fill("Keep the current writing position");
-  const dial = page.getByRole("button", {name: "Reasoning effort", exact: true});
+  const dial = page.getByRole("button", {name: "Chat settings", exact: true});
   const original = await dial.textContent();
   await dial.hover();
   await page.mouse.wheel(0, 40);

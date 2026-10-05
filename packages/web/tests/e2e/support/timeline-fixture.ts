@@ -106,7 +106,6 @@ export class TimelineDriver {
     const before = await this.mockState();
     await this.runCheckpointSlashCommand("undo");
     await this.waitForCheckpoint({turnCount: before.turnCount - 1, undoneTurnCount: before.undoneTurnCount + 1});
-    await expect(this.page.getByRole("button", {name: "Expand rolled back messages"})).toBeVisible();
   }
 
   /** Runs /redo and waits for the committed transcript to restore one turn. */
@@ -114,7 +113,6 @@ export class TimelineDriver {
     const before = await this.mockState();
     await this.runCheckpointSlashCommand("redo");
     await this.waitForCheckpoint({turnCount: before.turnCount + 1, undoneTurnCount: before.undoneTurnCount - 1});
-    await expect(this.page.getByRole("button", {name: "Expand rolled back messages"})).toBeHidden();
   }
 
   /** Reverts the latest visible user message through its timeline action. */
@@ -122,11 +120,14 @@ export class TimelineDriver {
     const before = await this.mockState();
     await this.page.getByRole("button", {name: "Revert to this message"}).last().click();
     await this.waitForCheckpoint({turnCount: before.turnCount - 1, undoneTurnCount: before.undoneTurnCount + 1});
-    await expect(this.page.getByRole("button", {name: "Expand rolled back messages"})).toBeVisible();
   }
 
   /** Opens the rolled-back message drawer before a manual restore. */
   public async expandRolledBackMessages(): Promise<void> {
+    const history = this.page.getByRole("button", {name: "Chat history", exact: true});
+    if ((await history.getAttribute("aria-expanded")) !== "true") await history.click();
+    const details = this.page.getByRole("button", {name: "History details", exact: true});
+    if ((await details.getAttribute("aria-expanded")) !== "true") await details.click();
     await this.page.getByRole("button", {name: "Expand rolled back messages"}).click();
     await expect(this.page.getByRole("button", {name: "Restore rolled back message"})).toBeVisible();
   }
@@ -136,7 +137,7 @@ export class TimelineDriver {
     const before = await this.mockState();
     await this.page.getByRole("button", {name: "Restore rolled back message"}).first().click();
     await this.waitForCheckpoint({turnCount: before.turnCount + 1, undoneTurnCount: before.undoneTurnCount - 1});
-    await expect(this.page.getByRole("button", {name: "Expand rolled back messages"})).toBeHidden();
+    await expect(this.page.getByRole("button", {name: "Restore rolled back message"})).toBeHidden();
   }
 
   /** Stops the stream through the same composer control used by a person. */
@@ -230,10 +231,17 @@ export class TimelineDriver {
 
   /** Applies a native downward wheel gesture over the timeline. */
   public async scrollDown(deltaY: number): Promise<void> {
-    const initialFrameCount = this.visibleFrameSamples(await this.visualSamples()).length;
     await this.timeline().hover();
+    const initialScrollTop = await this.scrollTop();
+    const initialBottomDistance = await this.bottomDistance();
+    const wheelReceived = this.timeline().evaluate(
+      (viewport) => new Promise<void>((resolve) => viewport.addEventListener("wheel", () => requestAnimationFrame(() => resolve()), {once: true}))
+    );
     await this.page.mouse.wheel(0, deltaY);
-    await expect.poll(async () => this.visibleFrameSamples(await this.visualSamples()).length).toBeGreaterThan(initialFrameCount);
+    await wheelReceived;
+    if (initialBottomDistance > BOTTOM_TOLERANCE_PX) {
+      await expect.poll(() => this.scrollTop(), {message: "the downward wheel gesture should advance the viewport"}).toBeGreaterThan(initialScrollTop);
+    }
   }
 
   /** Applies a native upward wheel gesture over the timeline without asserting detachment. */

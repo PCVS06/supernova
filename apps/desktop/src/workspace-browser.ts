@@ -1,6 +1,6 @@
 import type {BrowserWindow, Rectangle} from "electron";
 import {WebContentsView} from "electron";
-import type {DesktopBrowserShowRequest} from "@supernova/contracts/desktop/api";
+import type {DesktopBrowserShowRequest, DesktopBrowserState} from "@supernova/contracts/desktop/api";
 
 const HIDDEN_SCROLLBARS_CSS = "*{scrollbar-width:none!important}*::-webkit-scrollbar{display:none!important}";
 
@@ -20,7 +20,7 @@ function browserBounds(bounds: DesktopBrowserShowRequest["bounds"]): Rectangle {
 }
 
 export interface WorkspaceBrowserController {
-  readonly show: (request: DesktopBrowserShowRequest) => Promise<void>;
+  readonly show: (request: DesktopBrowserShowRequest) => Promise<DesktopBrowserState>;
   readonly hide: () => void;
   readonly navigate: (url: string) => Promise<void>;
   readonly goBack: () => void;
@@ -36,7 +36,20 @@ class ElectronWorkspaceBrowser implements WorkspaceBrowserController {
   private loadedUrl = "";
   private bounds: Rectangle = {x: 0, y: 0, width: 1, height: 1};
 
-  constructor(private readonly window: BrowserWindow) {}
+  constructor(
+    private readonly window: BrowserWindow,
+    private readonly onStateChange: (state: DesktopBrowserState) => void
+  ) {}
+
+  /** Reads history availability without touching a destroyed renderer. */
+  private state(): DesktopBrowserState {
+    const contents = this.view?.webContents;
+    return {
+      url: this.url,
+      canGoBack: !!contents && !contents.isDestroyed() && contents.canGoBack(),
+      canGoForward: !!contents && !contents.isDestroyed() && contents.canGoForward(),
+    };
+  }
 
   /** Lazily creates the isolated browser surface and locks it to web URLs. */
   private getView(): WebContentsView {
@@ -58,6 +71,16 @@ class ElectronWorkspaceBrowser implements WorkspaceBrowserController {
     view.webContents.on("did-finish-load", () => {
       void view.webContents.insertCSS(HIDDEN_SCROLLBARS_CSS).catch(() => undefined);
     });
+    const navigated = (url: string): void => {
+      if (this.view !== view) return;
+      this.url = url;
+      this.loadedUrl = url;
+      this.onStateChange(this.state());
+    };
+    view.webContents.on("did-navigate", (_event, url) => navigated(url));
+    view.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+      if (isMainFrame) navigated(url);
+    });
     view.webContents.on("render-process-gone", () => {
       if (this.view !== view) return;
       view.setVisible(false);
@@ -77,26 +100,31 @@ class ElectronWorkspaceBrowser implements WorkspaceBrowserController {
     try {
       await view.webContents.loadURL(url);
     } catch (cause) {
-      if (this.loadedUrl === url) this.loadedUrl = "";
+      if (this.loadedUrl !== url) return;
+      this.loadedUrl = "";
       throw cause;
     }
   }
 
-  async show(request: DesktopBrowserShowRequest): Promise<void> {
+  /** Shows or resizes the current page; navigation is owned by navigate and browser history. */
+  async show(request: DesktopBrowserShowRequest): Promise<DesktopBrowserState> {
     this.bounds = browserBounds(request.bounds);
-    this.url = secureBrowserUrl(request.url);
+    if (!this.url) this.url = secureBrowserUrl(request.url);
     this.visible = true;
     const view = this.getView();
     view.setBounds(this.bounds);
     view.setVisible(true);
     await this.load(view, this.url);
+    return this.state();
   }
 
+  /** Hides the surface while retaining its page and history. */
   hide(): void {
     this.visible = false;
     this.view?.setVisible(false);
   }
 
+  /** Navigates explicitly to a validated web address. */
   async navigate(url: string): Promise<void> {
     this.url = secureBrowserUrl(url);
     const view = this.getView();
@@ -105,14 +133,17 @@ class ElectronWorkspaceBrowser implements WorkspaceBrowserController {
     await this.load(view, this.url);
   }
 
+  /** Moves to the previous browser history entry when available. */
   goBack(): void {
     if (this.view?.webContents.canGoBack()) this.view.webContents.goBack();
   }
 
+  /** Moves to the next browser history entry when available. */
   goForward(): void {
     if (this.view?.webContents.canGoForward()) this.view.webContents.goForward();
   }
 
+  /** Reloads the current page, recreating a lost renderer when necessary. */
   async reload(): Promise<void> {
     if (this.view && !this.view.webContents.isDestroyed()) {
       this.view.webContents.reload();
@@ -121,6 +152,7 @@ class ElectronWorkspaceBrowser implements WorkspaceBrowserController {
     if (this.url) await this.show({bounds: this.bounds, url: this.url});
   }
 
+  /** Closes the native surface with its owning window. */
   dispose(): void {
     const view = this.view;
     this.view = undefined;
@@ -133,6 +165,6 @@ class ElectronWorkspaceBrowser implements WorkspaceBrowserController {
 }
 
 /** Creates one reusable native browser surface for a desktop window. */
-export function createWorkspaceBrowser(window: BrowserWindow): WorkspaceBrowserController {
-  return new ElectronWorkspaceBrowser(window);
+export function createWorkspaceBrowser(window: BrowserWindow, onStateChange: (state: DesktopBrowserState) => void): WorkspaceBrowserController {
+  return new ElectronWorkspaceBrowser(window, onStateChange);
 }

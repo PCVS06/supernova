@@ -3,26 +3,27 @@ import {Effect} from "effect";
 import {eq} from "@/rpc/effect-query";
 import {RpcProtocolClientService} from "@/rpc/transport/client";
 
-export function folderFileQueryKey(projectPath: string, path: string) {
-  return ["agent", "folder", "file", projectPath, path] as const;
+export function folderFileQueryKey(projectPath: string, path: string, imagePreview = false) {
+  return ["agent", "folder", "file", projectPath, path, imagePreview] as const;
 }
 
 interface UseFolderFileInput {
   /** Project-relative file path, or null while no file is open. */
   readonly path: string | null;
   readonly projectPath: string;
+  readonly imagePreview?: boolean;
 }
 
 /** Reads one project file for the workspace viewer, including its truncation and binary flags. */
 export function useFolderFile(input: UseFolderFileInput) {
-  const {path, projectPath} = input;
+  const {path, projectPath, imagePreview = false} = input;
 
   return useQuery(
     eq.queryOptions({
       enabled: path !== null && path.length > 0 && projectPath.length > 0,
-      queryKey: folderFileQueryKey(projectPath, path ?? ""),
+      queryKey: folderFileQueryKey(projectPath, path ?? "", imagePreview),
       staleTime: 15_000,
-      queryFn: () => Effect.flatMap(Effect.service(RpcProtocolClientService), (rpc) => rpc.readFolderFile({path: path ?? "", projectPath})),
+      queryFn: () => Effect.flatMap(Effect.service(RpcProtocolClientService), (rpc) => rpc.readFolderFile({path: path ?? "", projectPath, imagePreview})),
     })
   );
 }

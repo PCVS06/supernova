@@ -35,17 +35,18 @@ export default function Sidebar() {
     const existing = library.data.projects.find((project) => project.path === projectPath);
     if (existing) {
       selectHarness(existing.harnessId);
-      const project = addProject(existing.path);
+      const project = addProject(existing.path, existing.harnessId);
       if (project) expandProject(project.id);
       setAddingToHarness(undefined);
       if (existing.harnessId !== addingToHarness) showToast("Project already linked", "This folder belongs to another harness; its setup was kept.");
       return;
     }
+    const projectId = crypto.randomUUID();
     saveProject.mutate(
       {
         expectedRevision: library.data.revision,
         project: {
-          id: crypto.randomUUID(),
+          id: projectId,
           harnessId: addingToHarness,
           name: projectPath.split("/").filter(Boolean).at(-1) ?? "Project",
           path: projectPath,
@@ -55,9 +56,11 @@ export default function Sidebar() {
         },
       },
       {
-        onSuccess: () => {
-          selectHarness(addingToHarness);
-          const project = addProject(projectPath);
+        onSuccess: (saved) => {
+          const linked = saved.projects.find((project) => project.id === projectId);
+          if (!linked) return;
+          selectHarness(linked.harnessId);
+          const project = addProject(linked.path, linked.harnessId);
           if (project) expandProject(project.id);
           setAddingToHarness(undefined);
         },

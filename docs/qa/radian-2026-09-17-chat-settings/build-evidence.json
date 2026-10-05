@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-09-17T13:42:50.236131+00:00",
+  "branch": "docs/graph-workflow-engineering",
+  "head": "4b3da23ef0f39d04a374e29fe1fbacdf645905c5",
+  "builtApp": "/Users/philippcarlvictorstrieder/Developer/supernova/apps/desktop/dist/mac-arm64/Radian.app",
+  "installedApp": "/Applications/Radian.app",
+  "backupApp": "/Users/philippcarlvictorstrieder/Library/Application Support/Radian Backups/chat-settings-20260917-FaINGi/Radian.app",
+  "fileCount": 34116,
+  "installedBundleMatchesBuild": true,
+  "codesignVerification": "codesign --verify --deep --strict: passed for built and installed bundles",
+  "bundleManifestSha256": "5e99a2234a166de9a5bdae0033db6f77ed9eb018e0499e696ad2c2df77f072cd"
+}

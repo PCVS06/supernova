@@ -58,6 +58,16 @@ describe("workspace file viewer", () => {
     expect(html).toContain("Preview");
   });
 
+  it("provides local heading targets without turning project links into app routes", () => {
+    state.file = file({content: "# Results\n\n[Details](details.md#evidence)\n\n## Results\n\n[Website](https://example.com)"});
+    const html = renderToStaticMarkup(<WorkspaceFileViewer path="docs/plan.md" projectPath="/workspace" />);
+    expect(html).toContain('id="results"');
+    expect(html).toContain('id="results-1"');
+    expect(html).toContain('role="link"');
+    expect(html).not.toContain('href="details.md');
+    expect(html).toContain('href="https://example.com"');
+  });
+
   it("says when the server cut the file at its read limit", () => {
     state.file = file({size: 2_097_152, truncated: true});
 

@@ -2,6 +2,8 @@ import {backgroundDelegations} from "@supernova/agent-runtime/layers/harnesses/i
 import type {AgentSession} from "@earendil-works/pi-coding-agent";
 import type {ImageContent} from "@earendil-works/pi-ai";
 import {randomUUID} from "node:crypto";
+import {realpath} from "node:fs/promises";
+import type {HarnessSnapshot} from "@supernova/contracts/harnesses/schemas";
 import {CheckpointUncapturedError, CheckpointReviewRequired} from "@supernova/contracts/session-runtime/procedures";
 import type {SessionStreamEvent} from "@supernova/contracts/session-runtime/procedures";
 import type {ModelReference, Session} from "@supernova/contracts/sessions/schemas";
@@ -212,6 +214,30 @@ export class PiSessionRuntime {
   /** Resolves a public model reference against Pi's available model catalog. */
   public resolveModel(modelReference: ModelReference): PiModel {
     return findSelectedModel(this.modelCatalog, modelReference);
+  }
+
+  /** Prepares new resources at an idle boundary and commits them before retiring the previous agent. */
+  public async replaceHarness(snapshot: HarnessSnapshot, persist: () => Promise<void>): Promise<void> {
+    if (this.running || this.releasePromise) throw new Error("The harness can change only between turns.");
+    const sessionManager = await this.getSessionManager();
+    if ((await realpath(snapshot.project.path)) !== (await realpath(sessionManager.getCwd()))) throw new Error("A harness switch cannot change the chat's workspace.");
+    const {session} = await this.agentSessionFactory.createAgentSession({
+      cwd: sessionManager.getCwd(),
+      sessionManager,
+      reportGoalResult: this.reportGoalResult,
+      harnessSnapshot: snapshot,
+    });
+    try {
+      await persist();
+    } catch (error) {
+      session.dispose();
+      throw error;
+    }
+    const previous = this.agentSession;
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    this.installAgentSession(session);
+    previous?.dispose();
   }
 
   /** Applies model and thinking level to the active session. */
@@ -452,24 +478,29 @@ export class PiSessionRuntime {
     this.agentSessionPending ??= (async () => {
       const sessionManager = await this.getSessionManager();
       const {session} = await this.agentSessionFactory.createAgentSession({cwd: sessionManager.getCwd(), sessionManager, reportGoalResult: this.reportGoalResult});
-      const stream = session.agent.streamFunction;
-      session.agent.streamFunction = async (model, context, options) => {
-        if (this.cancelled) throw new Error(this.turnFailure ?? "Session was cancelled.");
-        if (this.agentTurnsRemaining !== undefined) {
-          if (this.agentTurnsRemaining <= 0) {
-            this.turnFailure = "Automatic turn reached its 50 model-turn limit. Review and resume explicitly.";
-            throw new Error(this.turnFailure);
-          }
-          this.agentTurnsRemaining -= 1;
-        }
-        return stream(model, context, options);
-      };
-      this.agentSession = session;
+      this.installAgentSession(session);
       return session;
     })().finally(() => {
       this.agentSessionPending = undefined;
     });
     return this.agentSessionPending;
+  }
+
+  /** Applies the same cancellation and model-turn limits to initial and replacement sessions. */
+  private installAgentSession(session: AgentSession): void {
+    const stream = session.agent.streamFunction;
+    session.agent.streamFunction = async (model, context, options) => {
+      if (this.cancelled) throw new Error(this.turnFailure ?? "Session was cancelled.");
+      if (this.agentTurnsRemaining !== undefined) {
+        if (this.agentTurnsRemaining <= 0) {
+          this.turnFailure = "Automatic turn reached its 50 model-turn limit. Review and resume explicitly.";
+          throw new Error(this.turnFailure);
+        }
+        this.agentTurnsRemaining -= 1;
+      }
+      return stream(model, context, options);
+    };
+    this.agentSession = session;
   }
 
   private subscribeToLiveUpdates(): void {

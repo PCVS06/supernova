@@ -19,6 +19,15 @@
   opacity: 0;
   animation: mathematical-sky-shoot var(--meteor-cycle) linear var(--meteor-delay) infinite;
 }
+.mathematical-sky-meteor-orb {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: inherit;
+}
+.mathematical-sky-meteor-orb .constant-orb-glyph {
+  filter: none;
+}
 @keyframes mathematical-sky-drift {
   from {
     transform: translate(0, 0);
@@ -33,7 +42,7 @@
     transform: translate(0, 0);
   }
   1% {
-    opacity: 0.48;
+    opacity: 0.65;
   }
   4% {
     opacity: 0;

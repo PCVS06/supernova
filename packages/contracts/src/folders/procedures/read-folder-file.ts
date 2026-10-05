@@ -4,6 +4,8 @@ export const FolderFileReadPayload = Schema.Struct({
   projectPath: Schema.String,
   /** Project-relative file path; the server refuses anything that escapes the project. */
   path: Schema.String,
+  /** Requests a bounded image preview instead of text. */
+  imagePreview: Schema.optional(Schema.Boolean),
 });
 
 export const FolderFileReadResult = Schema.Struct({
@@ -15,6 +17,7 @@ export const FolderFileReadResult = Schema.Struct({
   truncated: Schema.Boolean,
   binary: Schema.Boolean,
   modifiedAt: Schema.String,
+  image: Schema.optional(Schema.Struct({mediaType: Schema.String, base64: Schema.String})),
 });
 
 export class FolderFileReadError extends Schema.TaggedErrorClass<FolderFileReadError>()("FolderFileReadError", {

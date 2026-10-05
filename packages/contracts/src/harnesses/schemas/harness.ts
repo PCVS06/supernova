@@ -1,6 +1,7 @@
 import {Schema} from "effect";
 import {ModelReference} from "@supernova/contracts/sessions/schemas";
 import {HarnessWorkflow} from "@supernova/contracts/harnesses/schemas/workflow";
+import {SessionHarnessSelection} from "@supernova/contracts/harnesses/schemas/collaboration";
 
 export const HarnessExecution = Schema.Struct({model: Schema.optional(ModelReference), effort: Schema.optional(Schema.String)});
 
@@ -89,6 +90,7 @@ export const HarnessLibrary = Schema.Struct({
 });
 
 export const HarnessSnapshot = Schema.Struct({
+  selection: Schema.optional(SessionHarnessSelection),
   revision: Schema.Number,
   sharedInstructions: Schema.optional(Schema.String),
   harness: HarnessConfig,

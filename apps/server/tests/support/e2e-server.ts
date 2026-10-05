@@ -14,6 +14,7 @@ const heldPrompts = new Map([
   ["Duplicate regression message", "duplicate-message"],
   ["Abort recovery message", "abort-recovery"],
   ["Reload during streaming message", "reload-streaming"],
+  ["Harness switching during answer", "harness-switching"],
   ["Concurrent session A message", "concurrent-session-a"],
   ["Queue acceptance message", "queue-acceptance"],
   ["Steering acceptance message", "steering-acceptance"],
@@ -59,6 +60,30 @@ const response: FauxResponseFactory = async (context, options) => {
 
   if (prompt === "Provider failure message") {
     return fauxAssistantMessage("", {errorMessage: "Synthetic provider failure.", stopReason: "error"});
+  }
+
+  const collaborationStep = prompt.match(/^Workflow (Advisor|Compare|Document Fuse), step \d+ of \d+ \(([^)]+)\)/);
+  if (collaborationStep) {
+    appendFileSync(
+      `${controlDir}/collaboration-steps.jsonl`,
+      `${JSON.stringify({mode: collaborationStep[1], step: collaborationStep[2], tools: context.tools?.map((tool) => tool.name), prompt})}\n`
+    );
+    if (prompt.includes("Hold collaboration for cancellation")) await waitForRelease(controlDir, "collaboration", options?.signal);
+    if (prompt.includes("Malformed collaboration output")) return fauxAssistantMessage("Invalid worker output");
+    return fauxAssistantMessage(
+      JSON.stringify({
+        result: `${collaborationStep[2]} result`,
+        evidence: ["fixture evidence"],
+        uncertainties: ["fixture uncertainty"],
+        ...(collaborationStep[2] === "synthesizer" ? {from_proposal_a: ["simple approach"], from_proposal_b: ["alternative approach"], unresolved_conflicts: []} : {}),
+      })
+    );
+  }
+  if (prompt.startsWith("Workflow ") && prompt.includes("All collaboration records")) {
+    const users = context.messages.filter((message) => message.role === "user");
+    const previous = users.at(-2)?.content;
+    const request = typeof previous === "string" ? previous : previous?.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+    return fauxAssistantMessage(`Runtime response: ${request}`);
   }
 
   if (prompt === "Orchestrate steering acceptance") {

@@ -1,5 +1,6 @@
 import {Schema} from "effect";
 import {ModelReference, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
+import {SessionHarnessSelection} from "@supernova/contracts/harnesses/schemas/collaboration";
 
 export const QueuedSessionMessage = Schema.Struct({
   id: Schema.String,
@@ -24,6 +25,8 @@ export const SessionGoal = Schema.Struct({
 });
 
 export const SessionControls = Schema.Struct({
+  harness: Schema.optional(SessionHarnessSelection),
+  pendingHarness: Schema.optional(SessionHarnessSelection),
   sessionId: Schema.String,
   revision: Schema.Number,
   goal: Schema.NullOr(SessionGoal),

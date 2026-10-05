@@ -42,6 +42,8 @@ export function useUpdateSessionControls(sessionId?: string) {
       },
       onSettled: (_data, _error, input) => {
         void queryClient.invalidateQueries({queryKey: ["agent", "session-controls", input.sessionId]});
+        if (input.action.type === "set_harness" || input.action.type === "cancel_harness_change")
+          void queryClient.invalidateQueries({queryKey: ["agent", "chat-harness", input.sessionId]});
       },
     })
   );

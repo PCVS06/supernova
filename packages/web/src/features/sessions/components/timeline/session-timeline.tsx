@@ -125,6 +125,7 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
   const streamContentRef = useRef<HTMLDivElement>(null);
   const anchorSpaceRef = useRef<HTMLDivElement>(null);
   const anchorSpaceHeightRef = useRef(0);
+  const anchorViewportRef = useRef<{height: number; scrollTop: number} | null>(null);
   const realContentHeightRef = useRef<number | null>(null);
   const anchorScrollTargetRef = useRef<number | null>(null);
   const anchorScrollAnimationRef = useRef<ReturnType<typeof animate> | null>(null);
@@ -173,6 +174,19 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
   // Anchor space is lossy: growth and upward scrolling only consume it. When
   // real content shrinks, replace that height to prevent scrollTop clamping.
   const syncAnchorSpace = (viewport: HTMLDivElement): void => {
+    const previousViewport = anchorViewportRef.current;
+    const currentViewport = {height: viewport.clientHeight, scrollTop: viewport.scrollTop};
+    anchorViewportRef.current = currentViewport;
+    const viewportHeightDelta = previousViewport ? currentViewport.height - previousViewport.height : 0;
+    // Reconcile a viewport resize before consuming space. This runs from
+    // commits, scrolling, and ResizeObserver, whichever sees the change first.
+    // Remember the prior offset because the browser may already have clamped
+    // scrollTop while increasing the viewport height.
+    if (previousViewport && anchorSpaceHeightRef.current > 0 && viewportHeightDelta !== 0) {
+      setAnchorSpaceHeight(Math.max(0, anchorSpaceHeightRef.current + viewportHeightDelta));
+      viewport.scrollTop = previousViewport.scrollTop;
+      currentViewport.scrollTop = viewport.scrollTop;
+    }
     const currentHeight = anchorSpaceHeightRef.current;
     const realContentHeight = viewport.scrollHeight - currentHeight;
     const previousRealContentHeight = realContentHeightRef.current ?? realContentHeight;
@@ -184,6 +198,7 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
     if (shrinkDelta > 0) {
       setAnchorSpaceHeight(currentHeight + shrinkDelta);
       if (anchorScrollTarget === null) viewport.scrollTop = Math.min(viewport.scrollTop + shrinkDelta, Math.max(0, viewport.scrollHeight - viewport.clientHeight));
+      currentViewport.scrollTop = viewport.scrollTop;
       return;
     }
 
@@ -203,7 +218,10 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
     directDomUpdates: true,
     directDomUpdatesMode: "position",
     estimateSize: () => 86,
-    followOnAppend: !readingDetails,
+    // MessageScroller owns appended-message following. A second owner keeps
+    // a stale user-row target alive while our anchor spacer vetoes its scroll,
+    // then jumps back to that row when a composer resize changes the target.
+    followOnAppend: false,
     getItemKey: (index) => virtualRowKeys[index] ?? index,
     getScrollElement: () => viewportRef.current,
     initialMeasurementsCache: cachedMeasurementsRef.current,
@@ -327,6 +345,28 @@ function SessionTimelineViewport(props: SessionTimelineViewportProps) {
     const viewport = viewportRef.current;
     if (viewport) syncAnchorSpace(viewport);
   });
+
+  // Composer and window resizes must settle before paint. The message
+  // scroller defers its resize follow by a frame, exposing a gap and then
+  // jumping to the latest response on the following frame.
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    let previousHeight = viewport.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const height = viewport.clientHeight;
+      const delta = height - previousHeight;
+      previousHeight = height;
+      if (delta === 0) return;
+
+      syncAnchorSpace(viewport);
+      if (anchorScrollTargetRef.current !== null || readingDetails || viewport.dataset.scrollable?.includes("end")) return;
+      scrollToEnd({behavior: "auto"});
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [hasTimelineContent, readingDetails, scrollToEnd]);
 
   useLayoutEffect(() => {
     // A competing automatic follow scroll must not cut a protected smooth

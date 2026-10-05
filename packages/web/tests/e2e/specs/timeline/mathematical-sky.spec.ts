@@ -20,10 +20,18 @@ test("mathematical sky spans the interface, drifts without blocking controls and
   // Sample the visible part of the actual animation without waiting for a meteor's quiet interval.
   await meteor.evaluate((el) => {
     const animation = el.getAnimations()[0]!;
+    const timing = animation.effect!.getTiming();
     animation.pause();
-    animation.currentTime = 4500;
+    animation.currentTime = (timing.delay ?? 0) + Number(timing.duration) * 0.02;
   });
   await expect.poll(() => meteor.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeGreaterThan(0);
+  const miniature = meteor.locator(".constant-orb");
+  await expect(miniature).toHaveAttribute("data-state", "still");
+  await expect(miniature.locator(".constant-orb-glyph")).toBeVisible();
+  const miniatureBounds = (await miniature.boundingBox())!;
+  expect(miniatureBounds.width).toBe(12);
+  expect(miniatureBounds.height).toBe(12);
+  expect(await sky.locator(".constant-orb").evaluateAll((orbs) => orbs.map((orb) => orb.getAttribute("data-constant")).sort())).toEqual(["e", "i", "phi", "pi", "tau"]);
   await page.getByRole("button", {name: "Chat history", exact: true}).click();
   await expect(page.getByRole("button", {name: "Step backward", exact: true})).toBeVisible();
   await page.screenshot({path: testInfo.outputPath("mathematical-sky.png")});
@@ -44,4 +52,23 @@ test("mathematical sky spans the interface, drifts without blocking controls and
   });
   await expect(formula).toHaveCSS("animation-name", "none");
   await expect(meteor).toHaveCSS("display", "none");
+});
+
+test("sky keeps its random formulas steady through a response and samples a new sky when reopened", async ({page, timeline}) => {
+  await timeline.openMainSession();
+  const formulas = page.locator(".mathematical-sky-formula");
+  const readSky = () => formulas.evaluateAll((marks) => marks.map((mark) => ({formula: mark.textContent, x: mark.getAttribute("x"), y: mark.getAttribute("y")})));
+  const original = await readSky();
+  expect(original.length).toBeGreaterThan(0);
+  await timeline.sendMessage();
+  await timeline.waitForLineGrowth(5);
+  expect(await readSky()).toEqual(original);
+  await timeline.completeMessage();
+  expect(await readSky()).toEqual(original);
+
+  await page.reload();
+  await expect(formulas.first()).toBeVisible();
+  const reopened = await readSky();
+  expect(reopened).not.toEqual(original);
+  expect(reopened.map((mark) => mark.formula).sort()).not.toEqual(original.map((mark) => mark.formula).sort());
 });

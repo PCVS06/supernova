@@ -1,4 +1,4 @@
-import type {CompactionEntry, CustomEntry, SessionEntry, SessionMessageEntry} from "@earendil-works/pi-coding-agent";
+import type {CompactionEntry, CustomEntry, CustomMessageEntry, SessionEntry, SessionMessageEntry} from "@earendil-works/pi-coding-agent";
 import type {AssistantMessage, ToolResultMessage, UserMessage as PiUserMessage} from "@earendil-works/pi-ai";
 import type {CompactionTurnEvent, ModelReference, ToolTurnEvent, Turn, TurnEvent, UserMessage} from "@supernova/contracts/sessions/schemas";
 import {generateStableId} from "@supernova/agent-runtime/layers/shared/lib/id-generator";
@@ -147,6 +147,14 @@ class PiTurnDraft {
     return true;
   }
 
+  /** Presents runtime-started collaboration with the same inspectable workflow receipt as a tool-started run. */
+  public addCollaborationEntry(entry: CustomMessageEntry): boolean {
+    const invocation = PiToolInvocationFactory.create("harness_workflow", undefined);
+    invocation.complete({output: entry.content, details: entry.details, isError: false});
+    this.events.push({id: generateStableId("evt", [entry.id, "collaboration"]), toolCallId: entry.id, timestamp: entry.timestamp, type: "tool", tool: invocation.toTool()});
+    return true;
+  }
+
   /** Finalizes the draft into a shared turn. */
   public toTurn(modelReference: ModelReference): Turn {
     return createTurn({events: this.events, modelReference, userMessage: this.userMessage});
@@ -183,6 +191,7 @@ class PiTurnBuilder {
       return this.currentTurn.addCompactionEntry(entry);
     }
 
+    if (entry.type === "custom_message" && entry.customType === "radian.collaboration" && this.currentTurn) return this.currentTurn.addCollaborationEntry(entry);
     if (!isMessageEntry(entry)) return false;
     if (isUserEntry(entry)) return this.startUserTurn(entry);
 

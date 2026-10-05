@@ -36,9 +36,18 @@ function parseFolderQuery(query: string): ParsedFolderQuery {
   return {baseDir: dirname(resolvedQuery), searchTerm: basename(resolvedQuery)};
 }
 
+/** Includes directory aliases, while excluding broken links and links to ordinary files. */
 async function readChildDirectories(parentPath: string): Promise<string[]> {
   const entries = await readdir(parentPath, {withFileTypes: true}).catch(() => []);
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => join(parentPath, entry.name));
+  const directories = await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(parentPath, entry.name);
+      if (entry.isDirectory()) return path;
+      if (entry.isSymbolicLink() && (await stat(path).catch(() => undefined))?.isDirectory()) return path;
+      return undefined;
+    })
+  );
+  return directories.filter((path): path is string => path !== undefined);
 }
 
 async function readFolderPathType(path: string): Promise<"directory" | "file" | "missing"> {

@@ -18,7 +18,14 @@ export interface DesktopBrowserBounds {
 
 export interface DesktopBrowserShowRequest {
   readonly bounds: DesktopBrowserBounds;
+  /** Initial address, used only when this window has no browser page yet. */
   readonly url: string;
+}
+
+export interface DesktopBrowserState {
+  readonly url: string;
+  readonly canGoBack: boolean;
+  readonly canGoForward: boolean;
 }
 
 /** Why an update cannot be installed in place, with where to fetch it by hand instead. */
@@ -49,7 +56,8 @@ export interface DesktopApi {
   readonly onServerState: (listener: (state: DesktopServerState) => void) => () => void;
   readonly openDirectory: (path: string) => Promise<void>;
   readonly setNativeTheme: (theme: DesktopTheme) => Promise<void>;
-  readonly showWorkspaceBrowser: (request: DesktopBrowserShowRequest) => Promise<void>;
+  readonly showWorkspaceBrowser: (request: DesktopBrowserShowRequest) => Promise<DesktopBrowserState>;
+  readonly onWorkspaceBrowserState: (listener: (state: DesktopBrowserState) => void) => () => void;
   readonly hideWorkspaceBrowser: () => Promise<void>;
   readonly navigateWorkspaceBrowser: (url: string) => Promise<void>;
   readonly goBackWorkspaceBrowser: () => Promise<void>;

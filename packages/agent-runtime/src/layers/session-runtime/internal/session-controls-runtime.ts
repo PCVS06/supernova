@@ -8,6 +8,7 @@ import type {StoredSessionControls} from "@supernova/agent-runtime/layers/sessio
 import {sendMessage} from "@supernova/agent-runtime/layers/session-runtime/operations/send-message";
 import {steerSession} from "@supernova/agent-runtime/layers/session-runtime/operations/steer-session";
 import {prepareSendMessageContext} from "@supernova/agent-runtime/layers/session-runtime/lib/user-message/send-message-context";
+import {resolveSessionHarness} from "@supernova/agent-runtime/layers/harnesses/lib/session-harness";
 
 const DEFAULT_GOAL_TURNS = 10;
 const MAX_GOAL_TURNS = 50;
@@ -67,6 +68,18 @@ export class SessionControlsRuntime {
       const now = new Date().toISOString();
       let next = current;
       switch (action.type) {
+        case "set_harness": {
+          if (action.expectedSelectionId !== (current.pendingHarness?.id ?? current.harness?.id ?? null)) throw new Error("The chat setup changed. Refresh and choose again.");
+          const manager = await this.runtime.getSessionManager();
+          const currentSnapshot = record.pendingHarnessSnapshot?.harness.id === action.harnessId ? record.pendingHarnessSnapshot : record.harnessSnapshot;
+          const snapshot = await resolveSessionHarness(this.runtime.sessionId, manager.getCwd(), action.harnessId, action.mode, currentSnapshot);
+          await this.save({...record, pendingHarnessSnapshot: snapshot, state: {...current, pendingHarness: snapshot.selection}});
+          return structuredClone((await this.load()).state);
+        }
+        case "cancel_harness_change":
+          if (action.expectedSelectionId !== (current.pendingHarness?.id ?? current.harness?.id ?? null)) throw new Error("The chat setup changed. Refresh and choose again.");
+          await this.save({...record, pendingHarnessSnapshot: undefined, state: {...current, pendingHarness: undefined}});
+          return structuredClone((await this.load()).state);
         case "enqueue": {
           if (!action.contentParts.some((part) => part.type !== "text" || part.text.trim())) throw new Error("A queued message cannot be empty.");
           this.runtime.resolveModel(action.modelReference);
@@ -389,6 +402,19 @@ export class SessionControlsRuntime {
 
   private async start(input: SendMessagePayload, record: StoredSessionControls, automatic: boolean, queued?: QueuedSessionMessage): Promise<void> {
     const epoch = this.stopEpoch;
+    if (record.pendingHarnessSnapshot) {
+      const snapshot = record.pendingHarnessSnapshot;
+      await this.runtime.replaceHarness(snapshot, async () => {
+        if (epoch !== this.stopEpoch || this.disposed) throw new Error("The setup change was stopped. It remains pending for the next message.");
+        await this.save({
+          ...record,
+          harnessSnapshot: snapshot,
+          pendingHarnessSnapshot: undefined,
+          state: {...record.state, harness: snapshot.selection, pendingHarness: undefined},
+        });
+      });
+      record = await this.load();
+    }
     const goal = record.state.goal?.status === "active" && record.state.goal.turnsUsed < record.state.goal.maxTurns ? record.state.goal : undefined;
     const reserved: StoredSessionControls = {
       ...record,
@@ -459,6 +485,8 @@ export class SessionControlsRuntime {
     if (error || cancelled) this.halted = true;
     const goal = record.state.goal;
     await this.save({
+      ...record,
+      inFlight: undefined,
       state: {
         ...record.state,
         queue: [...undelivered, ...record.state.queue.filter((entry) => entry.id !== this.dispatchedQueueId)],

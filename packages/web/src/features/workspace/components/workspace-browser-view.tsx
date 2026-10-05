@@ -1,4 +1,5 @@
 import type {FormEvent} from "react";
+import type {DesktopBrowserState} from "@supernova/contracts/desktop/api";
 import {useRef, useState} from "react";
 import Icon from "@/components/ui/icon";
 import IconButton from "@/components/ui/icon-button";
@@ -29,6 +30,7 @@ export default function WorkspaceBrowserView(props: WorkspaceBrowserViewProps) {
   const [draftUrl, setDraftUrl] = useState(browserUrl);
   const [reloadToken, setReloadToken] = useState(0);
   const [nativeError, setNativeError] = useState<string | null>(null);
+  const [nativeState, setNativeState] = useState<DesktopBrowserState>();
   const embedded = !isDesktopEnvironment(appEnvironment);
 
   useMountEffect(() => {
@@ -40,20 +42,39 @@ export default function WorkspaceBrowserView(props: WorkspaceBrowserViewProps) {
       return;
     }
 
+    let disposed = false;
+    let initialized = false;
+    const synchronize = (state: DesktopBrowserState): void => {
+      if (disposed) return;
+      setNativeState(state);
+      setNativeError(null);
+      setDraftUrl(state.url);
+      useWorkspacePanelStore.getState().setBrowserUrl(state.url);
+    };
+    const unsubscribe = api.onWorkspaceBrowserState(synchronize);
     const show = (): void => {
       const bounds = host.getBoundingClientRect();
       void api
         .showWorkspaceBrowser({bounds: {x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height}, url: browserUrl})
-        .then(() => setNativeError(null))
-        .catch(() => setNativeError("Browser unavailable."));
+        .then((state) => {
+          if (disposed) return;
+          setNativeError(null);
+          if (!initialized) synchronize(state);
+          initialized = true;
+        })
+        .catch(() => {
+          if (!disposed) setNativeError("Browser unavailable.");
+        });
     };
     const observer = new ResizeObserver(show);
     observer.observe(host);
     show();
 
     return () => {
+      disposed = true;
+      unsubscribe();
       observer.disconnect();
-      void api.hideWorkspaceBrowser();
+      void api.hideWorkspaceBrowser().catch(() => undefined);
     };
   });
 
@@ -79,20 +100,20 @@ export default function WorkspaceBrowserView(props: WorkspaceBrowserViewProps) {
   };
 
   const handleBack = (): void => {
-    if (!embedded) void window.desktopApi?.goBackWorkspaceBrowser();
+    if (!embedded) void window.desktopApi?.goBackWorkspaceBrowser().catch(() => setNativeError("Page unavailable."));
   };
 
   const handleForward = (): void => {
-    if (!embedded) void window.desktopApi?.goForwardWorkspaceBrowser();
+    if (!embedded) void window.desktopApi?.goForwardWorkspaceBrowser().catch(() => setNativeError("Page unavailable."));
   };
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <form className="flex shrink-0 items-center gap-1 border-b border-border-muted px-2 py-1.5" onSubmit={handleSubmit}>
-        <IconButton className="size-7 shrink-0" disabled={embedded} label="Go back" onClick={handleBack} title="Go back">
+        <IconButton className="size-7 shrink-0" disabled={embedded || !nativeState?.canGoBack} label="Go back" onClick={handleBack} title="Go back">
           <Icon name="arrow-left" size="sm" />
         </IconButton>
-        <IconButton className="size-7 shrink-0" disabled={embedded} label="Go forward" onClick={handleForward} title="Go forward">
+        <IconButton className="size-7 shrink-0" disabled={embedded || !nativeState?.canGoForward} label="Go forward" onClick={handleForward} title="Go forward">
           <Icon name="arrow-right" size="sm" />
         </IconButton>
         <IconButton className="size-7 shrink-0" label="Reload page" onClick={handleReload} title="Reload page">

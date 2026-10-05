@@ -153,7 +153,7 @@ describe("background delegation", () => {
     const result = await execute("batch", params);
     const runIds = (result.details as {runIds: string[]}).runIds;
     await vi.waitFor(() => expect(releases.size).toBe(3));
-    expect((await store.list(chatId)).every((run) => run.status === "running")).toBe(true);
+    await vi.waitFor(async () => expect((await store.list(chatId)).map((run) => run.status)).toEqual(["running", "running", "running"]));
     // This represents the lead's next independent step: the tool has returned while all providers are held.
     expect(dispose).not.toHaveBeenCalled();
     expect((await execute("batch", params)).details).toEqual(result.details);

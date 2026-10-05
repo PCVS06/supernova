@@ -1,14 +1,13 @@
 import type {Session, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
 import {useConnectionStore} from "@/rpc/connection-store";
-import {useRef} from "react";
+import {useRef, useState} from "react";
+import type {CollaborationMode} from "@supernova/contracts/harnesses/schemas";
 import {useQueryClient} from "@tanstack/react-query";
 import {useNavigate, useRouter} from "@tanstack/react-router";
 import ConstantOrb from "@/components/brand/constant-orb";
 import ChatRoleBadge from "@/features/sessions/components/chat-role-badge";
 import AttachmentDropOverlay from "@/features/sessions/components/attachments/attachment-drop-overlay";
-import ComposerToolbarGroup from "@/features/sessions/components/composer/composer-toolbar-group";
-import ModelPicker from "@/features/sessions/components/composer/pickers/model-picker";
-import ThinkingLevelPicker from "@/features/sessions/components/composer/pickers/thinking-level-picker";
+import ComposerSettingsPicker from "@/features/sessions/components/composer/pickers/composer-settings-picker";
 import SessionComposer from "@/features/sessions/components/composer/session-composer";
 import SessionComposerSkeleton from "@/features/sessions/components/composer/session-composer-skeleton";
 import {useCreateSession} from "@/features/sessions/hooks/api/use-create-session";
@@ -49,15 +48,16 @@ function NewProjectSession(props: NewSessionPageProps) {
   const acceptedLocation = useRef<string | null>(null);
   const sendMessage = useSessionLiveStore((state) => state.sendMessage);
   const library = useHarnessLibrary();
+  const [setup, setSetup] = useState<{harnessId: string; mode: CollaborationMode}>();
   const project = library.data?.projects.find((item) => item.id === harnessProjectId);
-  const harness = library.data?.harnesses.find((item) => item.id === (project?.harnessId ?? "coding"));
-  const execution = {...harness?.execution, ...project?.execution};
+  const harness = library.data?.harnesses.find((item) => item.id === (setup?.harnessId ?? project?.harnessId ?? "coding"));
+  const execution = {...harness?.execution, ...(harness?.id === project?.harnessId ? project?.execution : {})};
   const modelSelection = useComposerModelSelection({
     initialSelection: execution.model ? {...execution.model, thinkingLevel: execution.effort ?? execution.model.thinkingLevel} : undefined,
     initialThinkingLevel: execution.effort,
   });
 
-  const composerDisabled = createSessionMutation.isPending || modelSelection.isPending || (!!harnessProjectId && library.isPending) || !modelSelection.modelReference;
+  const composerDisabled = createSessionMutation.isPending || controlsMutation.isPending || modelSelection.isPending || library.isPending || !modelSelection.modelReference;
 
   const thinkingLevels = modelSelection.selectedModelDetails?.thinkingLevels ?? [];
 
@@ -88,6 +88,13 @@ function NewProjectSession(props: NewSessionPageProps) {
     if (!createdSession.current) {
       createdSession.current = session;
       queryClient.setQueryData(sessionQueryKey(session.id), session);
+    }
+    if (setup) {
+      const state = await rpcClient.run((rpc) => rpc.getSessionControls({sessionId: session.id}));
+      const selected = state.pendingHarness ?? state.harness;
+      if (selected?.harnessId !== setup.harnessId || selected.mode !== setup.mode) {
+        await controlsMutation.mutateAsync({sessionId: session.id, action: {type: "set_harness", ...setup, expectedSelectionId: selected?.id ?? null}});
+      }
     }
     modelSelection.assignToSession(session.id, modelReference);
     if (objective !== undefined) {
@@ -123,9 +130,9 @@ function NewProjectSession(props: NewSessionPageProps) {
   };
 
   return (
-    <div {...composerAttachments.dropZoneProps} className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-16 pt-4">
-      <div className="flex h-[min(calc(100svh-1rem),32rem)] w-[min(calc(100vw-2rem),48rem)] flex-col items-center justify-center overflow-visible">
-        <div className="mb-8 flex max-w-full flex-col items-center gap-3 px-4">
+    <div {...composerAttachments.dropZoneProps} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-8">
+        <div className="flex max-w-full flex-col items-center gap-3 px-4">
           <ConstantOrb constant={project && project.id === harness?.coordinatorProjectId ? "tau" : "phi"} className="mb-1 size-36" />
           <h1 className="text-center text-2xl font-medium tracking-tight text-ink-strong">What would you like to work on?</h1>
           <p className="max-w-full truncate text-sm text-ink-muted" title={projectName}>
@@ -133,46 +140,46 @@ function NewProjectSession(props: NewSessionPageProps) {
             <span className="text-ink">{projectName}</span>
           </p>
         </div>
-        <div className="relative w-full">
-          {modelSelection.isPending ? (
-            <SessionComposerSkeleton />
-          ) : (
-            <SessionComposer
-              key={`${composerDraftKey}:${composerDraft.revision}`}
-              attachments={composerAttachments}
-              disabled={composerDisabled}
-              controlsPending={offline}
-              draft={composerDraft}
-              onSubmit={handleSubmit}
-              onStartGoal={(objective) => handleSubmit([], objective)}
-              onAccepted={handleAccepted}
-              projectPath={projectPath}
-              toolbarControls={
-                <div className="flex min-w-0 items-center gap-1">
-                  <ComposerToolbarGroup label="Model">
-                    <ModelPicker
-                      selectedModel={modelSelection.selectedModelDetails}
-                      disabled={composerDisabled}
-                      models={modelSelection.availableModels}
-                      onModelChange={handleModelChange}
-                    />
-                  </ComposerToolbarGroup>
-                  {thinkingLevels.length > 0 && (
-                    <ComposerToolbarGroup label="Effort">
-                      <ThinkingLevelPicker
-                        disabled={composerDisabled}
-                        onThinkingLevelChange={modelSelection.selectThinkingLevel}
-                        selectedThinkingLabel={modelSelection.selectedThinkingLabel}
-                        selectedThinkingLevel={modelSelection.modelReference?.thinkingLevel}
-                        thinkingLevels={thinkingLevels}
-                      />
-                    </ComposerToolbarGroup>
-                  )}
-                </div>
-              }
-            />
-          )}
-        </div>
+      </div>
+      <div className="relative shrink-0">
+        {modelSelection.isPending ? (
+          <SessionComposerSkeleton />
+        ) : (
+          <SessionComposer
+            key={`${composerDraftKey}:${composerDraft.revision}`}
+            attachments={composerAttachments}
+            disabled={composerDisabled}
+            controlsPending={offline}
+            draft={composerDraft}
+            onSubmit={handleSubmit}
+            onStartGoal={(objective) => handleSubmit([], objective)}
+            onAccepted={handleAccepted}
+            projectPath={projectPath}
+            toolbarControls={
+              <ComposerSettingsPicker
+                harness={{
+                  harnesses: library.data?.harnesses ?? [],
+                  selected: harness ? {harnessId: harness.id, name: harness.name, mode: setup?.mode ?? "solo"} : undefined,
+                  disabled: composerDisabled || offline,
+                  onChange: (harnessId, mode) => setSetup({harnessId, mode}),
+                }}
+                model={{
+                  selectedModel: modelSelection.selectedModelDetails,
+                  disabled: composerDisabled,
+                  models: modelSelection.availableModels,
+                  onModelChange: handleModelChange,
+                }}
+                thinking={{
+                  disabled: composerDisabled,
+                  onThinkingLevelChange: modelSelection.selectThinkingLevel,
+                  selectedThinkingLabel: modelSelection.selectedThinkingLabel,
+                  selectedThinkingLevel: modelSelection.modelReference?.thinkingLevel,
+                  thinkingLevels,
+                }}
+              />
+            }
+          />
+        )}
       </div>
       {composerAttachments.isDraggingFiles && <AttachmentDropOverlay />}
     </div>

@@ -16,7 +16,9 @@ describe("Pi agent session factory", () => {
       createResourceLoader: vi.fn(() => resourceLoader),
       modelRuntime: {},
     } as unknown as PiSdkServiceShape;
-    const sessionManager = {getSessionId: () => "factory-test"} as Parameters<Awaited<ReturnType<typeof runFactory>>["createAgentSession"]>[0]["sessionManager"];
+    const sessionManager = {getSessionId: () => "factory-test", getSessionFile: () => undefined} as Parameters<
+      Awaited<ReturnType<typeof runFactory>>["createAgentSession"]
+    >[0]["sessionManager"];
 
     const factory = await runFactory(piSdk);
     await factory.createAgentSession({cwd: "/workspace", sessionManager});

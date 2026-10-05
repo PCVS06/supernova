@@ -1,7 +1,14 @@
-import {useId} from "react";
+import {useId, useState} from "react";
 import type {CSSProperties} from "react";
+import ConstantOrb from "@/components/brand/constant-orb";
+import {constantIdentity} from "@/components/brand/constant-identity";
+import type {MathematicalConstant} from "@/components/brand/constant-identity";
 import "@/components/brand/mathematical-sky.css";
 
+const FORMULA_COUNT = 18;
+const FORMULA_PLACEMENT_ATTEMPTS = 32;
+const METEOR_SIZE = 12;
+const CONSTANTS = Object.keys(constantIdentity) as MathematicalConstant[];
 const FORMULAS = [
   "eⁱπ + 1 = 0",
   "a² + b² = c²",
@@ -33,44 +40,73 @@ const FORMULAS = [
   "S = k ln Ω",
 ];
 
-/** Stable pseudorandom samples keep the sky continuous through route changes and rerenders. */
-function sample(index: number, channel: number): number {
-  let value = Math.imul(index + 1, 374761393) + Math.imul(channel + 1, 668265263);
-  value = Math.imul(value ^ (value >>> 13), 1274126177);
-  return ((value ^ (value >>> 16)) >>> 0) / 4294967296;
+interface FormulaStar {
+  readonly formula: string;
+  readonly x: number;
+  readonly y: number;
+  readonly style: CSSProperties;
 }
 
-const STARS = Array.from({length: 108}, (_, index) => ({
-  x: sample(index, 1) * 100,
-  y: sample(index, 2) * 100,
-  radius: 0.35 + sample(index, 3) * 0.65,
-  opacity: 0.12 + sample(index, 4) * 0.3,
-}));
+/** A fresh sky is sampled once per mount, keeping typing and navigation from moving its marks. */
+function createSky() {
+  const stars = Array.from({length: 108}, () => ({
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    radius: 0.35 + Math.random() * 0.65,
+    opacity: 0.12 + Math.random() * 0.3,
+  }));
+  const formulas = [...FORMULAS];
+  for (let index = formulas.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [formulas[index], formulas[target]] = [formulas[target]!, formulas[index]!];
+  }
 
-const FORMULA_STARS = FORMULAS.map((formula, index) => ({
-  formula,
-  // Jittered cells distribute the small marks throughout the window without a visible grid.
-  x: ((index % 7) + 0.2 + sample(index, 5) * 0.6) * (100 / 7),
-  y: (Math.floor(index / 7) + 0.2 + sample(index, 6) * 0.6) * 25,
-  style: {
-    "--sky-drift-x": `${(sample(index, 7) - 0.5) * 130}px`,
-    "--sky-drift-y": `${(sample(index, 8) - 0.5) * 90}px`,
-    "--sky-cycle": `${76 + sample(index, 9) * 110}s`,
-    "--sky-phase": `${-sample(index, 10) * 150}s`,
-    fontSize: `${6 + sample(index, 11) * 2}px`,
-    opacity: 0.17 + sample(index, 12) * 0.14,
-  } as CSSProperties,
-}));
+  const formulaStars: FormulaStar[] = [];
+  for (const formula of formulas.slice(0, FORMULA_COUNT)) {
+    let x = 0;
+    let y = 0;
+    // Keep free placement without crowding neighboring formulas or using a visible grid.
+    for (let attempt = 0; attempt < FORMULA_PLACEMENT_ATTEMPTS; attempt += 1) {
+      x = 8 + Math.random() * 84;
+      y = 6 + Math.random() * 88;
+      if (formulaStars.every((star) => ((x - star.x) / 12) ** 2 + ((y - star.y) / 9) ** 2 > 1)) break;
+    }
+    formulaStars.push({
+      formula,
+      x,
+      y,
+      style: {
+        "--sky-drift-x": `${(Math.random() - 0.5) * 40}px`,
+        "--sky-drift-y": `${(Math.random() - 0.5) * 30}px`,
+        "--sky-cycle": `${76 + Math.random() * 110}s`,
+        "--sky-phase": `${-Math.random() * 150}s`,
+        fontSize: `${6 + Math.random() * 2}px`,
+        opacity: 0.17 + Math.random() * 0.14,
+      } as CSSProperties,
+    });
+  }
 
-const SHOOTING_STARS = [
-  {x: "12%", y: "8%", duration: "23s", delay: "4s", dx: "360px", dy: "170px"},
-  {x: "53%", y: "24%", duration: "31s", delay: "13s", dx: "290px", dy: "140px"},
-  {x: "28%", y: "62%", duration: "41s", delay: "27s", dx: "330px", dy: "155px"},
-];
+  const shootingStars = CONSTANTS.map((constant, index) => {
+    const distance = 180 + Math.random() * 140;
+    return {
+      constant,
+      x: `${8 + Math.random() * 54}%`,
+      y: `${8 + Math.random() * 62}%`,
+      style: {
+        "--meteor-cycle": `${28 + Math.random() * 24}s`,
+        "--meteor-delay": `${4 + index * 8 + Math.random() * 5}s`,
+        "--meteor-x": `${distance}px`,
+        "--meteor-y": `${distance / 2}px`,
+      } as CSSProperties,
+    };
+  });
+  return {stars, formulaStars, shootingStars};
+}
 
 /** One decorative, noninteractive sky across the app; native menus and dialogs remain above it. */
 export default function MathematicalSky() {
   const tailId = useId();
+  const [{stars, formulaStars, shootingStars}] = useState(createSky);
   return (
     <svg className="mathematical-sky" aria-hidden="true" focusable="false">
       <defs>
@@ -80,23 +116,22 @@ export default function MathematicalSky() {
         </linearGradient>
       </defs>
       <g fill="currentColor">
-        {STARS.map((star, index) => (
+        {stars.map((star, index) => (
           <circle key={index} cx={`${star.x}%`} cy={`${star.y}%`} r={star.radius} opacity={star.opacity} />
         ))}
       </g>
-      {FORMULA_STARS.map(({formula, x, y, style}) => (
+      {formulaStars.map(({formula, x, y, style}) => (
         <text className="mathematical-sky-formula" key={formula} x={`${x}%`} y={`${y}%`} textAnchor="middle" style={style}>
           {formula}
         </text>
       ))}
-      {SHOOTING_STARS.map((star, index) => (
-        <svg key={index} x={star.x} y={star.y} overflow="visible">
-          <g
-            className="mathematical-sky-meteor"
-            style={{"--meteor-cycle": star.duration, "--meteor-delay": star.delay, "--meteor-x": star.dx, "--meteor-y": star.dy} as CSSProperties}
-          >
-            <path d="M-90 -43 L0 0" stroke={`url(#${tailId})`} strokeWidth="1" strokeLinecap="round" />
-            <circle r="1.1" fill="currentColor" />
+      {shootingStars.map((star) => (
+        <svg key={star.constant} x={star.x} y={star.y} overflow="visible">
+          <g className="mathematical-sky-meteor" style={star.style}>
+            <path d="M-36 -18 L-5 -2.5" stroke={`url(#${tailId})`} strokeWidth="0.65" strokeLinecap="round" />
+            <foreignObject x={-METEOR_SIZE / 2} y={-METEOR_SIZE / 2} width={METEOR_SIZE} height={METEOR_SIZE} overflow="visible">
+              <ConstantOrb constant={star.constant} className="mathematical-sky-meteor-orb" detail="compact" state="still" />
+            </foreignObject>
           </g>
         </svg>
       ))}

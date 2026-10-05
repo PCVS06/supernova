@@ -5,7 +5,7 @@ import IconButton from "@/components/ui/icon-button";
 import {Marker, MarkerContent, MarkerIcon} from "@/components/ui/marker";
 import {formatAttachmentSize} from "@/features/sessions/lib/attachments/session-attachments";
 import {useFolderFile} from "@/features/workspace/hooks/api/use-folder-file";
-import AssistantMessageContent from "@/features/sessions/components/timeline/items/assistant/assistant-message-content";
+import WorkspaceMarkdown from "@/features/workspace/components/workspace-markdown";
 import {pathFileName} from "@/features/workspace/lib/workspace-paths";
 import {cn} from "@/lib/cn";
 
@@ -14,11 +14,12 @@ interface WorkspaceFileViewerProps {
   readonly onAddToChat?: () => void;
   readonly path: string;
   readonly projectPath: string;
+  readonly anchor?: string;
 }
 
 /** Shows one project file with line numbers, its read limits, and a way to hand it to the chat. */
 export default function WorkspaceFileViewer(props: WorkspaceFileViewerProps) {
-  const {onAddToChat, path, projectPath} = props;
+  const {onAddToChat, path, projectPath, anchor} = props;
   const fileQuery = useFolderFile({path, projectPath});
   const file = fileQuery.data;
   const markdown = /\.(md|markdown)$/i.test(path);
@@ -75,7 +76,9 @@ export default function WorkspaceFileViewer(props: WorkspaceFileViewerProps) {
               </Marker>
             )}
             {markdown && !source ? (
-              <AssistantMessageContent className="px-4 py-5 text-xs leading-relaxed">{file.content}</AssistantMessageContent>
+              <WorkspaceMarkdown anchor={anchor} path={path} projectPath={projectPath}>
+                {file.content}
+              </WorkspaceMarkdown>
             ) : (
               <ol aria-label="Source lines" className="w-max min-w-full py-2 font-mono text-xs leading-5 text-ink">
                 {lines.map((line, index) => (

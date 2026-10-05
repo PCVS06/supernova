@@ -61,6 +61,14 @@
   --orbit-stage-height: 12rem;
   height: var(--orbit-stage-height);
 }
+.chat-orbit-canvas[data-expanded="true"][data-orbit-empty="true"] > .chat-orbit-sun {
+  height: auto;
+  gap: 0.5rem;
+}
+.chat-orbit-canvas[data-expanded="true"][data-orbit-empty="true"] > .chat-orbit-sun > .chat-orbit-caption {
+  position: static;
+  transform: none;
+}
 .chat-orbit-paths {
   position: absolute;
   inset: 0;

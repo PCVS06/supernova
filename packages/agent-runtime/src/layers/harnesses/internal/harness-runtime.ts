@@ -83,9 +83,11 @@ export async function createHarnessResources(
   snapshot: HarnessSnapshot,
   specialistPrompt?: string,
   skillNames?: readonly string[],
-  windDown?: () => void
+  windDown?: () => void,
+  extensions: readonly ExtensionFactory[] = []
 ): Promise<{resourceLoader: ResourceLoader; settingsManager: SettingsManager}> {
   const {harness, project} = snapshot;
+  const manualDelegation = !snapshot.selection || snapshot.selection.mode === "solo";
   await toolCredentials.loadIntoRuntime();
   const contextFiles: string[] = [];
   const projectRoot = await realpath(project.path);
@@ -117,7 +119,7 @@ export async function createHarnessResources(
       ...base,
       skills: base.skills.filter((skill) => (!harness.enabledSkills || harness.enabledSkills.includes(skill.name)) && (!skillNames || skillNames.includes(skill.name))),
     }),
-    extensionFactories: [executionLimits(snapshot, windDown)],
+    extensionFactories: [executionLimits(snapshot, windDown), ...extensions],
     systemPrompt: "",
     systemPromptOverride: () => undefined,
     appendSystemPrompt: [],
@@ -138,10 +140,10 @@ export async function createHarnessResources(
         specialistPrompt === undefined && snapshot.harness.coordinatorProjectId === snapshot.project.id
           ? `You are the harness lead. Use manage_projects to list current projects, create or assign folders and read their recorded status. The live directory may have changed since this chat began. Give project-scoped tasks through lab_agent (background:true to keep working). Project leads use their own specialists. Send corrections with subagent action:message and exactly one owned runId. Results return through status/wait, and are not automatically injected. Separate user project chats keep their own context and are not silently steered by delegation.`
           : "",
-        specialistPrompt === undefined && harness.agents.length > 0
+        specialistPrompt === undefined && manualDelegation && harness.agents.length > 0
           ? `Harness specialists available through subagent:\n${harness.agents.map((agent) => `${agent.name}: ${agent.description}`).join("\n")}\nDelegation is explicit; no specialist is running until invoked. For independent tasks use subagent with background:true and tasks (up to three): it returns runIds immediately. Continue your own non-overlapping work while workers run. Do not repeat their tasks or edit their files. When you need the results, call subagent action:wait with those runIds; do not repeatedly poll. Read and integrate the results before claiming completion. An isolated project lead must collect all its children before finishing; any uncollected children are cancelled when that lead closes. Use a chain only for real sequential dependencies. Send a correction to one of your own running workers with subagent action:message, runIds:[id], message:text. Three direct background workers per lead and twelve across the chat hierarchy are allowed. Background results are retrieved through status/wait, not automatically injected into your conversation.`
           : "",
-        specialistPrompt === undefined && harness.workflows?.length
+        specialistPrompt === undefined && manualDelegation && harness.workflows?.length
           ? `Named workflows available through harness_workflow (pass the exact workflowId):\n${harness.workflows.map((item) => `${item.id}: ${item.name}. ${item.description}`).join("\n")}`
           : "",
       ].filter(Boolean),

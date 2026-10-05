@@ -62,6 +62,25 @@ describe("reading project files", () => {
 
     for (const path of ["../secrets.md", "outside/secrets.md", "src/../../secrets.md"]) {
       await expect(Effect.runPromise(readFolderFile(tempDir, path))).rejects.toThrow("escapes the project directory");
+      await expect(Effect.runPromise(readFolderFile(tempDir, path, true))).rejects.toThrow("escapes the project directory");
     }
+  });
+
+  it.each([
+    {name: "chart ü.svg", mediaType: "image/svg+xml", bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><path d="M0 0h10v10H0z"/></svg>')},
+    {name: "pixel.png", mediaType: "image/png", bytes: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j6xkAAAAASUVORK5CYII=", "base64")},
+  ])("reads $name losslessly for an image element without exposing a file URL", async ({name, mediaType, bytes}) => {
+    const tempDir = await createTrackedProjectFixture();
+    await writeFile(join(tempDir, name), bytes);
+    const result = await Effect.runPromise(readFolderFile(tempDir, name, true));
+    expect(result).toMatchObject({path: name, binary: true, content: "", truncated: false, image: {mediaType}});
+    expect(Buffer.from(result.image!.base64, "base64")).toEqual(bytes);
+  });
+
+  it("refuses oversized images and non-image documents in image mode", async () => {
+    const tempDir = await createTrackedProjectFixture();
+    await writeFile(join(tempDir, "huge.svg"), "x".repeat(5 * 1024 * 1024 + 1));
+    await expect(Effect.runPromise(readFolderFile(tempDir, "huge.svg", true))).rejects.toThrow("limited to 5 MB");
+    await expect(Effect.runPromise(readFolderFile(tempDir, "src/session.ts", true))).rejects.toThrow("image format");
   });
 });

@@ -11,9 +11,8 @@ import ChatRoleBadge from "@/features/sessions/components/chat-role-badge";
 import CheckpointConflictDialog from "@/features/sessions/components/checkpoint-conflict-dialog";
 import ChatHistoryControls from "@/features/sessions/components/composer/chat-history-controls";
 import CheckpointNavigationNotice from "@/features/sessions/components/composer/checkpoint-navigation-notice";
-import ComposerToolbarGroup from "@/features/sessions/components/composer/composer-toolbar-group";
-import ModelPicker from "@/features/sessions/components/composer/pickers/model-picker";
-import ThinkingLevelPicker from "@/features/sessions/components/composer/pickers/thinking-level-picker";
+import {useChatHarness} from "@/features/harnesses/hooks/api/use-harness-runs";
+import ComposerSettingsPicker from "@/features/sessions/components/composer/pickers/composer-settings-picker";
 import SessionComposer from "@/features/sessions/components/composer/session-composer";
 import SessionComposerSkeleton from "@/features/sessions/components/composer/session-composer-skeleton";
 import SessionContextIndicator from "@/features/sessions/components/composer/session-context-indicator";
@@ -91,6 +90,17 @@ export default function SessionConversation(props: SessionConversationProps) {
   const composerDraft = useComposerDraft({key: composerDraftKey});
   const stream = useSessionTimeline({modelReference: modelSelection.modelReference, sessionId: session.id, sessionTurns: session.turns});
   const controls = useSessionControls(session.id, stream.streamStatus !== "idle");
+  const chatHarness = useChatHarness(session.id, stream.streamStatus !== "idle");
+  const selectedHarness =
+    controls.state?.pendingHarness ??
+    controls.state?.harness ??
+    (chatHarness.data?.snapshot
+      ? {
+          harnessId: chatHarness.data.snapshot.harness.id,
+          name: chatHarness.data.snapshot.harness.name,
+          mode: chatHarness.data.snapshot.selection?.mode ?? "solo",
+        }
+      : undefined);
   const [goalEdit, setGoalEdit] = useState<{id: string; objective: string} | null>(null);
   const goalEditor = controls.state?.goal ? goalEdit : null;
   const [undoneDrawerHeight, setUndoneDrawerHeight] = useState(0);
@@ -256,27 +266,31 @@ export default function SessionConversation(props: SessionConversationProps) {
               slashCommandActions={{...stream.slashCommandActions, redo: handleRedo, undo: handleUndo}}
               streamStatus={stream.streamStatus}
               toolbarControls={
-                <div className="flex min-w-0 items-center gap-1">
-                  <ComposerToolbarGroup label="Model">
-                    <ModelPicker
-                      selectedModel={modelSelection.selectedModelDetails}
-                      disabled={composerDisabled}
-                      models={modelSelection.availableModels}
-                      onModelChange={handleModelChange}
-                    />
-                  </ComposerToolbarGroup>
-                  {thinkingLevels.length > 0 && (
-                    <ComposerToolbarGroup label="Effort">
-                      <ThinkingLevelPicker
-                        disabled={composerDisabled}
-                        onThinkingLevelChange={modelSelection.selectThinkingLevel}
-                        selectedThinkingLabel={modelSelection.selectedThinkingLabel}
-                        selectedThinkingLevel={modelSelection.modelReference?.thinkingLevel}
-                        thinkingLevels={thinkingLevels}
-                      />
-                    </ComposerToolbarGroup>
-                  )}
-                </div>
+                <ComposerSettingsPicker
+                  harness={{
+                    harnesses: library.data?.harnesses ?? [],
+                    selected: selectedHarness,
+                    disabled: offline || controls.loading || controls.pending || !!controls.state?.error || library.isPending,
+                    pending: !!controls.state?.pendingHarness,
+                    onChange: (harnessId, mode) =>
+                      void controls.update({type: "set_harness", harnessId, mode, expectedSelectionId: controls.state?.pendingHarness?.id ?? controls.state?.harness?.id ?? null}),
+                    onCancel: () =>
+                      void controls.update({type: "cancel_harness_change", expectedSelectionId: controls.state?.pendingHarness?.id ?? controls.state?.harness?.id ?? null}),
+                  }}
+                  model={{
+                    selectedModel: modelSelection.selectedModelDetails,
+                    disabled: composerDisabled,
+                    models: modelSelection.availableModels,
+                    onModelChange: handleModelChange,
+                  }}
+                  thinking={{
+                    disabled: composerDisabled,
+                    onThinkingLevelChange: modelSelection.selectThinkingLevel,
+                    selectedThinkingLabel: modelSelection.selectedThinkingLabel,
+                    selectedThinkingLevel: modelSelection.modelReference?.thinkingLevel,
+                    thinkingLevels,
+                  }}
+                />
               }
               toolbarActions={
                 <>

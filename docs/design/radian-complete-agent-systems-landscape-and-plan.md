@@ -6,6 +6,8 @@
 
 ## Why this document exists
 
+**Implementation follow-up (15 September 2026):** [Stable harness delivery assessment](./radian-stable-harness-delivery.md) evaluates this roadmap against the checkout and describes the first delivery: chat-bar harness selection, next-turn switching, and bounded Advisor, Compare and document Fuse presets. The remaining roadmap below is a proposal, not an implementation claim.
+
 The earlier plans selected a few high-value modes too early. This document starts with the broad landscape and keeps the recommendation separate. It includes mature, emerging, experimental, and classical approaches so ideas such as advisors, decision committees, Fusion, swarms, blackboards, dynamic organizations, and agent auctions do not disappear merely because they are not first-release priorities.
 
 “Complete” here means every materially distinct feature family and organization pattern found in the current survey. It does not mean every GitHub repository, vendor synonym, or minor setting. The underlying [Pi+ catalogue](../research/pi-plus-feature-catalogue.md) contains 454 source-specific feature records; this plan groups those records into a product and architecture map that can be acted on.

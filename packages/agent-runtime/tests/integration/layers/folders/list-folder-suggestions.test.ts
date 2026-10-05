@@ -1,4 +1,4 @@
-import {mkdir, mkdtemp, writeFile} from "node:fs/promises";
+import {mkdir, mkdtemp, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {Effect} from "effect";
@@ -43,4 +43,22 @@ describe("suggesting local folders", () => {
     await expect(Effect.runPromise(listFolderSuggestions(filePath))).resolves.toMatchObject({queryPathType: "file"});
     await expect(Effect.runPromise(listFolderSuggestions(folderPath))).resolves.toMatchObject({queryPathType: "directory"});
   });
+});
+
+it("offers directory aliases without treating file links or broken links as project folders", async () => {
+  const root = await mkdtemp(join(tmpdir(), "radian-folder-alias-"));
+  try {
+    await mkdir(join(root, "project"));
+    await writeFile(join(root, "note.md"), "Note");
+    await symlink(join(root, "project"), join(root, "alias-project"), "dir");
+    await symlink(join(root, "note.md"), join(root, "alias-file"), "file");
+    await symlink(join(root, "missing"), join(root, "alias-broken"), "dir");
+    const result = await Effect.runPromise(listFolderSuggestions(join(root, "alias")));
+    expect(result.suggestions).toEqual([{name: "alias-project", path: join(root, "alias-project").replaceAll("\\", "/")}]);
+    const exact = await Effect.runPromise(listFolderSuggestions(join(root, "alias-project")));
+    expect(exact.queryPathType).toBe("directory");
+    expect(exact.suggestions).toHaveLength(1);
+  } finally {
+    await rm(root, {recursive: true, force: true});
+  }
 });

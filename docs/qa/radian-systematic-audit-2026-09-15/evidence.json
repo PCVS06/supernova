@@ -1,0 +1,229 @@
+{
+  "recordedAt": "2026-09-15T19:20:15.978057+00:00",
+  "branch": "docs/graph-workflow-engineering",
+  "head": "4b3da23ef0f39d04a374e29fe1fbacdf645905c5",
+  "sourceState": "Existing harness-switching modifications retained; this audit added documentation and evidence only.",
+  "installedApp": {
+    "path": "/Applications/Radian.app",
+    "bundleId": "dev.supernova.app",
+    "version": "0.2.0",
+    "files": {
+      "Contents/Resources/app.asar": {
+        "sha256": "355454984d3eb6c6ad19bc56791db82c3c08ad48486a29e3e9c30dc717997910",
+        "matchesRefinementInstallationRecord": true
+      },
+      "Contents/Resources/server/cli.js": {
+        "sha256": "41a04cd02f8a72659f9be956f5650187c709f273e41e9448764d8b2a63be3f41",
+        "matchesRefinementInstallationRecord": true
+      }
+    }
+  },
+  "isolatedApp": {
+    "web": "http://127.0.0.1:5187",
+    "api": "http://127.0.0.1:4387",
+    "dataDirectory": "/tmp/radian-systematic-audit-20260915/data",
+    "projectPath": "/tmp/radian-systematic-audit-20260915/project",
+    "canonicalProjectPath": "/private/tmp/radian-systematic-audit-20260915/project",
+    "sessionId": "01a0a673-8384-701e-bfdb-ee2cc7772010",
+    "provider": "supernova-e2e",
+    "model": "supernova-e2e-model",
+    "providerMode": "deterministic local fixture",
+    "serverBundleSha256": "afc25a46b6660178d2098ce9943ff816cb8631e0014538aa9dd5b3c64c129a45"
+  },
+  "reproductions": [
+    {
+      "id": "F01",
+      "priority": "P2",
+      "observed": "One Open project action produced two sidebar rows; saved chat appeared under canonical row and alias row remained empty.",
+      "sidebarCount": 2,
+      "harnessSettingsProjectCount": 1
+    },
+    {
+      "id": "F02",
+      "priority": "P2",
+      "firstPath": "docs/details.md",
+      "valueAfterEnter": "docs/details.md",
+      "valueAfterSecondTypedPath": "docs/details.mdREADME.md",
+      "reproducedTwice": true
+    },
+    {
+      "id": "F03",
+      "priority": "P2",
+      "linkHref": "http://127.0.0.1:5187/session/docs/details.md",
+      "imageSrc": "http://127.0.0.1:5187/session/docs/chart.svg",
+      "imageComplete": true,
+      "imageNaturalWidth": 0,
+      "targetFilesExist": true
+    },
+    {
+      "id": "F04",
+      "priority": "P2",
+      "savedDailyTime": "",
+      "enteredDailyTime": "21:30",
+      "visibleAfterDiscard": "21:30",
+      "footerAfterDiscard": "No unsaved changes",
+      "saveDisabledAfterDiscard": true,
+      "visibleAfterRevisit": "",
+      "reproducedTwice": true
+    },
+    {
+      "id": "F05",
+      "priority": "P2",
+      "element": "DIV[contenteditable=true]",
+      "role": null,
+      "aria-label": null,
+      "aria-labelledby": null,
+      "nativeAXRepresentation": "unnamed container",
+      "actualVoiceOverTestCompleted": false
+    },
+    {
+      "id": "F06",
+      "priority": "P3",
+      "route": "/settings/harness/audit-missing/overview",
+      "libraryLoadedSignal": "Coding appears in settings sidebar",
+      "observed": "Loading harness… remains after the library is loaded"
+    }
+  ],
+  "workflowReceipt": {
+    "id": "aac74124bfe47f1162b1f6fe8431ad91dadc5621",
+    "chatId": "01a0a673-8384-701e-bfdb-ee2cc7772010",
+    "status": "completed",
+    "workflowName": "Advisor",
+    "startedAt": "2026-09-15T19:10:39.236Z",
+    "finishedAt": "2026-09-15T19:10:39.331Z"
+  },
+  "workflowSteps": [
+    {
+      "stepId": "advisor",
+      "status": "completed"
+    }
+  ],
+  "connectionCheck": {
+    "stoppedOnlyIsolatedApi": true,
+    "draftPreserved": true,
+    "sendDisabledWhileDisconnected": true,
+    "sendEnabledAfterRestart": true,
+    "draftText": "Unsent audit draft survives disconnection"
+  },
+  "sourceHashComparison": [
+    {
+      "path": "packages/web/src/features/sidebar/components/sidebar.tsx",
+      "sha256": "97e663e02221e750066f015588a400230c2a3d7a8ca7915f917d9717ce614abb",
+      "installedBuildSourceSha256": "97e663e02221e750066f015588a400230c2a3d7a8ca7915f917d9717ce614abb",
+      "matchesInstalledBuildSourceRecord": true
+    },
+    {
+      "path": "packages/web/src/features/projects/hooks/use-project-list.ts",
+      "sha256": "9e9d3c474055832ec8ce096f842ea2da5540285301dd44a93b7b44b4b89b5dca",
+      "installedBuildSourceSha256": "9e9d3c474055832ec8ce096f842ea2da5540285301dd44a93b7b44b4b89b5dca",
+      "matchesInstalledBuildSourceRecord": true
+    },
+    {
+      "path": "packages/web/src/features/harnesses/components/instructions-page.tsx",
+      "sha256": "d057692676a02f6938702e19d55a9ddda92cb646f99953c968465611586605a7",
+      "installedBuildSourceSha256": "d057692676a02f6938702e19d55a9ddda92cb646f99953c968465611586605a7",
+      "matchesInstalledBuildSourceRecord": true
+    },
+    {
+      "path": "packages/web/src/features/harnesses/components/curator-schedule.tsx",
+      "sha256": "396ca161042f5034678af07e81f6d745c31014f96c0139ab57328e4831e17a04",
+      "installedBuildSourceSha256": "396ca161042f5034678af07e81f6d745c31014f96c0139ab57328e4831e17a04",
+      "matchesInstalledBuildSourceRecord": true
+    },
+    {
+      "path": "packages/web/src/features/harnesses/pages/harness-config-page.tsx",
+      "sha256": "d9fb3d1ebcab8720a0e8879f146dc60a95ded2a6ca57be2782c1f0693574a142",
+      "installedBuildSourceSha256": "d9fb3d1ebcab8720a0e8879f146dc60a95ded2a6ca57be2782c1f0693574a142",
+      "matchesInstalledBuildSourceRecord": true
+    },
+    {
+      "path": "packages/web/src/features/sessions/components/timeline/items/assistant/assistant-message-content.tsx",
+      "sha256": "837fc19ddbd5590da64c81d16f80a455dcd49c4a59cee54198e3dd03e0e13ed5",
+      "installedBuildSourceSha256": "01630d868c8ce1d37bfa46b35a152066b4a204bb7ee8aa192a0129c5b06f4cb3",
+      "matchesInstalledBuildSourceRecord": false
+    },
+    {
+      "path": "packages/web/src/features/sessions/components/composer/session-composer.tsx",
+      "sha256": "0ef8a43718435d5fd8908c248fabbbdf5a0f200f0136f021ff8a92935fb4f731",
+      "installedBuildSourceSha256": "0ef8a43718435d5fd8908c248fabbbdf5a0f200f0136f021ff8a92935fb4f731",
+      "matchesInstalledBuildSourceRecord": true
+    },
+    {
+      "path": "packages/web/src/features/workspace/components/workspace-browser-view.tsx",
+      "sha256": "aff8244df322fba9766eaaf504785180ec3d0abda3125e8c6696c9fd76f83366",
+      "installedBuildSourceSha256": "aff8244df322fba9766eaaf504785180ec3d0abda3125e8c6696c9fd76f83366",
+      "matchesInstalledBuildSourceRecord": true
+    },
+    {
+      "path": "apps/desktop/src/workspace-browser.ts",
+      "sha256": "f86dfde300113f4101e5398fc63387d81c11056d5aa446c9902265c8269ee47a",
+      "installedBuildSourceSha256": "f86dfde300113f4101e5398fc63387d81c11056d5aa446c9902265c8269ee47a",
+      "matchesInstalledBuildSourceRecord": true
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "01-installed-home.jpg",
+      "width": 1229,
+      "height": 768,
+      "mimeType": "image/jpeg",
+      "sha256": "25b77b4be55958d8e93a6647e8c2eddb40a6176a63764048c8a1753678431edd"
+    },
+    {
+      "file": "02-installed-chat.jpg",
+      "width": 1229,
+      "height": 768,
+      "mimeType": "image/jpeg",
+      "sha256": "0a04793b5c3fbacac8662f9bc009852be8e3c30eec617c79a9d204d1435909ee"
+    },
+    {
+      "file": "03-duplicate-project-alias.jpg",
+      "width": 2462,
+      "height": 1385,
+      "mimeType": "image/jpeg",
+      "sha256": "823ad0d589edd991e4ad4af40aa928467420304457e9ccaef9c479473ee55a8b"
+    },
+    {
+      "file": "04-local-markdown-assets-broken.jpg",
+      "width": 2462,
+      "height": 1385,
+      "mimeType": "image/jpeg",
+      "sha256": "863a23107d947ac3b70b6aad64cc2873bbe69b5c9942c5417baab3e466628fb0"
+    },
+    {
+      "file": "05-discarded-schedule-stays-visible.jpg",
+      "width": 2462,
+      "height": 1385,
+      "mimeType": "image/jpeg",
+      "sha256": "510ea87dcdfea1a58992f427f74110a7f0a2ad803b7781ec587bf3563942c592"
+    },
+    {
+      "file": "06-context-files-cannot-add-line.jpg",
+      "width": 2462,
+      "height": 1385,
+      "mimeType": "image/jpeg",
+      "sha256": "d7fd820bb940fecc45c0523bc9f0f6d225c049dd8c9c1a4dd41a8f07485c7728"
+    },
+    {
+      "file": "07-missing-harness-loading-forever.jpg",
+      "width": 2462,
+      "height": 1385,
+      "mimeType": "image/jpeg",
+      "sha256": "dc473f882682af1e646c265b5d1696d1fab798b49e35ec6f6598f8264e71f557"
+    },
+    {
+      "file": "08-disconnected-draft-preserved.jpg",
+      "width": 2462,
+      "height": 1385,
+      "mimeType": "image/jpeg",
+      "sha256": "98c050eb5248a84142a1cd119dd6844daaad2a98d63e408225c1300bab4e37ba"
+    }
+  ],
+  "limits": [
+    "Native tour interrupted by locked Mac.",
+    "No paid/external model calls.",
+    "No product changes or real settings saves.",
+    "Viewport override did not yield requested CSS width; no narrow-layout pass claimed.",
+    "Repository tests not rerun for this documentation-only turn."
+  ]
+}

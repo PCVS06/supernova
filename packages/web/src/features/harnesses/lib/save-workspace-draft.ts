@@ -18,7 +18,8 @@ export async function saveWorkspaceDraft(
 ) {
   let saved = base;
   if (JSON.stringify(draft.harness) !== JSON.stringify(base.harness)) {
-    const library = await writers.harness({harness: draft.harness, expectedRevision: saved.revision});
+    const harness = {...draft.harness, context: {...draft.harness.context, files: draft.harness.context.files.map((file) => file.trim()).filter(Boolean)}};
+    const library = await writers.harness({harness, expectedRevision: saved.revision});
     saved = {...saved, harness: draft.harness, revision: library.revision};
     onSaved(saved);
   }

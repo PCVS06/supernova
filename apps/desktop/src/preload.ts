@@ -1,4 +1,4 @@
-import type {DesktopApi, DesktopUpdateState, DesktopServerState} from "@supernova/contracts/desktop/api";
+import type {DesktopApi, DesktopUpdateState, DesktopServerState, DesktopBrowserState} from "@supernova/contracts/desktop/api";
 import type {IpcRendererEvent} from "electron";
 import {contextBridge, ipcRenderer} from "electron";
 import {DESKTOP_IPC_CHANNELS} from "@/ipc";
@@ -24,6 +24,11 @@ const desktopApi = {
   openDirectory: (path) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.openDirectory, path),
   setNativeTheme: (theme) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.setNativeTheme, theme),
   showWorkspaceBrowser: (request) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.showWorkspaceBrowser, request),
+  onWorkspaceBrowserState: (listener) => {
+    const handler = (_: IpcRendererEvent, state: DesktopBrowserState): void => listener(state);
+    ipcRenderer.on(DESKTOP_IPC_CHANNELS.workspaceBrowserState, handler);
+    return () => ipcRenderer.removeListener(DESKTOP_IPC_CHANNELS.workspaceBrowserState, handler);
+  },
   hideWorkspaceBrowser: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.hideWorkspaceBrowser),
   navigateWorkspaceBrowser: (url) => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.navigateWorkspaceBrowser, url),
   goBackWorkspaceBrowser: () => ipcRenderer.invoke(DESKTOP_IPC_CHANNELS.goBackWorkspaceBrowser),

@@ -19,6 +19,9 @@ import {getHarnessResources, getHarnessMemory} from "@supernova/agent-runtime/la
 import {toolCredentials} from "@supernova/agent-runtime/layers/harnesses/internal/tool-credentials";
 import {HarnessConfigurationError} from "@supernova/contracts/harnesses/procedures";
 import {CreateSessionError} from "@supernova/contracts/sessions/procedures";
+import {findPiSessionPath} from "@supernova/agent-runtime/layers/shared/internal/pi-session-store";
+import {readActiveSessionHarness} from "@supernova/agent-runtime/layers/session-runtime/internal/session-controls-store";
+import {compileCollaborationPreset} from "@supernova/agent-runtime/layers/harnesses/lib/collaboration-presets";
 
 function configurationEffect<T>(run: () => Promise<T>) {
   return Effect.tryPromise({try: run, catch: (error) => new HarnessConfigurationError({message: error instanceof Error ? error.message : "Harness configuration failed."})});
@@ -48,12 +51,15 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
       getChatHarness: ({sessionId}) =>
         configurationEffect(async () => {
           const session = await Effect.runPromise(sessions.get(sessionId));
-          const snapshot = await harnessStore.forSession(sessionId, session.projectPath);
+          const sessionFile = (await findPiSessionPath(sessionId)) ?? (await piSdk.SessionManager.listAll()).find((item) => item.id === sessionId)?.path;
+          const selected = await readActiveSessionHarness(sessionFile, sessionId);
+          const snapshot = selected ?? (await harnessStore.forSession(sessionId, session.projectPath));
+          const runtime = await harnessRunStore.context(sessionId);
           return {
             snapshot,
-            captured: await harnessStore.hasSnapshot(sessionId),
-            instructions: snapshot ? harnessPromptLayers(snapshot) : [],
-            runtime: await harnessRunStore.context(sessionId),
+            captured: !!selected || (await harnessStore.hasSnapshot(sessionId)),
+            instructions: snapshot ? harnessPromptLayers(compileCollaborationPreset(snapshot)) : [],
+            runtime: snapshot?.selection && runtime && runtime.capturedAt < snapshot.selection.selectedAt ? undefined : runtime,
           };
         }),
       listHarnessRuns: ({sessionId}) =>
@@ -129,7 +135,7 @@ export const AgentRpcLive = AgentRpcGroup.toLayer(
         Effect.flatMap(sessionRuntime.getCommittedSession(sessionId), (committedSession) => (committedSession ? Effect.succeed(committedSession) : sessions.get(sessionId))),
       listFolderFiles: ({projectPath, query}) => folders.listFiles(projectPath, query),
       listFolderEntries: ({projectPath, path}) => folders.listEntries(projectPath, path),
-      readFolderFile: ({projectPath, path}) => folders.readFile(projectPath, path),
+      readFolderFile: ({projectPath, path, imagePreview}) => folders.readFile(projectPath, path, imagePreview),
       writeFolderFile: ({projectPath, path, content, expectedModifiedAt}) => folders.writeFile(projectPath, path, content, expectedModifiedAt),
       listFolderSuggestions: ({query}) => folders.listSuggestions(query),
       listProviders: () => providers.list(),

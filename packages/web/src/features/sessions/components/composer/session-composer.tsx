@@ -28,6 +28,7 @@ import {createSuggestionExtension} from "@/features/sessions/lib/composer/compos
 import type {ComposerSuggestionMatch} from "@/features/sessions/types/composer-suggestion";
 import type {SessionLiveStatus} from "@/features/sessions/stores/session-live-store";
 import {cn} from "@/lib/cn";
+import "@/features/sessions/components/composer/session-composer.css";
 
 type ComposerClipboardEvent = ClipboardEvent<HTMLElement> | globalThis.ClipboardEvent;
 
@@ -290,6 +291,10 @@ export default function SessionComposer(props: SessionComposerProps) {
       content: contentPartsToEditorContent(draft.contentParts),
       editorProps: {
         attributes: {
+          role: "textbox",
+          "aria-label": "Message",
+          "aria-multiline": "true",
+          "aria-disabled": String(inputDisabled),
           class: cn(
             "scroll-fade-y max-h-48 min-h-10 w-full min-w-0 overflow-y-auto whitespace-pre-wrap wrap-anywhere bg-transparent p-1 text-sm leading-5 text-ink outline-none",
             inputDisabled && "cursor-default opacity-60"
@@ -300,6 +305,9 @@ export default function SessionComposer(props: SessionComposerProps) {
       onCreate: ({editor: currentEditor}) => {
         setDraftText(currentEditor.getText());
         if (draft.contentParts.length > 0) draft.setEditableContentParts?.(editorToContentParts(currentEditor));
+        // The first accepted message remounts the editor on the chat route.
+        // Restore typing only when no other control owns focus.
+        if (document.activeElement === document.body) currentEditor.view.dom.focus({preventScroll: true});
       },
       onUpdate: ({editor: currentEditor}) => {
         setDraftText(currentEditor.getText());
@@ -326,7 +334,7 @@ export default function SessionComposer(props: SessionComposerProps) {
       setDraftText("");
       draft.setEditableContentParts?.([]);
     }
-    editor?.commands.focus();
+    editor?.commands.focus(undefined, {scrollIntoView: false});
   };
 
   const cancelGoalInput = (): void => {
@@ -335,14 +343,14 @@ export default function SessionComposer(props: SessionComposerProps) {
     setGoalInput(false);
     setSubmissionError(null);
     if (objective === null) {
-      editor?.commands.focus();
+      editor?.commands.focus(undefined, {scrollIntoView: false});
       return;
     }
 
     editor?.commands.setContent(objective);
     setDraftText(objective);
     draft.setEditableContentParts?.(objective ? [{type: "text", text: objective}] : []);
-    editor?.commands.focus();
+    editor?.commands.focus(undefined, {scrollIntoView: false});
   };
 
   const deliver = async (steering = false): Promise<void> => {
@@ -420,7 +428,7 @@ export default function SessionComposer(props: SessionComposerProps) {
 
   return (
     <ComposerFocusContext value={() => (editor && !editor.isDestroyed ? editor.view.dom : null)}>
-      <div className="relative z-20 px-4 pb-7 md:px-6">
+      <div className="relative z-20 shrink-0 px-4 pb-7 md:px-6">
         <div className="relative mx-auto max-w-3xl">
           {topExtension && (
             <div className="pointer-events-none absolute inset-x-0 bottom-full z-0">
@@ -438,53 +446,57 @@ export default function SessionComposer(props: SessionComposerProps) {
             role="group"
           >
             <AnimatedHeight>
-              {controlTray}
-              <div className="@container relative px-3 py-2.5">
-                {!goalEditor && goalMode && (
-                  <div aria-label="Goal draft" className="mb-1 flex items-center gap-1.5 px-1 text-xs text-ink-muted">
-                    <Icon name="gauge" size="xs" />
-                    <span className="min-w-0 flex-1 font-medium text-ink">Goal</span>
-                    <IconButton className="size-6" disabled={pending} label="Cancel goal mode" onClick={cancelGoalInput} title="Send this as a normal message instead">
-                      <Icon name="x" size="xs" />
-                    </IconButton>
+              <div className="session-composer-content @container relative flex flex-col">
+                <div className="min-h-0 overflow-y-auto overscroll-contain">
+                  {controlTray}
+                  <div className="px-3 pt-2.5">
+                    {!goalEditor && goalMode && (
+                      <div aria-label="Goal draft" className="mb-1 flex items-center gap-1.5 px-1 text-xs text-ink-muted">
+                        <Icon name="gauge" size="xs" />
+                        <span className="min-w-0 flex-1 font-medium text-ink">Goal</span>
+                        <IconButton className="size-6" disabled={pending} label="Cancel goal mode" onClick={cancelGoalInput} title="Send this as a normal message instead">
+                          <Icon name="x" size="xs" />
+                        </IconButton>
+                      </div>
+                    )}
+                    <div hidden={!!goalEditor}>
+                      <SessionComposerAttachments
+                        attachments={{
+                          ...attachments,
+                          remove: (id) => {
+                            if (!pending) attachments.remove(id);
+                          },
+                        }}
+                      />
+                      <SessionComposerInput
+                        attachmentDisabled={attachmentDisabled}
+                        attachments={attachments}
+                        input={{draftText, editable: !inputDisabled, editor, onSuggestionMatchChange: setSuggestionMatch, suggestionMatch}}
+                        onSubmit={() => void deliver()}
+                        onGoal={openGoalInput}
+                        placeholder={goalInput ? "What should this chat accomplish?" : placeholder}
+                        projectPath={projectPath}
+                        slashCommandActions={slashCommandActions}
+                      />
+                    </div>
+                    {submissionError && (
+                      <p role="alert" className="px-1 pt-2 text-xs text-danger-ink">
+                        {submissionError}
+                      </p>
+                    )}
+                    {canSteer && attachments.attachments.length > 0 && (
+                      <p className="px-1 pt-2 text-xs text-ink-muted" role="status">
+                        Steer now sends only text and keeps your attachments here. Queue next sends the complete message.
+                      </p>
+                    )}
                   </div>
-                )}
-                <div hidden={!!goalEditor}>
-                  <SessionComposerAttachments
-                    attachments={{
-                      ...attachments,
-                      remove: (id) => {
-                        if (!pending) attachments.remove(id);
-                      },
-                    }}
-                  />
-                  <SessionComposerInput
-                    attachmentDisabled={attachmentDisabled}
-                    attachments={attachments}
-                    input={{draftText, editable: !inputDisabled, editor, onSuggestionMatchChange: setSuggestionMatch, suggestionMatch}}
-                    onSubmit={() => void deliver()}
-                    onGoal={openGoalInput}
-                    placeholder={goalInput ? "What should this chat accomplish?" : placeholder}
-                    projectPath={projectPath}
-                    slashCommandActions={slashCommandActions}
-                  />
                 </div>
-                {submissionError && (
-                  <p role="alert" className="px-1 pt-2 text-xs text-danger-ink">
-                    {submissionError}
-                  </p>
-                )}
-                {canSteer && attachments.attachments.length > 0 && (
-                  <p className="px-1 pt-2 text-xs text-ink-muted" role="status">
-                    Steer now sends only text and keeps your attachments here. Queue next sends the complete message.
-                  </p>
-                )}
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-1">
+                <div className="mt-2 grid shrink-0 grid-cols-1 items-center gap-3 px-3 pb-2.5 @2xl:grid-cols-[minmax(0,1fr)_auto]">
+                  <div className="flex min-h-9 min-w-0 items-center gap-1">
                     <SessionComposerAttachButton attachments={attachments} disabled={attachmentDisabled} />
                     {toolbarControls}
                   </div>
-                  <div className="ml-auto flex shrink-0 items-center gap-3">
+                  <div className="ml-auto flex min-h-9 shrink-0 items-center gap-3">
                     {toolbarActions}
                     <ComposerSendAction
                       canInterrupt={canInterrupt}

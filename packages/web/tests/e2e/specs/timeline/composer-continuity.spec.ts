@@ -30,18 +30,75 @@ for (const choice of ["model", "effort"] as const) {
     const editor = page.locator('[contenteditable="true"]').first();
     await editor.fill("Keep this draft");
     await editor.press("End");
+    const settings = page.getByRole("button", {name: "Chat settings", exact: true});
+    await settings.click();
     if (choice === "model") {
-      await page.getByRole("button", {name: "Select model", exact: true}).click();
-      await page.getByRole("button", {name: "Timeline Test Model", exact: true}).last().click();
+      await page.getByRole("menuitem", {name: "Model", exact: true}).click();
+      await page.getByRole("menuitemradio", {name: "Timeline Test Model", exact: true}).last().click();
     } else {
-      const dial = page.getByRole("button", {name: "Reasoning effort", exact: true});
-      await dial.click();
+      await page.getByRole("menuitem", {name: "Effort", exact: true}).click();
       await page.getByRole("menuitemradio", {name: "Medium", exact: true}).click();
-      await expect(dial).toContainText("Medium");
+      await expect(settings).toContainText("Medium");
     }
     await expect(editor).toBeFocused();
     await page.keyboard.type(" here");
     await expect(editor).toHaveText("Keep this draft here");
+  });
+}
+
+for (const section of ["Model", "Effort"] as const) {
+  test(`chooses ${section.toLowerCase()} with the keyboard and returns to the draft`, async ({page, timeline}) => {
+    await timeline.openMainSession();
+    const editor = page.locator('[contenteditable="true"]').first();
+    const draft = "Keep my keyboard draft";
+    const readCaret = () =>
+      editor.evaluate((element) => {
+        const selection = window.getSelection();
+        if (!selection?.anchorNode || !element.contains(selection.anchorNode)) return null;
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        range.setEnd(selection.anchorNode, selection.anchorOffset);
+        return {collapsed: selection.isCollapsed, offset: range.toString().length};
+      });
+    await editor.fill(draft);
+    await editor.press("End");
+    await expect.poll(readCaret).toEqual({collapsed: true, offset: draft.length});
+    const settings = page.getByRole("button", {name: "Chat settings", exact: true});
+    await settings.focus();
+    await page.keyboard.press("Enter");
+    const row = page.getByRole("menuitem", {name: section, exact: true});
+    for (let step = 0; step < 4 && !(await row.evaluate((element) => element === document.activeElement)); step++) {
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect(row).toBeFocused();
+    await page.keyboard.press("Enter");
+    if (section === "Model") {
+      const search = page.getByPlaceholder("Search models");
+      await expect(search).toBeFocused();
+      await page.keyboard.type("Timeline");
+      await page.keyboard.press("ArrowDown");
+      await expect(page.getByRole("menuitemradio", {name: "Timeline Test Model", exact: true}).first()).toBeFocused();
+    } else {
+      await expect(page.locator('[role="menuitemradio"][aria-checked="true"]')).toBeFocused();
+      await page.keyboard.press("Home");
+      await page.keyboard.press("ArrowDown");
+      await expect(page.getByRole("menuitemradio").first()).toBeFocused();
+    }
+    await page.keyboard.press("Home");
+    await expect(page.getByRole("menuitem", {name: "Back to chat settings", exact: true})).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(row).toBeFocused();
+    await page.keyboard.press("Enter");
+    if (section === "Model") {
+      await expect(page.getByPlaceholder("Search models")).toBeFocused();
+      await page.keyboard.press("ArrowDown");
+      await expect(page.getByRole("menuitemradio", {name: "Timeline Test Model", exact: true}).first()).toBeFocused();
+    }
+    await page.keyboard.press("Enter");
+    await expect(editor).toBeFocused();
+    await expect.poll(readCaret).toEqual({collapsed: true, offset: draft.length});
+    await page.keyboard.type(" here");
+    await expect(editor).toHaveText(`${draft} here`);
   });
 }
 

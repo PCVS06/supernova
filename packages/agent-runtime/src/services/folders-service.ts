@@ -19,7 +19,7 @@ export interface FoldersServiceShape {
   readonly listEntries: (projectPath: string, path: string) => Effect.Effect<FolderEntriesListResult, FolderEntriesListError>;
   readonly listFiles: (projectPath: string, query: string) => Effect.Effect<FolderFilesListResult, FolderFilesListError>;
   readonly listSuggestions: (query: string) => Effect.Effect<FolderSuggestionsListResult, FolderSuggestionsListError>;
-  readonly readFile: (projectPath: string, path: string) => Effect.Effect<FolderFileReadResult, FolderFileReadError>;
+  readonly readFile: (projectPath: string, path: string, imagePreview?: boolean) => Effect.Effect<FolderFileReadResult, FolderFileReadError>;
   readonly writeFile: (projectPath: string, path: string, content: string, expectedModifiedAt?: string) => Effect.Effect<FolderFileWriteResult, FolderFileWriteError>;
 }
 

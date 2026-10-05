@@ -1,0 +1,133 @@
+{
+  "date": "2026-09-16",
+  "scope": "Repairs to the six reproduced audit findings, native browser navigation and directory-alias suggestions",
+  "checkout": {
+    "branch": "docs/graph-workflow-engineering",
+    "baseHead": "4b3da23ef0f39d04a374e29fe1fbacdf645905c5",
+    "changes": "Uncommitted working-tree changes; existing harness-switching work preserved",
+    "installedAppReplaced": true
+  },
+  "interactiveEnvironment": {
+    "ui": "http://127.0.0.1:5188",
+    "api": "http://127.0.0.1:4388",
+    "fixtureRoot": "/tmp/radian-audit-repairs-20260916",
+    "canonicalProject": "/private/tmp/radian-audit-repairs-20260916/project",
+    "provider": "Deterministic test provider with a real isolated API",
+    "method": "Supported CUA browser interactions and DOM inspection",
+    "cleanup": "Test tabs closed and owned test API/UI processes stopped"
+  },
+  "findings": [
+    {
+      "id": "F01",
+      "result": "passed interactively",
+      "observations": [
+        "Opening the project-alias directory produced one canonical project row",
+        "A test message succeeded",
+        "The single row and pinned chat persisted after reload"
+      ],
+      "screenshot": "01-canonical-project.jpg",
+      "screenshotScope": "Project row immediately after opening the alias, before chat creation"
+    },
+    {
+      "id": "F02",
+      "result": "passed interactively",
+      "observations": [
+        "Pressing Enter after docs/details.md preserved the trailing newline",
+        "After entering README.md, saving and reloading, both paths remained on separate lines"
+      ],
+      "screenshot": "03-context-files-saved.jpg"
+    },
+    {
+      "id": "F03",
+      "result": "passed interactively",
+      "observations": [
+        "The local SVG completed loading through a data:image/svg+xml;base64 URL with natural dimensions 120 by 80",
+        "A nested document link opened docs/details.md and its evidence heading",
+        "A return link opened README.md",
+        "A percent-encoded filename with a space and Unicode opened correctly",
+        "The chat URL stayed unchanged during local document navigation",
+        "A path escaping the project was rendered unavailable"
+      ],
+      "screenshot": "02-markdown-image.jpg"
+    },
+    {
+      "id": "F04",
+      "result": "passed interactively",
+      "observations": [
+        "Discard cleared edited daily and quiet-hour values and disabled Save",
+        "An incomplete value of 2 displayed a validation hint and could be discarded",
+        "A second client saved 09:00 while the first held a 20:00 draft",
+        "Load current settings replaced the first client's draft with 09:00 and disabled Save"
+      ],
+      "screenshot": "04-schedule-discarded.jpg",
+      "limitation": "Curator remained disabled in the isolated test data"
+    },
+    {
+      "id": "F05",
+      "result": "passed interactively",
+      "observations": [
+        "The actual editable node exposed role=textbox, aria-label=Message and aria-multiline=true",
+        "Typing through the named textbox and submitting returned a successful fixture response"
+      ],
+      "limitation": "VoiceOver, disconnected-state transitions and multiple-pane accessibility were not accepted natively"
+    },
+    {
+      "id": "F06",
+      "result": "passed interactively",
+      "observations": ["A missing harness displayed an explicit missing state", "The recovery link opened /settings/harnesses"],
+      "screenshot": "05-missing-harness.jpg"
+    },
+    {
+      "id": "native-browser-navigation",
+      "result": "controller tests passed",
+      "observations": ["Tests covered resize, hide/show, link navigation, same-page navigation, history, reload and renderer recovery"],
+      "limitation": "Packaged native UI acceptance remains pending"
+    },
+    {
+      "id": "folder-picker-aliases",
+      "result": "filesystem integration test passed",
+      "observations": ["Directory symlinks appeared in suggestions and resolved as directories without a trailing slash", "File and broken symlinks were excluded"],
+      "limitation": "The final server change was checked through an integration test, not re-exercised in the UI"
+    }
+  ],
+  "checks": {
+    "typescript": "All seven configurations passed through the installed compiler APIs; final runtime additions rechecked",
+    "lint": "All package checks and root scripts passed through the installed ESLint APIs; final runtime additions rechecked",
+    "formatting": "722 applicable workspace files passed through the installed Prettier API before this report was added; report files checked separately",
+    "webTests": "534 passed in the final aggregate run, including the final schedule refinement",
+    "runtimeUnitTests": "115 passed in the final aggregate run",
+    "runtimeIntegrationTests": "298 passed in the final aggregate run; two original folder-picker tests were then restored and all three tests in that file passed",
+    "finalFocusedIntegrationTests": "8 passed across image reading and directory-alias suggestions",
+    "desktopTests": "69 passed in the final aggregate run",
+    "newBrowserRegressionSpec": "Five scenarios added, type-checked and linted; not executed with the automated Playwright runner",
+    "aggregateRepositoryGates": "Passed after Raycast recovery: full test suite, all 15 package type/lint/format tasks and all three root script checks; no cache reuse",
+    "finalGitDiffCheck": "Passed",
+    "productionBuildAndInstall": "All four package/build tasks passed; installed bundle passed deep strict codesign verification and matched the built archive/server/web entry hashes",
+    "serverTests": "9 passed in the final aggregate run"
+  },
+  "environmentBlocker": {
+    "observation": "A process inventory found 1,014 defunct children owned by Raycast Backend",
+    "action": "Resolved after user authorization: verified Raycast single-instance and backend PID records, terminated its stuck backend with SIGTERM and reopened Raycast",
+    "warning": "Cached output or outer exit codes containing a spawn error do not establish a passing gate",
+    "afterRecovery": {
+      "processes": 573,
+      "defunct": 2
+    }
+  },
+  "shipping": {
+    "recordedAt": "2026-09-16T07:26:30Z",
+    "installedApp": "/Applications/Radian.app",
+    "version": "0.2.0",
+    "architecture": "arm64",
+    "signing": "ad-hoc; deep strict verification passed; not notarized",
+    "backup": "/Users/philippcarlvictorstrieder/Library/Application Support/Radian Backups/audit-repairs-20260916-05xuQs/Radian.app",
+    "hashes": {
+      "app.asar": "b9c33d915c845c43062ec877033f5a14f49dae138cf698e2a75b0d9c5a028ccc",
+      "server/cli.js": "e8645817a5a898b3dda50fafdf0650cf15234f5ffb5f1dd82d62574a6008cd26",
+      "web/index.html": "ac1fd484f372f3dc94947e21460ef63cd8108e638040522a082b0f8738b45d47"
+    },
+    "nativeObservation": "Installed app launched with existing projects and an existing chat; Harness setup and Message editor visible",
+    "nativeAcceptanceLimit": "Further interaction stopped when the user began using the app; native browser behavior remains covered by controller tests",
+    "logs": ["/tmp/radian-ship-tests.log", "/tmp/radian-ship-checks.log", "/tmp/radian-ship-folder-regression.log", "/tmp/radian-ship-package.log"]
+  }
+}

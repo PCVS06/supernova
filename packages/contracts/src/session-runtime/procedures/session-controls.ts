@@ -1,11 +1,14 @@
 import {Schema} from "effect";
 import {ModelReference, UserMessageContentPart} from "@supernova/contracts/sessions/schemas";
 import {SessionControls} from "@supernova/contracts/session-runtime/schemas";
+import {CollaborationMode} from "@supernova/contracts/harnesses/schemas/collaboration";
 
 export const GetSessionControlsPayload = Schema.Struct({sessionId: Schema.String});
 export const GetSessionControlsResult = SessionControls;
 
 export const SessionControlsAction = Schema.Union([
+  Schema.Struct({type: Schema.Literal("set_harness"), harnessId: Schema.String, mode: CollaborationMode, expectedSelectionId: Schema.NullOr(Schema.String)}),
+  Schema.Struct({type: Schema.Literal("cancel_harness_change"), expectedSelectionId: Schema.NullOr(Schema.String)}),
   Schema.Struct({
     type: Schema.Literal("enqueue"),
     contentParts: Schema.Array(UserMessageContentPart),

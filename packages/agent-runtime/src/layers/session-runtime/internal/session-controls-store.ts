@@ -3,11 +3,14 @@ import {open, readFile, rename, unlink} from "node:fs/promises";
 import {dirname} from "node:path";
 import {Schema} from "effect";
 import {QueuedSessionMessage, SessionControls} from "@supernova/contracts/session-runtime/schemas";
+import {HarnessSnapshot} from "@supernova/contracts/harnesses/schemas";
 import type {PiSessionManager} from "@supernova/agent-runtime/layers/shared/internal/pi-session-store";
 
 const runtimeOwner = randomUUID();
 
 const StoredControls = Schema.Struct({
+  harnessSnapshot: Schema.optional(HarnessSnapshot),
+  pendingHarnessSnapshot: Schema.optional(HarnessSnapshot),
   runtimeOwner: Schema.optional(Schema.String),
   state: SessionControls,
   inFlight: Schema.optional(QueuedSessionMessage),
@@ -41,6 +44,8 @@ export class SessionControlsStore {
         const uncertain = [...value.steering.map((entry) => entry.message), ...(value.inFlight ? [value.inFlight] : [])];
         const ids = new Set(uncertain.map((entry) => entry.id));
         value = {
+          ...value,
+          inFlight: undefined,
           state: {
             ...value.state,
             queuePaused: true,
@@ -98,6 +103,21 @@ export class SessionControlsStore {
     }
     this.records.set(value.state.sessionId, {...record, value});
   }
+}
+
+/** Reads only the committed setup; a pending selection never retargets an active session. */
+export async function readActiveSessionHarness(sessionFile: string | undefined, sessionId: string): Promise<HarnessSnapshot | undefined> {
+  if (!sessionFile) return undefined;
+  let data: string;
+  try {
+    data = await readFile(`${sessionFile}.controls.json`, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  const record = Schema.decodeUnknownSync(StoredControls)(JSON.parse(data));
+  if (record.state.sessionId !== sessionId) throw new Error("Controls do not belong to this session.");
+  return record.harnessSnapshot;
 }
 
 /** Reads a bounded navigation snapshot without loading a runtime or reviving abandoned work. */

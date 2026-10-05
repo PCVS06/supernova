@@ -67,7 +67,8 @@ function registerDesktopIpc(): void {
     if (!request || typeof request.url !== "string" || !request.bounds || Object.values(request.bounds).some((value) => typeof value !== "number" || !Number.isFinite(value))) {
       throw new Error("Valid browser bounds and URL are required.");
     }
-    await workspaceBrowser?.show(request);
+    if (!workspaceBrowser) throw new Error("Browser unavailable.");
+    return workspaceBrowser.show(request);
   });
   ipcMain.handle(DESKTOP_IPC_CHANNELS.hideWorkspaceBrowser, () => workspaceBrowser?.hide());
   ipcMain.handle(DESKTOP_IPC_CHANNELS.navigateWorkspaceBrowser, async (_, url: unknown) => {
@@ -102,7 +103,7 @@ async function openWindow(): Promise<void> {
 
   const window = createWindow({serverUrl, dataDirectory: DATA_DIRECTORY, rendererUrl, iconsDir: ICONS_DIR});
   mainWindow = window;
-  workspaceBrowser = createWorkspaceBrowser(window);
+  workspaceBrowser = createWorkspaceBrowser(window, (state) => window.webContents.send(DESKTOP_IPC_CHANNELS.workspaceBrowserState, state));
   window.once("closed", () => {
     workspaceBrowser?.dispose();
     workspaceBrowser = undefined;

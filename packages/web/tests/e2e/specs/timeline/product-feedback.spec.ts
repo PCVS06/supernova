@@ -4,8 +4,9 @@ test("chooses effort from a clickable menu and keeps the draft", async ({page, t
   await timeline.openMainSession();
   const editor = page.locator('[contenteditable="true"]').first();
   await editor.fill("Keep my draft");
-  const dial = page.getByRole("button", {name: "Reasoning effort", exact: true});
+  const dial = page.getByRole("button", {name: "Chat settings", exact: true});
   await dial.click();
+  await page.getByRole("menuitem", {name: "Effort", exact: true}).click();
   await expect(page.getByRole("menuitemradio", {name: "High", exact: true})).toHaveAttribute("aria-checked", "true");
   await page.screenshot({animations: "disabled", path: testInfo.outputPath("clickable-effort.png")});
   await page.getByRole("menuitemradio", {name: "Medium", exact: true}).click();
@@ -44,15 +45,18 @@ test("keeps sidebar numeric rings moving when the owning chat is selected", asyn
 
 test("opening or dismissing effort choices does not change the selected level", async ({page, timeline}) => {
   await timeline.openMainSession();
-  const dial = page.getByRole("button", {name: "Reasoning effort", exact: true});
+  const dial = page.getByRole("button", {name: "Chat settings", exact: true});
   const original = await dial.textContent();
   await dial.click();
+  await page.getByRole("menuitem", {name: "Effort", exact: true}).click();
   await expect(page.getByRole("menu")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dial).toHaveText(original!);
   await expect(dial).toBeFocused();
   await dial.press("Enter");
+  await page.getByRole("menuitem", {name: "Effort", exact: true}).click();
   await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(dial).toContainText("Low");
 });
@@ -92,25 +96,25 @@ test("selected planets have no solid ring and numeric coronas still rotate on ho
   expect(await planet.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
 });
 
-test("keeps mathematical star formulas inside short and tall planetary views", async ({page, timeline}) => {
+test("keeps mathematical star formulas inside short and tall windows", async ({page, timeline}) => {
   await page.emulateMedia({reducedMotion: "reduce"});
   await timeline.openMainSession();
   await page.getByRole("button", {name: "Open chat solar system", exact: true}).click();
-  const canvas = page.getByRole("group", {name: "Orbital delegation"});
+  const sky = page.locator(".mathematical-sky");
   for (const height of [800, 480]) {
     await page.setViewportSize({width: 1280, height});
-    await expect(canvas.locator(".chat-orbit-starmap text")).toHaveCount(18);
+    await expect(sky.locator(".mathematical-sky-formula")).toHaveCount(18);
     expect(
-      await canvas
-        .locator(".chat-orbit-starmap text")
+      await sky
+        .locator(".mathematical-sky-formula")
         .first()
         .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))
     ).toBeLessThanOrEqual(10);
     await expect
       .poll(() =>
-        canvas.evaluate((element) => {
+        sky.evaluate((element) => {
           const bounds = element.getBoundingClientRect();
-          return [...element.querySelectorAll(".chat-orbit-starmap text")].every((formula) => {
+          return [...element.querySelectorAll(".mathematical-sky-formula")].every((formula) => {
             const box = formula.getBoundingClientRect();
             return box.top >= bounds.top && box.bottom <= bounds.bottom && box.left >= bounds.left && box.right <= bounds.right;
           });
@@ -133,18 +137,20 @@ test("shows ordinary teams individually even with the compact preference", async
   await page.screenshot({path: testInfo.outputPath("individual-participants.png")});
 });
 
-test("drifts background formulas and respects reduced motion and collapsed views", async ({page, timeline}) => {
+test("drifts the global background across solar views and respects reduced motion", async ({page, timeline}) => {
   await page.emulateMedia({reducedMotion: "no-preference"});
   await timeline.openMainSession();
   await page.getByRole("button", {name: "Open chat solar system", exact: true}).click();
   const canvas = page.getByRole("group", {name: "Orbital delegation"});
   await canvas.scrollIntoViewIfNeeded();
-  const formula = canvas.locator(".chat-orbit-starmap text").first();
+  const formula = page.locator(".mathematical-sky-formula").first();
   const initial = await formula.evaluate((element) => getComputedStyle(element).transform);
   await expect.poll(() => formula.evaluate((element) => getComputedStyle(element).transform)).not.toBe(initial);
   await page.emulateMedia({reducedMotion: "reduce"});
   await expect(formula).toHaveCSS("animation-name", "none");
   await page.emulateMedia({reducedMotion: "no-preference"});
   await page.getByRole("button", {name: "Close chat solar system", exact: true}).click();
-  await expect(formula).toHaveCSS("animation-play-state", "paused");
+  await expect(formula).toHaveCSS("animation-play-state", "running");
+  const collapsed = await formula.evaluate((element) => getComputedStyle(element).transform);
+  await expect.poll(() => formula.evaluate((element) => getComputedStyle(element).transform)).not.toBe(collapsed);
 });
